@@ -34,7 +34,7 @@ func sorted(m map[int]int) []int {
 	return keys
 }
 
-func printResults(work []*requester.Work) {
+func printResults(work []*requester.Work, dur float64) {
 	for i, w := range work {
 		if i > 0 {
 			fmt.Println()
@@ -42,9 +42,13 @@ func printResults(work []*requester.Work) {
 
 		fmt.Println(w.Request.URL, i)
 		statusCodeDist := w.StatusCodes()
+		total := 0
 		for _, code := range sorted(statusCodeDist) {
-			fmt.Printf("  [%d]\t%d responses\n", code, statusCodeDist[code])
+			cnt := statusCodeDist[code]
+			fmt.Printf("  [%d]\t%d responses\n", code, cnt)
+			total += cnt
 		}
+		fmt.Printf("  total\t%d responses (%.2f rps)\n", total, float64(total)/dur)
 
 		errorDist := w.ErrorDist()
 		for err, num := range errorDist {
@@ -65,6 +69,7 @@ func main() {
 		DisableRedirects:   *disableRedirects,
 	})
 
+	start := time.Now()
 	var wg sync.WaitGroup
 	wg.Add(len(work))
 	for _, w := range work {
@@ -114,5 +119,5 @@ func main() {
 		}
 	}
 
-	printResults(work)
+	printResults(work, time.Now().Sub(start).Seconds())
 }
