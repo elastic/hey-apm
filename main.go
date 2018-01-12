@@ -23,15 +23,18 @@ var (
 	timeout            = flag.Int("timeout", 3, "request timeout")
 )
 
-func sorted(m map[int]int) []int {
+// sortedTotal sorts the keys and sums the values of the input map
+func sortedTotal(m map[int]int) ([]int, int) {
 	keys := make([]int, len(m))
 	i := 0
-	for k := range m {
+	total := 0
+	for k, v := range m {
 		keys[i] = k
+		total += v
 		i++
 	}
 	sort.Ints(keys)
-	return keys
+	return keys, total
 }
 
 func printResults(work []*requester.Work, dur float64) {
@@ -40,15 +43,15 @@ func printResults(work []*requester.Work, dur float64) {
 			fmt.Println()
 		}
 
-		fmt.Println(w.Request.URL, i)
 		statusCodeDist := w.StatusCodes()
-		total := 0
-		for _, code := range sorted(statusCodeDist) {
+		codes, total := sortedTotal(statusCodeDist)
+		div := float64(total)
+		fmt.Println(w.Request.URL, i)
+		for _, code := range codes {
 			cnt := statusCodeDist[code]
-			fmt.Printf("  [%d]\t%d responses\n", code, cnt)
-			total += cnt
+			fmt.Printf("  [%d]\t%d responses (%.2f%%) \n", code, cnt, 100*float64(cnt)/div)
 		}
-		fmt.Printf("  total\t%d responses (%.2f rps)\n", total, float64(total)/dur)
+		fmt.Printf("  total\t%d responses (%.2f rps)\n", total, div/dur)
 
 		errorDist := w.ErrorDist()
 		for err, num := range errorDist {
