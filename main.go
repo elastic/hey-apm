@@ -10,12 +10,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/elastic/hey-apm/profile"
 	"github.com/elastic/hey-apm/target"
 	"github.com/graphaelli/hey/requester"
 )
 
 var (
-	baseUrl            = flag.String("base-url", "http://localhost:8200/", "")
+	baseUrl     = flag.String("base-url", "http://localhost:8200/", "")
+	profileName = flag.String("profile", "heavy",
+		fmt.Sprintf("load profile: one of %s", profile.Choices()))
 	runTimeout         = flag.Duration("run", 10*time.Second, "stop run after this duration")
 	disableCompression = flag.Bool("disable-compression", false, "")
 	disableKeepAlives  = flag.Bool("disable-keepalive", false, "")
@@ -65,7 +68,13 @@ func main() {
 
 	logger := log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile)
 
-	work := target.Get(*baseUrl, &target.Config{
+	targets := profile.Get(*profileName)
+	if len(targets) == 0 {
+		logger.Println("[error] unknown profile")
+		os.Exit(1)
+	}
+
+	work := targets.GetWork(*baseUrl, &target.Config{
 		RequestTimeout:     *timeout,
 		DisableCompression: *disableCompression,
 		DisableKeepAlives:  *disableKeepAlives,

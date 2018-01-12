@@ -14,54 +14,45 @@ type Config struct {
 	DisableCompression, DisableKeepAlives, DisableRedirects bool
 }
 
-var (
-	targets = []struct {
-		method, url string
-		body        []byte
-		concurrent  int
-		qps         float64
-	}{
-		{"POST", "v1/errors", v1Error1, 3, 10},
-		{"POST", "v1/errors", v1Error2, 1, 10},
-		{"POST", "v1/transactions", v1Transaction1, 50, 10},
-		{"GET", "healthcheck", nil, 1, 1},
-	}
+type Target struct {
+	Method, Url string
+	Body        []byte
+	Concurrent  int
+	Qps         float64
+}
 
+type Targets []Target
+
+var (
 	defaultCfg = Config{
 		RequestTimeout: 10,
 	}
 )
 
 // Get constructs the list of work to be completed
-func Get(baseUrl string, cfg *Config) []*requester.Work {
+func (targets Targets) GetWork(baseUrl string, cfg *Config) []*requester.Work {
 	if cfg == nil {
 		cfg = &defaultCfg
 	}
 	work := make([]*requester.Work, len(targets))
 	for i, t := range targets {
-		url := baseUrl + t.url
-		req, err := http.NewRequest(t.method, url, nil)
+		url := baseUrl + t.Url
+		req, err := http.NewRequest(t.Method, url, nil)
 		if err != nil {
 			panic(err)
 		}
-		if t.body != nil {
+		if t.Body != nil {
 			req.Header.Add("Content-Type", "application/json")
 		}
 
-		/*
-			report, err := os.Create(fmt.Sprintf("%d-%s", i, strings.Replace(filepath.Clean(t.url), "/", "_", -1)))
-			if err != nil {
-				panic(err)
-			}
-		*/
 		report := ioutil.Discard
 
 		work[i] = &requester.Work{
 			Request:            req,
-			RequestBody:        t.body,
+			RequestBody:        t.Body,
 			N:                  math.MaxInt32,
-			C:                  t.concurrent,
-			QPS:                t.qps,
+			C:                  t.Concurrent,
+			QPS:                t.Qps,
 			Timeout:            cfg.RequestTimeout,
 			DisableCompression: cfg.DisableCompression,
 			DisableKeepAlives:  cfg.DisableKeepAlives,
