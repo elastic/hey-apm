@@ -21,10 +21,10 @@ var (
 		concurrent  int
 		qps         float64
 	}{
-		{"POST", "v1/errors", v1Error1, 3, 0},
-		{"POST", "v1/errors", v1Error2, 1, 0},
-		{"POST", "v1/transactions", v1Transaction1, 100, 0},
-		{"GET", "healthcheck", nil, 2, 0},
+		{"POST", "v1/errors", v1Error1, 3, 10},
+		{"POST", "v1/errors", v1Error2, 1, 10},
+		{"POST", "v1/transactions", v1Transaction1, 50, 10},
+		{"GET", "healthcheck", nil, 1, 1},
 	}
 
 	defaultCfg = Config{
