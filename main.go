@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,6 +41,47 @@ func sortedTotal(m map[int]int) ([]int, int) {
 	return keys, total
 }
 
+// errorCount is for sorting errors by count
+type errorCount struct {
+	err   string
+	value int
+}
+type errorCountSlice []errorCount
+
+func (e errorCountSlice) Len() int           { return len(e) }
+func (e errorCountSlice) Less(i, j int) bool { return e[i].value < e[j].value }
+func (e errorCountSlice) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
+
+// sortedTotalErrors sorts by the values of the input
+func sortedErrors(m map[string]int) []string {
+	errorCounts := make(errorCountSlice, len(m))
+	i := 0
+	for k, v := range m {
+		errorCounts[i] = errorCount{err: k, value: v}
+		i++
+	}
+	sort.Sort(sort.Reverse(errorCounts))
+	keys := make([]string, len(errorCounts))
+	for i, e := range errorCounts {
+		keys[i] = e.err
+	}
+	return keys
+}
+
+// collapseError makes groups of similar errors identical
+func collapseError(e string) string {
+	// Post http://localhost:8201/v1/transactions: read tcp 127.0.0.1:63204->127.0.0.1:8201: read: connection reset by peer
+	if strings.HasSuffix(e, "read: connection reset by peer") {
+		return "read: connection reset by peer"
+	}
+
+	// Post http://localhost:8200/v1/transactions: net/http: HTTP/1.x transport connection broken: write tcp [::1]:63967->[::1]:8200: write: broken pipe
+	if strings.HasSuffix(e, "write: broken pipe") {
+		return "write: broken pipe"
+	}
+	return e
+}
+
 func printResults(work []*requester.Work, dur float64) {
 	for i, w := range work {
 		if i > 0 {
@@ -56,9 +98,21 @@ func printResults(work []*requester.Work, dur float64) {
 		}
 		fmt.Printf("  total\t%d responses (%.2f rps)\n", total, div/dur)
 
-		errorDist := w.ErrorDist()
-		for err, num := range errorDist {
-			fmt.Printf("  [%d]\t%s\n", num, err)
+		errorTotal := 0
+		errorDist := make(map[string]int)
+		for err, num := range w.ErrorDist() {
+			err = collapseError(err)
+			errorDist[err] += num
+			errorTotal += num
+		}
+
+		if errorTotal > 0 {
+			errorKeys := sortedErrors(errorDist)
+			fmt.Printf("\n  %d errors:\n", errorTotal)
+			for _, err := range errorKeys {
+				num := errorDist[err]
+				fmt.Printf("  [%d]\t%s\n", num, err)
+			}
 		}
 	}
 }
