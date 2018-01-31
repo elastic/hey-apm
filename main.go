@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	baseUrl     = flag.String("base-url", "http://localhost:8200/", "")
+	baseUrls    = newStringsOpt("base-url", []string{"http://localhost:8200/"}, "")
 	profileName = flag.String("profile", "heavy",
 		fmt.Sprintf("load profile: one of %s", profile.Choices()))
 	runTimeout         = flag.Duration("run", 10*time.Second, "stop run after this duration")
@@ -26,6 +26,37 @@ var (
 	disableRedirects   = flag.Bool("disable-redirects", false, "")
 	timeout            = flag.Int("timeout", 3, "request timeout")
 )
+
+type stringsOpt struct {
+	val []string
+	set bool
+}
+
+func (s *stringsOpt) String() string {
+	return fmt.Sprint(*s)
+}
+
+func (s *stringsOpt) Set(value string) error {
+	if !s.set {
+		(*s).val = []string{}
+	}
+	s.set = true
+	(*s).val = append((*s).val, value)
+	return nil
+}
+
+func (s *stringsOpt) List() []string {
+	return []string((*s).val)
+}
+
+func newStringsOpt(name string, value []string, usage string) *stringsOpt {
+	var s stringsOpt
+	for _, v := range value {
+		s.val = append(s.val, v)
+	}
+	flag.Var(&s, name, usage)
+	return &s
+}
 
 // sortedTotal sorts the keys and sums the values of the input map
 func sortedTotal(m map[int]int) ([]int, int) {
@@ -128,12 +159,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	work := targets.GetWork(*baseUrl, &target.Config{
-		RequestTimeout:     *timeout,
-		DisableCompression: *disableCompression,
-		DisableKeepAlives:  *disableKeepAlives,
-		DisableRedirects:   *disableRedirects,
-	})
+	var work []*requester.Work
+	for _, baseUrl := range baseUrls.List() {
+		for _, w := range targets.GetWork(baseUrl, &target.Config{
+			RequestTimeout:     *timeout,
+			DisableCompression: *disableCompression,
+			DisableKeepAlives:  *disableKeepAlives,
+			DisableRedirects:   *disableRedirects,
+		}) {
+			work = append(work, w)
+		}
+	}
 
 	start := time.Now()
 	var wg sync.WaitGroup
