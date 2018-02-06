@@ -10,7 +10,7 @@ import (
 
 // Config holds global work configuration
 type Config struct {
-	RequestTimeout                                          int
+	MaxRequests, RequestTimeout                             int
 	DisableCompression, DisableKeepAlives, DisableRedirects bool
 }
 
@@ -25,6 +25,7 @@ type Targets []Target
 
 var (
 	defaultCfg = Config{
+		MaxRequests:    math.MaxInt32,
 		RequestTimeout: 10,
 	}
 )
@@ -50,7 +51,7 @@ func (targets Targets) GetWork(baseUrl string, cfg *Config) []*requester.Work {
 		work[i] = &requester.Work{
 			Request:            req,
 			RequestBody:        t.Body,
-			N:                  math.MaxInt32,
+			N:                  cfg.MaxRequests,
 			C:                  t.Concurrent,
 			QPS:                t.Qps,
 			Timeout:            cfg.RequestTimeout,
