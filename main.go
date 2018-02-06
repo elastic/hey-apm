@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"os/signal"
 	"sort"
@@ -24,6 +25,7 @@ var (
 	disableCompression = flag.Bool("disable-compression", false, "")
 	disableKeepAlives  = flag.Bool("disable-keepalive", false, "")
 	disableRedirects   = flag.Bool("disable-redirects", false, "")
+	maxRequests        = flag.Int("requests", math.MaxInt32, "maximum requests to make")
 	timeout            = flag.Int("timeout", 3, "request timeout")
 )
 
@@ -162,6 +164,7 @@ func main() {
 	var work []*requester.Work
 	for _, baseUrl := range baseUrls.List() {
 		for _, w := range targets.GetWork(baseUrl, &target.Config{
+			MaxRequests:        *maxRequests,
 			RequestTimeout:     *timeout,
 			DisableCompression: *disableCompression,
 			DisableKeepAlives:  *disableKeepAlives,
