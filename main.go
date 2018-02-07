@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -27,6 +30,7 @@ var (
 	disableRedirects   = flag.Bool("disable-redirects", false, "")
 	maxRequests        = flag.Int("requests", math.MaxInt32, "maximum requests to make")
 	timeout            = flag.Int("timeout", 3, "request timeout")
+	describe           = flag.Bool("describe", false, "describe payloads and exit")
 )
 
 type stringsOpt struct {
@@ -150,6 +154,35 @@ func printResults(work []*requester.Work, dur float64) {
 	}
 }
 
+func desc(work []*requester.Work) {
+	for _, w := range work {
+		var gzBody bytes.Buffer
+		if len(w.RequestBody) > 0 {
+			zw := gzip.NewWriter(&gzBody)
+			zw.Write(w.RequestBody)
+			zw.Close()
+		}
+		fmt.Printf("%s %s - %d (%d gz) bytes", w.Request.Method, w.Request.URL, len(w.RequestBody), len(gzBody.Bytes()))
+
+		var j map[string]interface{}
+		if err := json.Unmarshal(w.RequestBody, &j); err != nil {
+			fmt.Println()
+			continue
+		}
+		if ts := j["transactions"]; ts != nil {
+			tsList := ts.([]interface{})
+			fmt.Printf(" - %d transactions", len(tsList))
+			if len(tsList) > 0 {
+				fmt.Print(" with spans of length: ")
+			}
+			for _, t := range tsList {
+				fmt.Print(len(t.(map[string]interface{})["spans"].([]interface{})), " ")
+			}
+		}
+		fmt.Println()
+	}
+}
+
 func main() {
 	flag.Parse()
 
@@ -172,6 +205,11 @@ func main() {
 		}) {
 			work = append(work, w)
 		}
+	}
+
+	if *describe {
+		desc(work)
+		return
 	}
 
 	start := time.Now()
