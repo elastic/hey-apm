@@ -31,6 +31,7 @@ var (
 	maxRequests        = flag.Int("requests", math.MaxInt32, "maximum requests to make")
 	timeout            = flag.Int("timeout", 3, "request timeout")
 	describe           = flag.Bool("describe", false, "describe payloads and exit")
+	dump               = flag.Bool("dump", false, "dump payloads in loadbeat config format and exit")
 )
 
 type stringsOpt struct {
@@ -154,6 +155,25 @@ func printResults(work []*requester.Work, dur float64) {
 	}
 }
 
+func dumpLoadbeat(profileName string, work []*requester.Work) {
+	f, _ := os.Create(fmt.Sprintf("%s.yml", profileName))
+	fmt.Fprintln(f, "loadbeat:")
+	fmt.Fprintln(f, "  targets:")
+	defer f.Close()
+	for _, w := range work {
+		fmt.Fprintf(f, "    - concurrent: %d\n", w.C)
+		fmt.Fprintf(f, "      qps: %.5f\n", w.QPS)
+		fmt.Fprintf(f, "      method: %s\n", w.Request.Method)
+		fmt.Fprintf(f, "      url: %s\n", w.Request.URL)
+		if len(w.RequestBody) > 0 {
+			fmt.Fprintln(f, "      headers:")
+			fmt.Fprintln(f, "        - Content-Type:application/json")
+			fmt.Fprintf(f, "      body: >\n        %s\n", w.RequestBody)
+		}
+		fmt.Fprintln(f)
+	}
+}
+
 func desc(work []*requester.Work) {
 	for _, w := range work {
 		var gzBody bytes.Buffer
@@ -209,6 +229,10 @@ func main() {
 
 	if *describe {
 		desc(work)
+		return
+	}
+	if *dump {
+		dumpLoadbeat(*profileName, work)
 		return
 	}
 
