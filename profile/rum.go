@@ -6,7 +6,8 @@ import (
 
 func init() {
 	Register("rum", []target.Target{
-		{"POST", "v1/client-side/transactions", target.V1TransactionFrontendMinimal1, 2, 0},
+		{"POST", "v1/client-side/errors", target.V1ErrorFrontendMinimal1, 2, 0},
+		{"POST", "v1/client-side/transactions", target.V1TransactionFrontendTiming1, 2, 0},
 		{"GET", "healthcheck", nil, 1, 1},
 	})
 }
