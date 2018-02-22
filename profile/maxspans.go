@@ -15,7 +15,7 @@ func init() {
 
 		span0 := template["transactions"].([]interface{})[0].(map[string]interface{})["spans"].([]interface{})[0].(map[string]interface{})
 		dupSpans := make([]interface{}, count)
-		for i := 0; i < 500; i++ {
+		for i := 0; i < count; i++ {
 			span := map[string]interface{}{}
 			for k, v := range span0 {
 				span[k] = v
