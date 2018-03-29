@@ -14,6 +14,7 @@ import (
 type Config struct {
 	MaxRequests, RequestTimeout                             int
 	DisableCompression, DisableKeepAlives, DisableRedirects bool
+	http.Header
 }
 
 type Target struct {
@@ -43,6 +44,13 @@ func (targets Targets) GetWork(baseUrl string, cfg *Config) []*requester.Work {
 		req, err := http.NewRequest(t.Method, url, nil)
 		if err != nil {
 			panic(err)
+		}
+
+		// add global headers
+		for header, values := range cfg.Header {
+			for _, v := range values {
+				req.Header.Add(header, v)
+			}
 		}
 		if t.Body != nil {
 			req.Header.Add("Content-Type", "application/json")
