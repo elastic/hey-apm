@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"net/http"
 	"os"
 	"os/signal"
 	"sort"
@@ -22,6 +23,7 @@ import (
 
 var (
 	baseUrls    = newStringsOpt("base-url", []string{"http://localhost:8200/"}, "")
+	headers     = newStringsOpt("header", []string{}, "header(s) added to all requests")
 	profileName = flag.String("profile", "heavy",
 		fmt.Sprintf("load profile: one of %s", profile.Choices()))
 	runTimeout         = flag.Duration("run", 10*time.Second, "stop run after this duration")
@@ -194,15 +196,27 @@ func main() {
 		os.Exit(1)
 	}
 
+	header := make(http.Header)
+	for _, h := range headers.List() {
+		kv := strings.SplitN(h, ":", 2)
+		if len(kv) != 2 {
+			logger.Printf("[error] invalid header %q, use \"key: this is the value\"", h)
+			os.Exit(1)
+		}
+		header.Add(kv[0], strings.TrimSpace(kv[1]))
+	}
+
+	cfg := &target.Config{
+		MaxRequests:        *maxRequests,
+		RequestTimeout:     *timeout,
+		DisableCompression: *disableCompression,
+		DisableKeepAlives:  *disableKeepAlives,
+		DisableRedirects:   *disableRedirects,
+		Header:             header,
+	}
 	var work []*requester.Work
 	for _, baseUrl := range baseUrls.List() {
-		for _, w := range targets.GetWork(baseUrl, &target.Config{
-			MaxRequests:        *maxRequests,
-			RequestTimeout:     *timeout,
-			DisableCompression: *disableCompression,
-			DisableKeepAlives:  *disableKeepAlives,
-			DisableRedirects:   *disableRedirects,
-		}) {
+		for _, w := range targets.GetWork(baseUrl, cfg) {
 			work = append(work, w)
 		}
 	}
