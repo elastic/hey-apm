@@ -2,6 +2,7 @@ package profile
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/elastic/hey-apm/target"
 )
@@ -41,9 +42,20 @@ func init() {
 		return c
 	}
 
-	Register("small", []target.Target{
-		{"POST", "v1/transactions", fab(2, 1, target.V1Transaction1), 3, 1},
-		{"GET", "healthcheck", nil, 1, 1},
+	fiveMB := struct{ transactions, spans int }{1, 286}
+	for i := 1; i < 10; i++ {
+		Register(fmt.Sprintf("%dmb", i*5), []target.Target{
+			{"POST", "v1/transactions", fab(fiveMB.transactions*i, fiveMB.spans, target.V1Transaction1), 100, 0},
+		})
+	}
+	hundredKB := struct{ transactions, spans int }{7, 1} // ~ 130 KB
+	for i := 1; i < 8; i++ {
+		Register(fmt.Sprintf("%dkb", i*130), []target.Target{
+			{"POST", "v1/transactions", fab(hundredKB.transactions*i, hundredKB.spans, target.V1Transaction1), 100, 0},
+		})
+	}
+	Register("1mb", []target.Target{
+		{"POST", "v1/transactions", fab(28, 2, target.V1Transaction1), 100, 0},
 	})
 	Register("huge", []target.Target{
 		{"POST", "v1/transactions", fab(2, 500, target.V1Transaction1), 3, 1},
