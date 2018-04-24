@@ -11,6 +11,8 @@ import (
 	"github.com/graphaelli/hey/requester"
 )
 
+const defaultUserAgent = "hey-apm/1.0"
+
 // Config holds global work configuration
 type Config struct {
 	MaxRequests, RequestTimeout                             int
@@ -53,6 +55,11 @@ func (targets Targets) GetWork(baseUrl string, cfg *Config) []*requester.Work {
 				req.Header.Add(header, v)
 			}
 		}
+		// Use the defaultUserAgent unless the Header contains one, which may be blank to not send the header.
+		if _, ok := req.Header["User-Agent"]; !ok {
+			req.Header.Add("User-Agent", defaultUserAgent)
+		}
+
 		if t.Body != nil {
 			req.Header.Add("Content-Type", "application/json")
 		}
