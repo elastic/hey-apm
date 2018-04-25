@@ -1,11 +1,12 @@
 package output
 
 import (
-"fmt"
-"github.com/graphaelli/hey/requester"
-"sort"
-"strings"
-"io"
+	"fmt"
+	"io"
+	"sort"
+	"strings"
+
+	"github.com/graphaelli/hey/requester"
 )
 
 func PrintResults(work []*requester.Work, dur float64, writer io.Writer) {
@@ -42,7 +43,6 @@ func PrintResults(work []*requester.Work, dur float64, writer io.Writer) {
 		}
 	}
 }
-
 
 // sortedTotalErrors sorts by the values of the input
 func sortedErrors(m map[string]int) []string {

@@ -15,10 +15,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/elastic/hey-apm/output"
 	"github.com/elastic/hey-apm/profile"
 	"github.com/elastic/hey-apm/target"
 	"github.com/graphaelli/hey/requester"
-	"github.com/elastic/hey-apm/output"
 )
 
 var (
