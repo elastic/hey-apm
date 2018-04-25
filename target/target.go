@@ -79,7 +79,7 @@ func (targets Targets) GetWork(baseUrl string, cfg *Config) []*requester.Work {
 			body = b.Bytes()
 			req.Header.Add("Content-Encoding", "gzip")
 		}
-
+		req.ContentLength = int64(len(body))
 		work[i] = &requester.Work{
 			Request:            req,
 			RequestBody:        body,
