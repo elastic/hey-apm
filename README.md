@@ -8,6 +8,12 @@ go get github.com/golang/dep/cmd/dep
 dep ensure -v
 ```
 
+# Docker build
+
+```
+docker build -f docker/Dockerfile .
+```
+
 # Known issues / Todo
 
 * The race detector is unhappy - https://github.com/rakyll/hey/issues/85
