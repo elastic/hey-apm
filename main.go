@@ -17,6 +17,8 @@ import (
 
 	"github.com/elastic/hey-apm/output"
 	"github.com/elastic/hey-apm/profile"
+	"github.com/elastic/hey-apm/server"
+	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/target"
 	"github.com/graphaelli/hey/requester"
 )
@@ -34,6 +36,7 @@ var (
 	timeout            = flag.Int("timeout", 3, "request timeout")
 	describe           = flag.Bool("describe", false, "describe payloads and exit")
 	dump               = flag.Bool("dump", false, "dump payloads in loadbeat config format and exit")
+	runAsServer        = flag.Bool("server", false, "run hey-apm as server listening on 8234")
 )
 
 type stringsOpt struct {
@@ -119,6 +122,15 @@ func main() {
 	flag.Parse()
 
 	logger := log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile)
+
+	if *runAsServer {
+		io.BootstrapChecks()
+		logger.Println("Starting hey-apm as a server...")
+		logger.Println("Connect with 'rlwrap telnet localhost 8234'")
+		logger.Println("WARNING: Multiple concurrent tests against the same apm-server and/or elasticsearch instances will interfere with each other")
+		server.Serve()
+		os.Exit(0)
+	}
 
 	targets := profile.Get(*profileName)
 	if len(targets) == 0 {
