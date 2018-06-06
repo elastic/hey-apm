@@ -24,3 +24,7 @@
   name = "github.com/graphaelli/hey"
   source = "github.com/graphaelli/hey"
   branch = "expose-report"
+
+[[constraint]]
+  name = "github.com/olivere/elastic"
+  version = "6.0.0"
