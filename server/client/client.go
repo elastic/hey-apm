@@ -192,11 +192,11 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 				if docker.IsDockerized(env.apm) {
 					mem, err = stopDocker(conn)
 				} else {
-					// first must kill the process, then gets its memory usage with Go API
-					env.apm.cmd.Process.Kill()
 					mem = maxRssUsed(env.apm.cmd)
+					env.apm.cmd.Process.Kill()
 				}
 			}
+			env.apm.cmd = nil
 
 			// validate and save results
 			report = fillMissing(report, usr, env.apm.revision, env.apm.revDate, mem, docker.ToBytes(limit), flags)
