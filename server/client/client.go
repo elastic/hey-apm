@@ -140,6 +140,9 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 		case fn == "elasticsearch" && arg1 == "use":
 			out, env.es = elasticSearchUse(usr, args2...)
 			err = env.es.useErr
+		case fn == "elasticsearch" && arg1 == "reset":
+			err = reset(env.es)
+			out = fmt.Sprintf("%s %d indexed docs", io.Grey, env.es.Count())
 		case fn == "apm" && arg1 == "use":
 			out, env.apm = apmUse(usr, strcoll.Nth(2, cmd))
 			err = env.apm.useErr
@@ -174,11 +177,8 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			}
 			flags := apmFlags(*env.es, env.apm.Url(), strcoll.Rest(5, args1))
 
-			// deletes apm-* indices and starts apm-server process
-			err = reset(env.es)
-			if err == nil {
-				err, env.apm = apmStart(conn, *env.apm, conn.CancelSig.Broadcast, flags, limit)
-			}
+			// starts apm-server process
+			err, env.apm = apmStart(conn, *env.apm, conn.CancelSig.Broadcast, flags, limit)
 			if err != nil {
 				break
 			}

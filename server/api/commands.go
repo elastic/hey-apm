@@ -58,7 +58,7 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), cmd ...string) 
 		RequestTimeout:     30,
 		DisableCompression: false,
 	})[0]
-
+	docsBefore := state.ElasticSearch().Count()
 	start := time.Now()
 	go work.Run()
 	io.ReplyNL(w, io.Grey+fmt.Sprintf("started new work, payload size is %s...",
@@ -97,7 +97,7 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), cmd ...string) 
 			Branch:       state.ApmServer().Branch(),
 			TotalRes202:  codes[202],
 			TotalRes:     totalResponses,
-			TotalIndexed: state.ElasticSearch().Count(),
+			TotalIndexed: state.ElasticSearch().Count() - docsBefore,
 		}
 
 		io.ReplyNL(bw, fmt.Sprintf("\n%son branch %s , cmd = %v\n", io.Yellow,
@@ -270,6 +270,8 @@ func Help() string {
 	io.ReplyNL(w, io.Grey+"    connects to an elasticsearch node with given parameters")
 	io.ReplyNL(w, io.Magenta+"        last"+io.Grey+" uses the last working parameters")
 	io.ReplyNL(w, io.Magenta+"        local"+io.Grey+" short for http://localhost:9200")
+	io.ReplyNL(w, io.Magenta+"elasticsearch reset")
+	io.ReplyNL(w, io.Grey+"    deletes all the apm-* indices")
 	io.ReplyNL(w, io.Magenta+"apm use [<dir> | last | docker | local]")
 	io.ReplyNL(w, io.Grey+"    informs the directory of the apm-server repo")
 	io.ReplyNL(w, io.Magenta+"        last"+io.Grey+" uses the last working directory")
