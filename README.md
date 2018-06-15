@@ -16,10 +16,10 @@ docker build -f docker/Dockerfile .
 
 # Interactive shell mode
 
-To run hey-apm in interactive shell mode pass the `server` flag without additional arguments.
+To run hey-apm in interactive shell mode pass the `interactive` flag without additional arguments.
 
 ```
-./hey-apm -server
+./hey-apm -interactive
 ``` 
 
 You then can connect to the port 8234 and start sending commands. It is recommended to use a readline wrapper. 
