@@ -17,7 +17,6 @@ var SingleTransaction = []byte(`
 	"tags":{},
 	"user":{"id":null,"is_authenticated":false,"username":""}
 },
-"timestamp":"2018-01-09T03:35:37.604813Z",
 "type":"request",
 "duration":25.555133819580078,
 "id":"9eb1899c-f767-4f40-85af-e2de18aaaf0c",

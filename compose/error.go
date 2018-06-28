@@ -23,6 +23,5 @@ var SingleError = []byte(`
 	},
 
 "id":"e99fd5d7-516f-422d-a6fe-3550a49283e0",
-"timestamp":"2018-01-09T03:35:37.604813Z",
 "transaction":{"id":"87d45146-e0ce-4a04-877c-a672921df059"}}
 `)
