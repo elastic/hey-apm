@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"fmt"
 	stdio "io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 	s "strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"net"
@@ -21,7 +21,7 @@ import (
 
 	"strconv"
 
-	"runtime"
+	"github.com/struCoder/pidusage"
 
 	"github.com/elastic/hey-apm/server/api"
 	"github.com/elastic/hey-apm/server/api/io"
@@ -192,11 +192,11 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 				if docker.IsDockerized(env.apm) {
 					mem, err = stopDocker(conn)
 				} else {
-					// first must kill the process, then gets its memory usage with Go API
-					env.apm.cmd.Process.Kill()
 					mem = maxRssUsed(env.apm.cmd)
+					env.apm.cmd.Process.Kill()
 				}
 			}
+			env.apm.cmd = nil
 
 			// validate and save results
 			report = fillMissing(report, usr, env.apm.revision, env.apm.revDate, mem, docker.ToBytes(limit), flags)
@@ -499,18 +499,11 @@ func indexReport(client *elastic.Client, prefix string, r api.TestReport) string
 
 // assumes posix
 func maxRssUsed(cmd *exec.Cmd) int64 {
-	// give time to the runtime to "fill in" process state
-	time.Sleep(time.Second / 2)
-	if cmd != nil {
-		ps := cmd.ProcessState
-		if ps != nil {
-			var rusage syscall.Rusage
-			syscall.Getrusage(syscall.RUSAGE_CHILDREN, &rusage)
-			if runtime.GOOS == "linux" {
-				return rusage.Maxrss * 1000
-			} else if runtime.GOOS == "darwin" {
-				return rusage.Maxrss
-			}
+	if cmd != nil && cmd.Process != nil {
+		pid := cmd.Process.Pid
+		info, err := pidusage.GetStat(pid)
+		if err == nil {
+			return int64(math.Trunc(info.Memory))
 		}
 	}
 	return 0

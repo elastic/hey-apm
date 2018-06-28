@@ -54,6 +54,12 @@
   version = "v1.2.1"
 
 [[projects]]
+  name = "github.com/struCoder/pidusage"
+  packages = ["."]
+  revision = "5e29cda97c066390d35b2eb889048fbc25381b2f"
+  version = "v0.1.2"
+
+[[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = [
@@ -88,6 +94,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "0d01a2817ed96aa35f8fe02884e75ba09a9e441d7bb8d5e5b65881eed449231a"
+  inputs-digest = "ffb026274a422f1abc14beefe8bdd3993790e23fc3244d551cbcb3faf40a7d64"
   solver-name = "gps-cdcl"
   solver-version = 1
