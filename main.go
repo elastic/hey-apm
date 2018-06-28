@@ -36,7 +36,7 @@ var (
 	timeout            = flag.Int("timeout", 3, "request timeout")
 	describe           = flag.Bool("describe", false, "describe payloads and exit")
 	dump               = flag.Bool("dump", false, "dump payloads in loadbeat config format and exit")
-	runAsServer        = flag.Bool("server", false, "run hey-apm as server listening on 8234")
+	interactive        = flag.Bool("interactive", false, "run hey-apm in interactive mode listening on 8234")
 )
 
 type stringsOpt struct {
@@ -123,9 +123,9 @@ func main() {
 
 	logger := log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile)
 
-	if *runAsServer {
+	if *interactive {
 		io.BootstrapChecks()
-		logger.Println("Starting hey-apm as a server...")
+		logger.Println("Starting hey-apm in interactive mode...")
 		logger.Println("Connect with 'rlwrap telnet localhost 8234'")
 		logger.Println("WARNING: Multiple concurrent tests against the same apm-server and/or elasticsearch instances will interfere with each other")
 		server.Serve()
