@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"regexp"
-
 	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/server/tests"
 	"github.com/stretchr/testify/assert"
@@ -59,8 +57,6 @@ func TestLoadOk(t *testing.T) {
 		MockEs{url: "localhost:922222", docs: 10},
 		nil}
 	out, ret := LoadTest(bw, s, cancel, cmd...)
-	re := regexp.MustCompile("docs indexed (.*)sec")
-	out = re.ReplaceAllString(out, "docs indexed (10 / sec")
 	assert.Equal(t, `
 on branch master , cmd = [1s 1 2 1 0]
 
@@ -68,7 +64,7 @@ pushed 0 b / sec , accepted 0 b / sec
 localhost:822222/v1/transactions 0
   total	0 responses (0.00 rps)
 
-10 docs indexed (10 / sec) 
+0 docs indexed (0.00 / sec) 
 `,
 		tests.WithoutColors(out))
 
@@ -88,7 +84,7 @@ localhost:822222/v1/transactions 0
 	assert.Equal(t, 0, ret.TotalRes202)
 	assert.Equal(t, float64(0), ret.rps202())
 	assert.Equal(t, int64(0), ret.MaxRss)
-	assert.Equal(t, int64(10), ret.TotalIndexed)
+	assert.Equal(t, int64(0), ret.TotalIndexed)
 	assert.Len(t, ret.ReportId, 8)
 	assert.InDelta(t, time.Now().Unix(), ret.date().Unix(), time.Second.Seconds())
 }
