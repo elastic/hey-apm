@@ -20,7 +20,7 @@ func TestInvalidLoadCmds(t *testing.T) {
 		{"1s", "1", "1", "1"},
 	} {
 		bw := io.NewBufferWriter()
-		out, ret := LoadTest(bw, MockState{}, nil, invalidCmd...)
+		out, ret := LoadTest(bw, MockState{}, nil, "32767", invalidCmd...)
 		assert.Contains(t, out, io.Red)
 		assert.Equal(t, ret, TestReport{})
 	}
@@ -29,7 +29,7 @@ func TestInvalidLoadCmds(t *testing.T) {
 func TestLoadNotReady(t *testing.T) {
 	bw := io.NewBufferWriter()
 	cmd := []string{"1s", "1", "0", "1", "1"}
-	out, ret := LoadTest(bw, MockState{Ok: errors.New("not ready")}, nil, cmd...)
+	out, ret := LoadTest(bw, MockState{Ok: errors.New("not ready")}, nil, "32767", cmd...)
 	assert.Equal(t, "not ready", tests.WithoutColors(out))
 	assert.Equal(t, ret, TestReport{})
 }
@@ -41,7 +41,7 @@ func TestLoadCancelled(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	s := MockState{MockApm{url: "localhost:822222"}, MockEs{}, nil}
-	out, ret := LoadTest(bw, s, cancel, cmd...)
+	out, ret := LoadTest(bw, s, cancel, "32767", cmd...)
 	assert.Equal(t, "\nwork cancelled\n", tests.WithoutColors(out))
 	assert.Equal(t, ret, TestReport{})
 }
@@ -56,7 +56,7 @@ func TestLoadOk(t *testing.T) {
 		MockApm{url: "localhost:822222", branch: "master"},
 		MockEs{url: "localhost:922222", docs: 10},
 		nil}
-	out, ret := LoadTest(bw, s, cancel, cmd...)
+	out, ret := LoadTest(bw, s, cancel, "32767", cmd...)
 	assert.Equal(t, `
 on branch master , cmd = [1s 1 2 1 0]
 

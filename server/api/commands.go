@@ -28,13 +28,13 @@ import (
 // it will send `N` simultaneous requests repeatedly as fast as possible for the given `duration`
 // if `spans/transaction is` 0, it creates errors; otherwise it creates transactions
 // blocks current goroutine for as long as `duration` or until waitForCancel returns
-func LoadTest(w stdio.Writer, state State, waitForCancel func(), cmd ...string) (string, TestReport) {
+func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string, cmd ...string) (string, TestReport) {
 	duration, err := time.ParseDuration(strcoll.Nth(0, cmd))
 	events, err := atoi(strcoll.Nth(1, cmd), err)
 	spans, err := atoi(strcoll.Nth(2, cmd), err)
 	frames, err := atoi(strcoll.Nth(3, cmd), err)
 	conc, err := atoi(strcoll.Nth(4, cmd), err)
-	qps := math.MaxInt16
+	qps, err := atoi(throttle, err)
 	reqBody := compose.TransactionRequest(events, spans, frames)
 	url := "/v1/transactions"
 	if spans == 0 {
@@ -288,7 +288,7 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"        -m, --make"+io.Grey+" runs make")
 	io.ReplyNL(w, io.Magenta+"        -v, --verbose"+io.Grey+" shows the output")
 	io.ReplyNL(w, io.Grey+"    when using docker, the only applicable option is -v, all the others are implicitly used")
-	io.ReplyNL(w, io.Magenta+"test <duration> <events> <spans> <frames> <concurrency> [<apmserver-flags> --mem <mem-limit>]")
+	io.ReplyNL(w, io.Magenta+"test <duration> <events> <spans> <frames> <concurrency> [<apmserver-flags> <OPTIONS>...]")
 	io.ReplyNL(w, io.Grey+"    starts the apm-server and performs a workload test against it")
 	io.ReplyNL(w, io.Magenta+"        <duration>"+io.Grey+" duration of the load test (eg \"1m\")")
 	io.ReplyNL(w, io.Magenta+"        <events>"+io.Grey+" events per request, either transactions or errors")
@@ -296,8 +296,10 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"        <frames>"+io.Grey+" frames per document, either spans or errors")
 	io.ReplyNL(w, io.Magenta+"        <concurrency>"+io.Grey+" number of simultaneous queries to send")
 	io.ReplyNL(w, io.Magenta+"        <apmserver-flags>"+io.Grey+" any flags passed to apm-server (elasticsearch url/username/password and apm-server url are overwritten)")
-	io.ReplyNL(w, io.Magenta+"        <mem-limit>"+io.Grey+" memory limit passed to docker run, it doesn't have effect when running apm-server locally")
+	io.ReplyNL(w, io.Grey+"    OPTIONS:")
+	io.ReplyNL(w, io.Magenta+"        --mem <mem-limit>"+io.Grey+" memory limit passed to docker run, it doesn't have effect when running apm-server locally")
 	io.ReplyNL(w, io.Grey+"        defaults to 4g")
+	io.ReplyNL(w, io.Magenta+"        --throttle <throttle>"+io.Grey+" upper limit of queries per second to send")
 	io.ReplyNL(w, io.Magenta+"apm tail [-<n> <pattern>]")
 	io.ReplyNL(w, io.Grey+"    shows the last lines of the apm server log")
 	io.ReplyNL(w, io.Magenta+"        -<n>"+io.Grey+" shows the last <n> lines up to 1000, defaults to 10")
