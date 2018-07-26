@@ -80,41 +80,41 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 		codes := work.StatusCodes()
 		_, totalResponses := output.SortedTotal(codes)
 		report = TestReport{
-			Lang:         "python",
-			ReportId:     randId(time.Now().Unix()),
-			ReportDate:   time.Now().Format(io.GITRFC),
-			Epoch:        time.Now().Unix(),
-			Elapsed:      elapsedTime,
-			Duration:     duration,
-			Events:       events,
-			Spans:        spans,
-			Frames:       frames,
-			Concurrency:  conc,
-			Qps:          qps,
-			ReqSize:      len(reqBody),
-			ElasticUrl:   state.ElasticSearch().Url(),
-			ApmUrl:       state.ApmServer().Url(),
-			Branch:       state.ApmServer().Branch(),
-			TotalRes202:  codes[202],
-			TotalRes:     totalResponses,
-			TotalIndexed: state.ElasticSearch().Count() - docsBefore,
+			Lang:              "python",
+			ReportId:          randId(time.Now().Unix()),
+			ReportDate:        time.Now().Format(io.GITRFC),
+			Epoch:             time.Now().Unix(),
+			Elapsed:           elapsedTime,
+			Duration:          duration,
+			Events:            events,
+			Spans:             spans,
+			Frames:            frames,
+			Concurrency:       conc,
+			Qps:               qps,
+			ReqSize:           len(reqBody),
+			ElasticUrl:        state.ElasticSearch().Url(),
+			ApmUrl:            state.ApmServer().Url(),
+			Branch:            state.ApmServer().Branch(),
+			AcceptedResponses: codes[202],
+			TotalResponses:    totalResponses,
+			ActualDocs:        state.ElasticSearch().Count() - docsBefore,
 		}
 
 		io.ReplyNL(bw, fmt.Sprintf("\n%son branch %s , cmd = %v\n", io.Yellow,
 			report.Branch, cmd))
 		io.ReplyNL(bw, fmt.Sprintf("%spushed %s / sec , accepted %s / sec", io.Grey,
-			byteCountDecimal(int64(report.pushedVolumePerSecond())),
-			byteCountDecimal(int64(report.acceptedVolumePerSecond()))))
+			byteCountDecimal(int64(report.PushedBps)),
+			byteCountDecimal(int64(report.AcceptedBps))))
 		output.PrintResults([]*requester.Work{work}, elapsedTime.Seconds(), bw)
 		var aimed string
-		if report.expectedDocs() > 0 {
-			aimed = fmt.Sprintf(" (%.2f%% of expected)", 100*report.indexSuccessRatio())
+		if report.ExpectedDocs > 0 {
+			aimed = fmt.Sprintf(" (%.2f%% of expected)", 100*report.ActualExpectRatio)
 		}
 		if report.Elapsed.Seconds() > 0 {
 			io.ReplyNL(bw, fmt.Sprintf("\n%s%d docs indexed (%.2f / sec) %s", io.Green,
-				report.TotalIndexed, report.throughput(), aimed))
-			if report.TotalRes202 > 0 {
-				io.ReplyNL(bw, fmt.Sprintf("%s%.2f ms / request", io.Green, report.latency()))
+				report.ActualDocs, report.Throughput, aimed))
+			if report.AcceptedResponses > 0 {
+				io.ReplyNL(bw, fmt.Sprintf("%s%.2f ms / request", io.Green, report.Latency))
 			}
 		}
 

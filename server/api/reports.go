@@ -37,7 +37,7 @@ type TestReport struct {
 		independent variables
 	*/
 	// hardcoded to python for now
-	Lang string `json:"lang"`
+	Lang string `json:"language"`
 	// specified by the user, used for querying
 	Duration time.Duration `json:"duration"`
 	// actual Elapsed time, used for X-per-second kind of metrics
@@ -53,14 +53,15 @@ type TestReport struct {
 	// queries per second cap, fixed to a very high number
 	Qps int `json:"qps"`
 	// size in bytes of a single request payload
-	ReqSize int `json:"req_size"`
+	ReqSize int `json:"request_size"`
 	// memory limit in bytes passed to docker, -1 if not applicable
 	Limit int64 `json:"limit"`
 	// includes protocol, hostname and port
 	ElasticUrl string `json:"elastic_url"`
 	// includes protocol, hostname and port
 	// for now used to tell docker from from local process
-	ApmUrl string `json:"apm_url"`
+	ApmUrl  string `json:"apm_url"`
+	ApmHost string `json:"apm_host"`
 	// apmFlags passed to apm-server at startup
 	ApmFlags string `json:"apm_flags"`
 	// git branch
@@ -73,23 +74,41 @@ type TestReport struct {
 		dependent variables
 	*/
 	// total number of responses
-	TotalRes int `json:"total_res"`
+	TotalResponses int `json:"total_responses"`
 	// total number of accepted requests
-	TotalRes202 int `json:"total_res202"`
+	AcceptedResponses int `json:"accepted_responses"`
 	// either maximum resident set size from a locally running process or from the containerized process
 	MaxRss int64 `json:"max_rss"`
 	// total number of elasticsearch docs indexed
-	TotalIndexed int64 `json:"total_indexed"`
+	ActualDocs int64 `json:"actual_indexed_docs"`
+	// number of elasticsearch docs encoded in the JSON body of the request
+	DocsPerRequest int `json:"docs_per_request"`
+	// milliseconds per accepted request
+	Latency float64 `json:"latency_ms"`
+	// number of requests per second
+	PushedRps float64 `json:"pushed_rps"`
+	// number of accepted requests per second
+	AcceptedRps float64 `json:"accepted_rps"`
+	// pushed volume per second, in bytes
+	PushedBps float64 `json:"pushed_bps"`
+	// accepted volume per second, in bytes
+	AcceptedBps float64 `json:"accepted_bps"`
+	// number of docs indexed per second
+	Throughput float64 `json:"throughput"`
+	// number of expected docs indexed after a run
+	ExpectedDocs float64 `json:"expected_indexed_docs"`
+	// ratio between indexed and expected docs
+	// can be more than 1 if unexpected errors were returned (r/w timeouts, broken pipe, etc)
+	ActualExpectRatio float64 `json:"actual_expected_ratio"`
+	// how much memory takes to process some amount of data during 1 minute
+	// eg: if memory used is 10mb and accepted volume in 1 minute is 2mb, this returns 0.2
+	Efficiency float64 `json:"efficiency"`
 }
 
-// returns whether the report data is safe and useful for comparative analysis
-func (r TestReport) Validate(unstaged bool) (string, bool) {
+// returns whether the report data is complete and useful for comparative analysis
+// if so, it fills attributes with derived for easier elasticsearch/kibana consumption
+func (r *TestReport) Validate(unstaged bool) (string, bool) {
 	w := io.NewBufferWriter()
-	if r.MaxRss != 0 {
-		io.ReplyNL(w, io.Green+byteCountDecimal(r.MaxRss)+" (max RSS)")
-		io.ReplyNL(w, fmt.Sprintf("%s%.3f memory efficiency (accepted data volume per minute / memory used)",
-			io.Green, r.efficiency()))
-	}
 	for _, check := range []struct {
 		fn  func() bool
 		msg string
@@ -102,9 +121,9 @@ func (r TestReport) Validate(unstaged bool) (string, bool) {
 		{func() bool { return unstaged }, "git reported unstaged changes"},
 		{func() bool { return r.MaxRss == 0 }, "memory usage not available"},
 		{func() bool { return r.Duration.Seconds() < 30 }, "test duration too short, must be at least 30 seconds"},
-		{func() bool { return r.docsPerRequest() == 0 }, "empty requests"},
-		{func() bool { return r.TotalRes == 0 }, "no responses"},
-		{func() bool { return r.TotalRes202 == 0 }, "no accepted requests"},
+		{func() bool { return r.Events == 0 }, "empty requests"},
+		{func() bool { return r.TotalResponses == 0 }, "no responses"},
+		{func() bool { return r.AcceptedResponses == 0 }, "no accepted requests"},
 	} {
 		fail, errMsg := check.fn(), check.msg
 		if fail {
@@ -112,6 +131,23 @@ func (r TestReport) Validate(unstaged bool) (string, bool) {
 			return w.String(), false
 		}
 	}
+
+	io.ReplyNL(w, io.Green+byteCountDecimal(r.MaxRss)+" (max RSS)")
+	io.ReplyNL(w, fmt.Sprintf("%s%.3f memory efficiency (accepted data volume per minute / memory used)",
+		io.Green, r.Efficiency))
+
+	r.ApmHost = apmHost(r.ApmUrl)
+	r.PushedRps = float64(r.TotalResponses) / r.Elapsed.Seconds()
+	r.AcceptedRps = float64(r.AcceptedResponses) / r.Elapsed.Seconds()
+	r.DocsPerRequest = int(r.Events + (r.Events * r.Spans))
+	r.Latency = 1000 / r.AcceptedRps
+	r.PushedBps = float64(r.ReqSize) * r.PushedRps
+	r.AcceptedBps = float64(r.ReqSize) * r.AcceptedRps
+	r.Throughput = float64(r.ActualDocs) / r.Elapsed.Seconds()
+	r.ExpectedDocs = float64(r.AcceptedResponses) * float64(r.DocsPerRequest)
+	r.ActualExpectRatio = float64(r.ActualDocs) / r.ExpectedDocs
+	r.Efficiency = 60 * float64(r.AcceptedBps) / float64(r.MaxRss)
+
 	io.ReplyNL(w, io.Grey+"saving report")
 	return w.String(), true
 }
@@ -124,10 +160,10 @@ func (r TestReport) esHost() string {
 	return url.Hostname()
 }
 
-func (r TestReport) apmHost() string {
-	url, err := url.Parse(r.ApmUrl)
+func apmHost(apmUrl string) string {
+	url, err := url.Parse(apmUrl)
 	if err != nil {
-		return r.ApmUrl
+		return apmUrl
 	}
 	return url.Hostname()
 }
@@ -149,54 +185,6 @@ func (r TestReport) revisionDate() time.Time {
 	return t
 }
 
-func (r TestReport) docsPerRequest() int {
-	return int(r.Events + (r.Events * r.Spans))
-}
-
-// milliseconds per accepted request
-func (r TestReport) latency() float64 {
-	return 1000 / r.rps202()
-}
-
-func (r TestReport) rps() float64 {
-	return float64(r.TotalRes) / r.Elapsed.Seconds()
-}
-
-func (r TestReport) rps202() float64 {
-	return float64(r.TotalRes202) / r.Elapsed.Seconds()
-}
-
-func (r TestReport) pushedVolumePerSecond() float64 {
-	return float64(r.ReqSize) * r.rps()
-}
-
-func (r TestReport) acceptedVolumePerSecond() float64 {
-	return float64(r.ReqSize) * r.rps202()
-}
-
-// docs indexed per second
-func (r TestReport) throughput() float64 {
-	return float64(r.TotalIndexed) / r.Elapsed.Seconds()
-}
-
-// total number of expected docs indexed
-func (r TestReport) expectedDocs() float64 {
-	return float64(r.TotalRes202) * float64(r.docsPerRequest())
-}
-
-// ratio between indexed and expected docs
-// can be more than 1 if unexpected errors were returned (r/w timeouts, broken pipe, etc)
-func (r TestReport) indexSuccessRatio() float64 {
-	return float64(r.TotalIndexed) / r.expectedDocs()
-}
-
-// returns how much memory takes to process some amount of data during 1 minute
-// eg: if memory used is 10mb and accepted volume in 1 minute is 2mb, this returns 0.2
-// assumes that either MaxRss or Limit is not nil
-func (r TestReport) efficiency() float64 {
-	return 60 * float64(r.acceptedVolumePerSecond()) / float64(r.MaxRss)
-}
-
 // functions of this type map a subset of attribute names to their (stringified) values
 // queries are performed against such maps
 type data func(TestReport) map[string]string
@@ -214,7 +202,7 @@ func independentVars(r TestReport) map[string]string {
 		"concurrency": strconv.Itoa(r.Concurrency),
 		"revision":    r.Revision,
 		"branch":      r.Branch,
-		"apm_host":    r.apmHost(),
+		"apm_host":    r.ApmHost,
 		"limit":       strconv.Itoa(int(r.Limit)),
 	}
 }
@@ -325,7 +313,7 @@ func verify(since string, filtersExpr []string, all []TestReport) (string, error
 			"report ids: %s, %s (elasticsearch host = %s)",
 			challenger.Revision, challenger.RevDate,
 			last.Revision, last.RevDate,
-			challenger.efficiency(), last.efficiency(),
+			challenger.Efficiency, last.Efficiency,
 			challenger.ReportId, last.ReportId,
 			challenger.esHost()), err
 	}
@@ -514,7 +502,7 @@ func uniq(reports []TestReport) []TestReport {
 	variant, _ := findVariants("", first, rest, nil)
 	isUnique := true
 	for _, k := range keys(variant, true) {
-		if first.efficiency() > variant[k].efficiency() {
+		if first.Efficiency > variant[k].Efficiency {
 			rest = append(rest[:k], rest[k+1:]...)
 		} else {
 			isUnique = false
@@ -625,10 +613,10 @@ func digest(r TestReport, variable string, align, isBest bool) ([]string, []stri
 		color = io.Green
 	}
 	indexColor := io.Grey
-	isr := r.indexSuccessRatio()
-	if isr < 0.7 && align {
+
+	if r.ActualExpectRatio < 0.7 && align {
 		indexColor = io.Red
-	} else if isr < 0.85 && align {
+	} else if r.ActualExpectRatio < 0.85 && align {
 		indexColor = io.Yellow
 	} else {
 		indexColor = color
@@ -637,13 +625,13 @@ func digest(r TestReport, variable string, align, isBest bool) ([]string, []stri
 	data := []string{
 		color + r.ReportId,
 		color + r.revisionDate().Format(io.SHORT),
-		color + byteCountDecimal(int64(r.pushedVolumePerSecond())) + "ps",
-		color + byteCountDecimal(int64(r.acceptedVolumePerSecond())) + "ps",
-		color + fmt.Sprintf("%.1fdps", r.throughput()),
-		color + fmt.Sprintf("%.0fms", r.latency()),
-		fmt.Sprintf("%s%.1f%%", indexColor, isr*100),
+		color + byteCountDecimal(int64(r.PushedBps)) + "ps",
+		color + byteCountDecimal(int64(r.AcceptedBps)) + "ps",
+		color + fmt.Sprintf("%.1fdps", r.Throughput),
+		color + fmt.Sprintf("%.0fms", r.Latency),
+		fmt.Sprintf("%s%.1f%%", indexColor, r.ActualExpectRatio*100),
 		io.Grey + byteCountDecimal(r.MaxRss),
-		fmt.Sprintf("%s%.3f", color, r.efficiency()),
+		fmt.Sprintf("%s%.3f", color, r.Efficiency),
 	}
 
 	if val, ok := combine(independentVars, apmFlags)(r)[variable]; ok {
@@ -735,9 +723,9 @@ func best(reports []TestReport) int {
 	sorted := make([]TestReport, len(reports))
 	copy(sorted, reports)
 	sorted = sortBy("efficiency", sorted)
-	if e := sorted[0].efficiency(); e > sorted[1].efficiency()*MARGIN {
+	if e := sorted[0].Efficiency; e > sorted[1].Efficiency*MARGIN {
 		for idx, report := range reports {
-			if report.efficiency() == e {
+			if report.Efficiency == e {
 				return idx
 			}
 		}

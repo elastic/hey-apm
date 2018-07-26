@@ -16,32 +16,33 @@ import (
 var mb1 int64 = 1000 * 1000
 
 var report = TestReport{
-	"01",
-	"Wed, 25 Apr 2018 17:17:17 +0200",
-	"localhost",
-	"rev32341",
-	"test_user",
-	time.Now().Unix(),
-	"python",
-	time.Second,
-	time.Second,
-	1,
-	1,
-	1,
-	1,
-	math.MaxInt16,
-	1,
-	-1,
-	"http://localhost:9200",
-	"http://localhost:8200",
-	"-E apm-server.host=http://localhost:8200 -E output.elasticsearch.hosts=[http://localhost:9200]",
-	"master",
-	"rev12345678",
-	"Fri, 20 Apr 2018 10:00:00 +0200",
-	1,
-	1,
-	mb1,
-	1,
+	ReportId:          "01",
+	ReportDate:        "Wed, 25 Apr 2018 17:17:17 +0200",
+	ReporterHost:      "localhost",
+	ReporterRevision:  "rev32341",
+	User:              "test_user",
+	Epoch:             time.Now().Unix(),
+	Lang:              "python",
+	Duration:          time.Second * 30,
+	Elapsed:           time.Second * 30,
+	Events:            1,
+	Spans:             1,
+	Frames:            1,
+	Concurrency:       1,
+	Qps:               math.MaxInt16,
+	ReqSize:           1,
+	Limit:             -1,
+	ElasticUrl:        "http://localhost:9200",
+	ApmUrl:            "http://localhost:8200",
+	ApmHost:           "localhost",
+	ApmFlags:          "-E apm-server.host=http://localhost:8200 -E output.elasticsearch.hosts=[http://localhost:9200]",
+	Branch:            "master",
+	Revision:          "rev12345678",
+	RevDate:           "Fri, 20 Apr 2018 10:00:00 +0200",
+	TotalResponses:    1,
+	AcceptedResponses: 1,
+	MaxRss:            mb1,
+	ActualDocs:        1,
 }
 
 type builder struct {
@@ -68,17 +69,17 @@ func (b *builder) setReqSize(x int) *builder {
 }
 
 func (b *builder) setTotalRes202(x int) *builder {
-	b.TotalRes202 = x
+	b.AcceptedResponses = x
 	return b
 }
 
 func (b *builder) setTotalRes(x int) *builder {
-	b.TotalRes = x
+	b.TotalResponses = x
 	return b
 }
 
 func (b *builder) setTotalIndexed(x int64) *builder {
-	b.TotalIndexed = x
+	b.ActualDocs = x
 	return b
 }
 
@@ -134,7 +135,7 @@ func (b *builder) setSize(x int) *builder {
 }
 
 func (b *builder) setRes202(x int) *builder {
-	b.TotalRes202 = x
+	b.AcceptedResponses = x
 	return b
 }
 
@@ -156,6 +157,12 @@ func (b *builder) setId(s string) *builder {
 func (b *builder) addFlag(s string) *builder {
 	b.ApmFlags += " -E " + s
 	return b
+}
+
+func (b *builder) get() TestReport {
+	r := b.TestReport
+	r.Validate(false)
+	return r
 }
 
 func TestValidateResult(t *testing.T) {
@@ -251,25 +258,25 @@ func TestFilterOk(t *testing.T) {
 	reports := []TestReport{
 		newBuilder().
 			setBranch("branch").setEpr(10).setSpt(5).setConc(1).setRevDate(revDate).
-			TestReport,
+			get(),
 		newBuilder().
 			setEpr(10).setEs("http://127.0.0.1:9200").setSpt(15).setFpd(1).setConc(1).setDur(time.Hour).
-			TestReport,
+			get(),
 		newBuilder().
 			setSize(9999).setEpr(1).setSpt(5).setFpd(1).setConc(1).setRevDate(revDate).
-			TestReport,
+			get(),
 		newBuilder().
 			setSpt(10).setFpd(1).setConc(1).setDur(time.Hour).setRevDate(revDate).
-			TestReport,
+			get(),
 		newBuilder().
 			setBranch("branch").setEpr(10).setConc(0).setDur(time.Hour).setRevDate(revDate).
-			TestReport,
+			get(),
 		newBuilder().
 			setSize(999).setEs("http://localhost:9202").setEpr(10).setSpt(5).setFpd(1).setConc(1).
-			TestReport,
+			get(),
 		newBuilder().
 			setEpr(10).setSpt(5).setFpd(1).setConc(1).setDur(time.Minute).setRevDate(revDate).
-			TestReport,
+			get(),
 	}
 
 	var err error
@@ -390,13 +397,13 @@ func TestSortedAndUnique(t *testing.T) {
 	date1 := "Wed, 25 Apr 2018 17:36:14 +0200"
 	date2 := "Wed, 25 Apr 2018 17:37:14 +0200"
 	date3 := "Thu, 26 Apr 2018 17:00:00 +0200"
-	a1 := newBuilder().setId("a1").setBranch("a").setDate(date3).setMaxRss(10).TestReport
-	a2 := newBuilder().setId("a2").setBranch("a").setDate(date2).setMaxRss(25).TestReport
-	a3 := newBuilder().setId("a3").setBranch("a").setDate(date1).setMaxRss(50).TestReport
-	b1 := newBuilder().setId("b1").setBranch("b").setDate(date2).setMaxRss(70).TestReport
-	b2 := newBuilder().setId("b2").setBranch("b").setDate(date1).setMaxRss(100).TestReport
-	c1 := newBuilder().setId("c1").setBranch("c").setDate(date2).setMaxRss(20).TestReport
-	c2 := newBuilder().setId("c2").setBranch("c").setDate(date1).setMaxRss(5).TestReport
+	a1 := newBuilder().setId("a1").setBranch("a").setDate(date3).setMaxRss(10).get()
+	a2 := newBuilder().setId("a2").setBranch("a").setDate(date2).setMaxRss(25).get()
+	a3 := newBuilder().setId("a3").setBranch("a").setDate(date1).setMaxRss(50).get()
+	b1 := newBuilder().setId("b1").setBranch("b").setDate(date2).setMaxRss(70).get()
+	b2 := newBuilder().setId("b2").setBranch("b").setDate(date1).setMaxRss(100).get()
+	c1 := newBuilder().setId("c1").setBranch("c").setDate(date2).setMaxRss(20).get()
+	c2 := newBuilder().setId("c2").setBranch("c").setDate(date1).setMaxRss(5).get()
 
 	expected := []TestReport{a1, b1, c2}
 
@@ -422,27 +429,27 @@ func TestFindVariants(t *testing.T) {
 		setEs("http://localhost:9200").
 		setDur(time.Minute).
 		setEpr(10).
-		TestReport
+		get()
 	a := copyBuilder(template).
 		addFlag("mem.queue.size=50").
 		TestReport
-	b0 := copyBuilder(a).TestReport
-	b1 := copyBuilder(a).setBranch("branch2").setRev("rev2122d432").TestReport
-	b2 := copyBuilder(a).setRev("rev2122d432").TestReport
-	b3 := copyBuilder(a).setEs("http://localhost:9201").TestReport
-	b4 := copyBuilder(a).setEs("http://cloud:9200").TestReport
-	b5 := copyBuilder(a).setDur(time.Second * 60).TestReport
-	b6 := copyBuilder(a).setDur(time.Second).TestReport
-	b7 := copyBuilder(a).setEpr(3).TestReport
-	b8 := copyBuilder(b7).TestReport
-	b9 := copyBuilder(b7).setSpt(5).TestReport
-	b10 := copyBuilder(a).setSpt(8).TestReport
-	b11 := copyBuilder(a).setFpd(13).TestReport
-	b12 := copyBuilder(a).setConc(21).TestReport
-	b13 := copyBuilder(template).addFlag("mem.queue.size=70").TestReport
-	b14 := copyBuilder(b13).addFlag("apm-server.frontend.enabled=true").TestReport
-	b15 := copyBuilder(template).addFlag("apm-server.frontend.enabled=true").TestReport
-	b16 := copyBuilder(template).setRev("rev2122d432").addFlag("apm-server.frontend.enabled=true").TestReport
+	b0 := copyBuilder(a).get()
+	b1 := copyBuilder(a).setBranch("branch2").setRev("rev2122d432").get()
+	b2 := copyBuilder(a).setRev("rev2122d432").get()
+	b3 := copyBuilder(a).setEs("http://localhost:9201").get()
+	b4 := copyBuilder(a).setEs("http://cloud:9200").get()
+	b5 := copyBuilder(a).setDur(time.Second * 60).get()
+	b6 := copyBuilder(a).setDur(time.Second).get()
+	b7 := copyBuilder(a).setEpr(3).get()
+	b8 := copyBuilder(b7).get()
+	b9 := copyBuilder(b7).setSpt(5).get()
+	b10 := copyBuilder(a).setSpt(8).get()
+	b11 := copyBuilder(a).setFpd(13).get()
+	b12 := copyBuilder(a).setConc(21).get()
+	b13 := copyBuilder(template).addFlag("mem.queue.size=70").get()
+	b14 := copyBuilder(b13).addFlag("apm-server.frontend.enabled=true").get()
+	b15 := copyBuilder(template).addFlag("apm-server.frontend.enabled=true").get()
+	b16 := copyBuilder(template).setRev("rev2122d432").addFlag("apm-server.frontend.enabled=true").get()
 
 	bs := []TestReport{b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16}
 	for idx, test := range []struct {
@@ -488,14 +495,14 @@ func TestFindVariants(t *testing.T) {
 func TestTop(t *testing.T) {
 	now := time.Now()
 	aWhileAgo := now.Add(-time.Minute * 10).Format(time.RFC1123Z)
-	a := newBuilder().setId("a").TestReport
-	b := copyBuilder(a).setId("b").setDate(aWhileAgo).TestReport
-	c := copyBuilder(a).setId("c").setRevDate(aWhileAgo).TestReport
-	d := copyBuilder(a).setId("d").setTotalRes(30000).TestReport
-	e := copyBuilder(a).setId("e").setTotalIndexed(10000).TestReport
-	f := copyBuilder(a).setId("f").setRes202(1000).TestReport
-	g := copyBuilder(a).setId("g").setMaxRss(10).TestReport
-	h := copyBuilder(a).setId("h").setDur(time.Hour * 24).TestReport
+	a := newBuilder().setId("a").get()
+	b := copyBuilder(a).setId("b").setDate(aWhileAgo).get()
+	c := copyBuilder(a).setId("c").setRevDate(aWhileAgo).get()
+	d := copyBuilder(a).setId("d").setTotalRes(30000).get()
+	e := copyBuilder(a).setId("e").setTotalIndexed(10000).get()
+	f := copyBuilder(a).setId("f").setRes202(1000).get()
+	g := copyBuilder(a).setId("g").setMaxRss(10).get()
+	h := copyBuilder(a).setId("h").setDur(time.Hour * 24).get()
 
 	for idx, test := range []struct {
 		k, criteria       string
@@ -533,7 +540,7 @@ func TestCollate(t *testing.T) {
 		setTotalIndexed(6000).
 		setSpt(100).
 		setFpd(10).
-		TestReport
+		get()
 	// will be excluded from query filter
 	a := copyBuilder(template).setId("a").TestReport
 	// will be excluded from unique because c is the same but more efficient
@@ -560,13 +567,13 @@ func TestCollate(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "duration 20m0s events 1 spans 100 frames 10 concurrency 10", text(0, 0))
 	assert.Equal(t, "report id revision date  pushed    accepted   throughput latency index max rss effic branch flags", text(0, 1))
-	assert.Equal(t, "g 18-04-20 10:00 0 bps 0 bps 5.0dps 6000ms 29.7% 1.0Mb 0.000 master ", text(0, 2))
+	assert.Equal(t, "g 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.7% 1.0Mb 0.000 master ", text(0, 2))
 	assert.Equal(t, "duration 10m0s events 1 spans 100 frames 10 concurrency 10", text(1, 0))
 	assert.Equal(t, "report id revision date  pushed    accepted   throughput latency index max rss effic branch flags", text(1, 1))
-	assert.Equal(t, "b 18-04-20 10:00 0 bps 0 bps 10.0dps 3000ms 29.7% 1.0Mb 0.000 master ", text(1, 2))
-	assert.Equal(t, "d 18-04-20 10:00 0 bps 0 bps 10.0dps 3000ms 29.7% 1.0Mb 0.000 branch2 ", text(1, 3))
-	assert.Equal(t, "e 18-04-20 10:00 0 bps 0 bps 10.0dps 3000ms 29.7% 5.0kb 0.004 branch2 flag=1 ", text(1, 4))
-	assert.Equal(t, "f 18-04-20 10:00 0 bps 0 bps 10.0dps 20000ms 198.0% 5.0kb 0.001 branch2 ", text(1, 5))
+	assert.Equal(t, "b 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.7% 1.0Mb 0.000 master ", text(1, 2))
+	assert.Equal(t, "d 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.7% 1.0Mb 0.000 branch2 ", text(1, 3))
+	assert.Equal(t, "e 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.7% 5.0kb 0.000 branch2 flag=1 ", text(1, 4))
+	assert.Equal(t, "f 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.7% 5.0kb 0.000 branch2 ", text(1, 5))
 }
 
 func TestFit(t *testing.T) {

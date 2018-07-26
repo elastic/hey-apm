@@ -29,25 +29,25 @@ func (wrap descByRevDate) Less(i, j int) bool {
 type ascByLatency template
 
 func (wrap ascByLatency) Less(i, j int) bool {
-	return wrap.reports[i].latency() < wrap.reports[j].latency()
+	return wrap.reports[i].Latency < wrap.reports[j].Latency
 }
 
 type descByThroughput template
 
 func (wrap descByThroughput) Less(i, j int) bool {
-	return wrap.reports[i].throughput() > wrap.reports[j].throughput()
+	return wrap.reports[i].Throughput > wrap.reports[j].Throughput
 }
 
 type descByEfficiency template
 
 func (wrap descByEfficiency) Less(i, j int) bool {
-	return wrap.reports[i].efficiency() > wrap.reports[j].efficiency()
+	return wrap.reports[i].Efficiency > wrap.reports[j].Efficiency
 }
 
 type descByPushedVolume template
 
 func (wrap descByPushedVolume) Less(i, j int) bool {
-	return wrap.reports[i].pushedVolumePerSecond() > wrap.reports[j].pushedVolumePerSecond()
+	return wrap.reports[i].PushedBps > wrap.reports[j].PushedBps
 }
 
 type descByDuration template
@@ -59,5 +59,5 @@ func (wrap descByDuration) Less(i, j int) bool {
 type descByIndexSuccessRatio template
 
 func (wrap descByIndexSuccessRatio) Less(i, j int) bool {
-	return wrap.reports[i].indexSuccessRatio() > wrap.reports[j].indexSuccessRatio()
+	return wrap.reports[i].ActualExpectRatio > wrap.reports[j].ActualExpectRatio
 }
