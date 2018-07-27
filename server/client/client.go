@@ -179,6 +179,9 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			var throttle string
 			args1, throttle = io.ParseCmdOption(args1, "--throttle", "32767", true)
 
+			var intakeAPIVersion string
+			args1, intakeAPIVersion = io.ParseCmdOption(args1, "--api-version", "1", true)
+
 			flags := apmFlags(*env.es, env.apm.Url(), strcoll.Rest(5, args1))
 
 			// starts apm-server process
@@ -189,7 +192,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 
 			// load test and teardown
 			var report api.TestReport
-			out, report = api.LoadTest(conn, env, conn.waitForCancel, throttle, args1...)
+			out, report = api.LoadTest(conn, env, conn.waitForCancel, throttle, intakeAPIVersion, args1...)
 
 			var mem int64
 			if env.apm.IsRunning() {

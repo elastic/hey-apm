@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/graphaelli/hey/requester"
@@ -61,7 +62,11 @@ func (targets Targets) GetWork(baseUrl string, cfg *Config) []*requester.Work {
 		}
 
 		if t.Body != nil {
-			req.Header.Add("Content-Type", "application/json")
+			if strings.HasPrefix(t.Url, "/v2/") {
+				req.Header.Add("Content-Type", "application/ndjson")
+			} else {
+				req.Header.Add("Content-Type", "application/json")
+			}
 		}
 
 		report := ioutil.Discard

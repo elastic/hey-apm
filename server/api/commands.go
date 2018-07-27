@@ -28,19 +28,32 @@ import (
 // it will send `N` simultaneous requests repeatedly as fast as possible for the given `duration`
 // if `spans/transaction is` 0, it creates errors; otherwise it creates transactions
 // blocks current goroutine for as long as `duration` or until waitForCancel returns
-func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string, cmd ...string) (string, TestReport) {
+func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle, intakeAPIVersion string, cmd ...string) (string, TestReport) {
 	duration, err := time.ParseDuration(strcoll.Nth(0, cmd))
 	events, err := atoi(strcoll.Nth(1, cmd), err)
 	spans, err := atoi(strcoll.Nth(2, cmd), err)
 	frames, err := atoi(strcoll.Nth(3, cmd), err)
 	conc, err := atoi(strcoll.Nth(4, cmd), err)
 	qps, err := atoi(throttle, err)
-	reqBody := compose.TransactionRequest(events, spans, frames)
-	url := "/v1/transactions"
-	if spans == 0 {
-		reqBody = compose.ErrorRequest(events, frames)
-		url = "/v1/errors"
+
+	var reqBody []byte
+	var url string
+
+	if intakeAPIVersion == "1" {
+		reqBody = compose.TransactionRequest(events, spans, frames)
+		url = "/v1/transactions"
+		if spans == 0 {
+			reqBody = compose.ErrorRequest(events, frames)
+			url = "/v1/errors"
+		}
+	} else {
+		url = "/v2/intake"
+		reqBody = compose.V2TransactionRequest(events, spans, frames)
+		if spans == 0 {
+			reqBody = compose.V2ErrorRequest(events, frames)
+		}
 	}
+
 	if err == nil {
 		// apm-server warm up
 		time.Sleep(time.Second)
@@ -49,6 +62,7 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 	if err != nil {
 		return io.Red + err.Error(), TestReport{}
 	}
+
 	var targets t.Targets = []t.Target{
 		{"POST", url, reqBody, conc, float64(qps)},
 	}
