@@ -21,24 +21,6 @@ import (
 	"github.com/elastic/hey-apm/server/strcoll"
 )
 
-/*
-	todo / ideas
-	- nice to have:
-		- listen on sigint/sigterm and save user cfg data only when exiting
-		- show all elastic instances ever used so to know where reports are saved
-		- global verbose flag
-		- filter document count to exclude own apm-server instrumentation
-		- create derived attributes instead of functions (easier to query in elasticsearch)
-		- do not automatically delete indices on each run, instead count before and after and create a reset command
-	- advanced:
-		- support remote servers, configurable hosts/ports and ssl
-		- support unmanaged servers (eg cloud)
-		- weight factors: if the same test has been performed many times,
-			save the average and give more credibility to its results
-		- keep some global state to make sure that clients aren't interfering with each other
-			(eg by running tests at the same time against the same apm-server)
-*/
-
 // listens for connections on tcp:8234
 func Serve() {
 

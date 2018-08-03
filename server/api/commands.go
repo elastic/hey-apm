@@ -221,14 +221,17 @@ func Status(state State) *io.BufferWriter {
 	}
 	// apm-server process status
 	apmServer := state.ApmServer()
-	apmStatus := io.Green + "not running"
-	if apmServer.IsRunning() {
+	apmStatus := io.Yellow + "not managed by hey-apm"
+	if apmServer.IsRunning() != nil && *apmServer.IsRunning() {
 		apmStatus = io.Magenta + "running" + io.Grey
+	} else if apmServer.IsRunning() != nil && !*apmServer.IsRunning() {
+		apmStatus = io.Green + "not running"
 	}
 	io.ReplyNL(w, io.Grey+fmt.Sprintf("ApmServer [%s]: %s", apmServer.Url(), apmStatus))
+
 	// apm-server repo status
 	// todo it would be better to expose useErr and print that instead
-	if err := os.Chdir(apmServer.Dir()); apmServer.Dir() != "docker" && err != nil {
+	if err := os.Chdir(apmServer.Dir()); apmServer.Dir() != "" && err != nil {
 		io.ReplyNL(w, io.Red+fmt.Sprintf("Can't ch to directory %s", apmServer.Dir())+io.Grey+" (hint: apm use <dir>)")
 		return w
 	}
@@ -272,18 +275,20 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"        local"+io.Grey+" short for http://localhost:9200")
 	io.ReplyNL(w, io.Magenta+"elasticsearch reset")
 	io.ReplyNL(w, io.Grey+"    deletes all the apm-* indices")
-	io.ReplyNL(w, io.Magenta+"apm use [<dir> | last | docker | local]")
-	io.ReplyNL(w, io.Grey+"    informs the directory of the apm-server repo")
+	io.ReplyNL(w, io.Magenta+"apm use [<dir> | <url> | last | docker | local]")
+	io.ReplyNL(w, io.Grey+"    informs the location of the apm-server repo")
 	io.ReplyNL(w, io.Magenta+"        last"+io.Grey+" uses the last working directory")
 	io.ReplyNL(w, io.Magenta+"        docker"+io.Grey+" builds and runs apm-server inside a docker container")
 	io.ReplyNL(w, io.Magenta+"        local"+io.Grey+" short for GOPATH/src/github.com/elastic/apm-server")
+	io.ReplyNL(w, io.Magenta+"        <url>"+io.Grey+" this will cause hey-apm to not manage apm-server, test reports won't be saved")
+	io.ReplyNL(w, io.Magenta+"        <dir>"+io.Grey+" if the location is not a valid URL, it will be considered a local directory")
 	io.ReplyNL(w, io.Magenta+"apm list")
 	io.ReplyNL(w, io.Grey+"    shows the docker images created by apm-server")
 	io.ReplyNL(w, io.Magenta+"apm switch <branch> [<revision> <OPTIONS>...]")
-	io.ReplyNL(w, io.Grey+"    informs hey-apm to use the specified branch and revision")
+	io.ReplyNL(w, io.Grey+"    informs hey-apm to use the specified branch and revision, it doesn't have effect if apm-server is not managed by hey-apm")
 	io.ReplyNL(w, io.Grey+"    OPTIONS:")
-	io.ReplyNL(w, io.Magenta+"        -f, --fetch"+io.Grey+" runs git fetch")
-	io.ReplyNL(w, io.Magenta+"        -c, --checkout"+io.Grey+" runs git checkout <branch> [<revision>]")
+	io.ReplyNL(w, io.Magenta+"        -f, --fetch"+io.Grey+" runs git fetch on apm-server")
+	io.ReplyNL(w, io.Magenta+"        -c, --checkout"+io.Grey+" runs git checkout <branch> [<revision>] on apm-server")
 	io.ReplyNL(w, io.Magenta+"        -u, --make-update"+io.Grey+" runs make update")
 	io.ReplyNL(w, io.Magenta+"        -m, --make"+io.Grey+" runs make")
 	io.ReplyNL(w, io.Magenta+"        -v, --verbose"+io.Grey+" shows the output")
@@ -295,9 +300,9 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"        <spans>"+io.Grey+" spans per transaction: if 0 events are errors, otherwise they are transactions")
 	io.ReplyNL(w, io.Magenta+"        <frames>"+io.Grey+" frames per document, either spans or errors")
 	io.ReplyNL(w, io.Magenta+"        <concurrency>"+io.Grey+" number of simultaneous queries to send")
-	io.ReplyNL(w, io.Magenta+"        <apmserver-flags>"+io.Grey+" any flags passed to apm-server (elasticsearch url/username/password and apm-server url are overwritten)")
+	io.ReplyNL(w, io.Magenta+"        <apmserver-flags>"+io.Grey+" any flags passed to apm-server (elasticsearch url/username/password and apm-server url are overwritten), it doesn't have effect if apm-server is not managed by hey-apm")
 	io.ReplyNL(w, io.Grey+"    OPTIONS:")
-	io.ReplyNL(w, io.Magenta+"        --mem <mem-limit>"+io.Grey+" memory limit passed to docker run, it doesn't have effect when running apm-server locally")
+	io.ReplyNL(w, io.Magenta+"        --mem <mem-limit>"+io.Grey+" memory limit passed to docker run, it doesn't have effect if apm-server is not dockerized")
 	io.ReplyNL(w, io.Grey+"        defaults to 4g")
 	io.ReplyNL(w, io.Magenta+"        --throttle <throttle>"+io.Grey+" upper limit of queries per second to send")
 	io.ReplyNL(w, io.Magenta+"apm tail [-<n> <pattern>]")

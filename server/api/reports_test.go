@@ -161,26 +161,27 @@ func (b *builder) addFlag(s string) *builder {
 
 func (b *builder) get() TestReport {
 	r := b.TestReport
-	r.Validate(false)
+	r.Validate(false, false)
 	return r
 }
 
 func TestValidateResult(t *testing.T) {
 	for _, test := range []struct {
-		tr       TestReport
-		unstaged bool
-		msg      string
+		tr                 TestReport
+		unstaged, isRemote bool
+		msg                string
 	}{
-		{newBuilder().setDur(time.Second * 10).TestReport, false, "duration too short"},
-		{newBuilder().TestReport, true, "unstaged changes"},
-		{newBuilder().setMaxRss(0).TestReport, false, "memory usage not available"},
-		{newBuilder().setBranch("").TestReport, false, "unknown branch"},
-		{newBuilder().setRev("").TestReport, false, "unknown revision"},
-		{newBuilder().setRevDate("").TestReport, false, "unknown revision date"},
-		{newBuilder().setDate("Mon, 01 Jan 0001 00:00:00 +0000").TestReport, false, "work cancelled"},
-		{newBuilder().setDur(time.Minute * 1).TestReport, false, "saving report"},
+		{newBuilder().setDur(time.Second * 10).TestReport, false, false, "duration too short"},
+		{newBuilder().TestReport, true, false, "unstaged changes"},
+		{newBuilder().TestReport, true, true, "not managed"},
+		{newBuilder().setMaxRss(0).TestReport, false, false, "memory usage not available"},
+		{newBuilder().setBranch("").TestReport, false, false, "unknown branch"},
+		{newBuilder().setRev("").TestReport, false, false, "unknown revision"},
+		{newBuilder().setRevDate("").TestReport, false, false, "unknown revision date"},
+		{newBuilder().setDate("Mon, 01 Jan 0001 00:00:00 +0000").TestReport, false, false, "work cancelled"},
+		{newBuilder().setDur(time.Minute * 1).TestReport, false, false, "saving report"},
 	} {
-		msg, b := test.tr.Validate(test.unstaged)
+		msg, b := test.tr.Validate(test.unstaged, test.isRemote)
 		assert.Contains(t, msg, test.msg)
 		if test.msg == "saving report" {
 			assert.True(t, b)

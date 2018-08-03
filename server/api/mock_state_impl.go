@@ -26,8 +26,8 @@ func (a MockApm) Log() []string {
 	return a.L
 }
 
-func (a MockApm) IsRunning() bool {
-	return a.running
+func (a MockApm) IsRunning() *bool {
+	return &a.running
 }
 
 func (a MockApm) Error() error {

@@ -6,7 +6,7 @@ type ApmServer interface {
 	Branch() string
 	PrettyRevision() string
 	Log() []string
-	IsRunning() bool
+	IsRunning() *bool
 }
 
 type ElasticSearch interface {

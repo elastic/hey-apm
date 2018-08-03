@@ -107,13 +107,14 @@ type TestReport struct {
 
 // returns whether the report data is complete and useful for comparative analysis
 // if so, it fills attributes with derived for easier elasticsearch/kibana consumption
-func (r *TestReport) Validate(unstaged bool) (string, bool) {
+func (r *TestReport) Validate(unstaged, isRemote bool) (string, bool) {
 	w := io.NewBufferWriter()
 	for _, check := range []struct {
 		fn  func() bool
 		msg string
 	}{
 		// only validate user data; eg. r.ReporterHost empty is ok
+		{func() bool { return isRemote }, "apm-server is not managed by hey-apm (an URL was provided in `apm use`)"},
 		{func() bool { return r.date().IsZero() }, "work cancelled"},
 		{func() bool { return r.Branch == "" }, "unknown branch"},
 		{func() bool { return r.Revision == "" }, "unknown revision"},
