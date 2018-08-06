@@ -63,7 +63,7 @@ func (targets Targets) GetWork(baseUrl string, cfg *Config) []*requester.Work {
 
 		if t.Body != nil {
 			if strings.HasPrefix(t.Url, "/v2/") {
-				req.Header.Add("Content-Type", "application/ndjson")
+				req.Header.Add("Content-Type", "application/x-ndjson")
 			} else {
 				req.Header.Add("Content-Type", "application/json")
 			}
