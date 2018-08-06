@@ -15,8 +15,6 @@ import (
 	"github.com/elastic/hey-apm/compose"
 )
 
-const ()
-
 var (
 	runTimeout         = flag.Duration("run", 10*time.Second, "stop run after this duration")
 	disableCompression = flag.Bool("disable-compression", false, "")
