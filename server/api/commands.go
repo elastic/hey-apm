@@ -28,7 +28,9 @@ import (
 // it will send `N` simultaneous requests repeatedly as fast as possible for the given `duration`
 // if `spans/transaction is` 0, it creates errors; otherwise it creates transactions
 // blocks current goroutine for as long as `duration` or until waitForCancel returns
-func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string, cmd ...string) (string, TestReport) {
+func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string, cmd ...string) TestResult {
+	result := TestResult{Cancelled: true}
+
 	duration, err := time.ParseDuration(strcoll.Nth(0, cmd))
 	events, err := atoi(strcoll.Nth(1, cmd), err)
 	spans, err := atoi(strcoll.Nth(2, cmd), err)
@@ -47,7 +49,8 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 		err = state.Ready()
 	}
 	if err != nil {
-		return io.Red + err.Error(), TestReport{}
+		io.ReplyEither(w, err)
+		return result
 	}
 	var targets t.Targets = []t.Target{
 		{"POST", url, reqBody, conc, float64(qps)},
@@ -71,19 +74,13 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 		cancelled <- struct{}{}
 	}()
 
-	bw := io.NewBufferWriter()
-	var report TestReport
 	select {
 	case <-time.After(duration):
 		work.Stop()
 		elapsedTime := time.Now().Sub(start)
 		codes := work.StatusCodes()
 		_, totalResponses := output.SortedTotal(codes)
-		report = TestReport{
-			Lang:              "python",
-			ReportId:          randId(time.Now().Unix()),
-			ReportDate:        time.Now().Format(io.GITRFC),
-			Epoch:             time.Now().Unix(),
+		result = TestResult{
 			Elapsed:           elapsedTime,
 			Duration:          duration,
 			Events:            events,
@@ -94,36 +91,20 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 			ReqSize:           len(reqBody),
 			ElasticUrl:        state.ElasticSearch().Url(),
 			ApmUrl:            state.ApmServer().Url(),
+			ApmHost:           apmHost(state.ApmServer().Url()),
 			Branch:            state.ApmServer().Branch(),
 			AcceptedResponses: codes[202],
 			TotalResponses:    totalResponses,
 			ActualDocs:        state.ElasticSearch().Count() - docsBefore,
 		}
-
-		io.ReplyNL(bw, fmt.Sprintf("\n%son branch %s , cmd = %v\n", io.Yellow,
-			report.Branch, cmd))
-		io.ReplyNL(bw, fmt.Sprintf("%spushed %s / sec , accepted %s / sec", io.Grey,
-			byteCountDecimal(int64(report.PushedBps)),
-			byteCountDecimal(int64(report.AcceptedBps))))
-		output.PrintResults([]*requester.Work{work}, elapsedTime.Seconds(), bw)
-		var aimed string
-		if report.ExpectedDocs > 0 {
-			aimed = fmt.Sprintf(" (%.2f%% of expected)", 100*report.ActualExpectRatio)
-		}
-		if report.Elapsed.Seconds() > 0 {
-			io.ReplyNL(bw, fmt.Sprintf("\n%s%d docs indexed (%.2f / sec) %s", io.Green,
-				report.ActualDocs, report.Throughput, aimed))
-			if report.AcceptedResponses > 0 {
-				io.ReplyNL(bw, fmt.Sprintf("%s%.2f ms / request", io.Green, report.Latency))
-			}
-		}
+		io.ReplyNL(w, fmt.Sprintf("\n%scmd = %v\n%s", io.Yellow, cmd, io.Grey))
+		output.PrintResults([]*requester.Work{work}, elapsedTime.Seconds(), w)
+		io.ReplyNL(w, io.Grey)
 
 	case <-cancelled:
 		work.Stop()
-		report = TestReport{}
-		io.ReplyNL(bw, io.Red, "work cancelled")
 	}
-	return bw.String(), report
+	return result
 }
 
 // returns the last N lines of log up to 1k containing substr, highlighting errors and warnings
@@ -222,9 +203,9 @@ func Status(state State) *io.BufferWriter {
 	// apm-server process status
 	apmServer := state.ApmServer()
 	apmStatus := io.Yellow + "not managed by hey-apm"
-	if apmServer.IsRunning() != nil && *apmServer.IsRunning() {
+	if running := apmServer.IsRunning(); running != nil && *running {
 		apmStatus = io.Magenta + "running" + io.Grey
-	} else if apmServer.IsRunning() != nil && !*apmServer.IsRunning() {
+	} else if running != nil && !*running {
 		apmStatus = io.Green + "not running"
 	}
 	io.ReplyNL(w, io.Grey+fmt.Sprintf("ApmServer [%s]: %s", apmServer.Url(), apmStatus))
@@ -285,7 +266,7 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"apm list")
 	io.ReplyNL(w, io.Grey+"    shows the docker images created by apm-server")
 	io.ReplyNL(w, io.Magenta+"apm switch <branch> [<revision> <OPTIONS>...]")
-	io.ReplyNL(w, io.Grey+"    informs hey-apm to use the specified branch and revision, it doesn't have effect if apm-server is not managed by hey-apm")
+	io.ReplyNL(w, io.Grey+"    informs hey-apm to use the specified branch and revision, it doesn't have doEffect if apm-server is not managed by hey-apm")
 	io.ReplyNL(w, io.Grey+"    OPTIONS:")
 	io.ReplyNL(w, io.Magenta+"        -f, --fetch"+io.Grey+" runs git fetch on apm-server")
 	io.ReplyNL(w, io.Magenta+"        -c, --checkout"+io.Grey+" runs git checkout <branch> [<revision>] on apm-server")
@@ -300,9 +281,9 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"        <spans>"+io.Grey+" spans per transaction: if 0 events are errors, otherwise they are transactions")
 	io.ReplyNL(w, io.Magenta+"        <frames>"+io.Grey+" frames per document, either spans or errors")
 	io.ReplyNL(w, io.Magenta+"        <concurrency>"+io.Grey+" number of simultaneous queries to send")
-	io.ReplyNL(w, io.Magenta+"        <apmserver-flags>"+io.Grey+" any flags passed to apm-server (elasticsearch url/username/password and apm-server url are overwritten), it doesn't have effect if apm-server is not managed by hey-apm")
+	io.ReplyNL(w, io.Magenta+"        <apmserver-flags>"+io.Grey+" any flags passed to apm-server (elasticsearch url/username/password and apm-server url are overwritten), it doesn't have doEffect if apm-server is not managed by hey-apm")
 	io.ReplyNL(w, io.Grey+"    OPTIONS:")
-	io.ReplyNL(w, io.Magenta+"        --mem <mem-limit>"+io.Grey+" memory limit passed to docker run, it doesn't have effect if apm-server is not dockerized")
+	io.ReplyNL(w, io.Magenta+"        --mem <mem-limit>"+io.Grey+" memory limit passed to docker run, it doesn't have doEffect if apm-server is not dockerized")
 	io.ReplyNL(w, io.Grey+"        defaults to 4g")
 	io.ReplyNL(w, io.Magenta+"        --throttle <throttle>"+io.Grey+" upper limit of queries per second to send")
 	io.ReplyNL(w, io.Magenta+"apm tail [-<n> <pattern>]")
@@ -323,7 +304,7 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"                revision_date"+io.Grey+" date of the git commit, most recent first")
 	io.ReplyNL(w, io.Magenta+"                duration"+io.Grey+" duration of the workload test, higher first")
 	io.ReplyNL(w, io.Magenta+"                pushed_volume"+io.Grey+" bytes pushed per second, higher first")
-	io.ReplyNL(w, io.Magenta+"                index_success_ratio"+io.Grey+" ratio between indexed and expected docs, higher first")
+	io.ReplyNL(w, io.Magenta+"                actual_expected_ratio"+io.Grey+" ratio between actual and expected docs indexed, higher first")
 	io.ReplyNL(w, io.Magenta+"                latency"+io.Grey+" milliseconds per accepted request, lower first")
 	io.ReplyNL(w, io.Magenta+"                throughput"+io.Grey+" indexed documents per second, higher first")
 	io.ReplyNL(w, io.Magenta+"                efficiency"+io.Grey+" bytes accepted per second per byte of used RAM, higher first")

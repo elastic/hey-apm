@@ -11,16 +11,19 @@ import (
 	"math"
 	"net/url"
 
+	"os"
+	"path"
+
 	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/server/strcoll"
 )
 
-// methods in this type are not necessarily safe (eg: divide by 0, date parsing error, etc)
-// caller must call Validate
 type TestReport struct {
 	/*
 		metadata
 	*/
+	// for future multi-tenancy support, not used for now
+	User string `json:"user"`
 	// generated programmatically, useful to eg search all fields in elasticsearch
 	ReportId string `json:"report_id"`
 	// io.GITRFC
@@ -29,15 +32,34 @@ type TestReport struct {
 	ReporterHost string `json:"reporter_host"`
 	// git revision of hey-apm when generated this report, empty if `git rev-parse HEAD` failed
 	ReporterRevision string `json:"reporter_revision"`
-	// for future multi-tenancy support, not used for now
-	User string `json:"user"`
 	// like reportDate, but better for querying ES and sorting
 	Epoch int64 `json:"timestamp"`
+	// hardcoded to python for now
+	Lang string `json:"language"`
+	// any error (eg missing data) for which this report shouldn't be saved and considered for data analysis
+	Error error
+
+	// apmFlags passed to apm-server at startup
+	ApmFlags string `json:"apm_flags"`
+	// git revision hash
+	Revision string `json:"revision"`
+	// git revision date as io.GITRFC
+	RevDate string `json:"rev_date"`
+	// either maximum resident set size from a locally running process or from the containerized process
+	MaxRss int64 `json:"max_rss"`
+	// memory limit in bytes passed to docker, -1 if not applicable
+	Limit int64 `json:"limit"`
+
+	// holds all information available just after a test run
+	TestResult
+}
+
+// methods in this type are not necessarily safe (eg: divide by 0, date parsing error, etc)
+type TestResult struct {
+	Cancelled bool
 	/*
 		independent variables
 	*/
-	// hardcoded to python for now
-	Lang string `json:"language"`
 	// specified by the user, used for querying
 	Duration time.Duration `json:"duration"`
 	// actual Elapsed time, used for X-per-second kind of metrics
@@ -54,22 +76,15 @@ type TestReport struct {
 	Qps int `json:"qps"`
 	// size in bytes of a single request payload
 	ReqSize int `json:"request_size"`
-	// memory limit in bytes passed to docker, -1 if not applicable
-	Limit int64 `json:"limit"`
 	// includes protocol, hostname and port
 	ElasticUrl string `json:"elastic_url"`
 	// includes protocol, hostname and port
 	// for now used to tell docker from from local process
-	ApmUrl  string `json:"apm_url"`
+	ApmUrl string `json:"apm_url"`
+	// derived from apm_url
 	ApmHost string `json:"apm_host"`
-	// apmFlags passed to apm-server at startup
-	ApmFlags string `json:"apm_flags"`
 	// git branch
 	Branch string `json:"branch"`
-	// git revision hash
-	Revision string `json:"revision"`
-	// git revision date as io.GITRFC
-	RevDate string `json:"rev_date"`
 	/*
 		dependent variables
 	*/
@@ -77,8 +92,6 @@ type TestReport struct {
 	TotalResponses int `json:"total_responses"`
 	// total number of accepted requests
 	AcceptedResponses int `json:"accepted_responses"`
-	// either maximum resident set size from a locally running process or from the containerized process
-	MaxRss int64 `json:"max_rss"`
 	// total number of elasticsearch docs indexed
 	ActualDocs int64 `json:"actual_indexed_docs"`
 	// number of elasticsearch docs encoded in the JSON body of the request
@@ -105,52 +118,115 @@ type TestReport struct {
 	Efficiency float64 `json:"efficiency"`
 }
 
-// returns whether the report data is complete and useful for comparative analysis
-// if so, it fills attributes with derived for easier elasticsearch/kibana consumption
-func (r *TestReport) Validate(unstaged, isRemote bool) (string, bool) {
-	w := io.NewBufferWriter()
+// creates and validates a report out of a test result
+func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote bool, mem, memLimit int64, flags []string, bw *io.BufferWriter) TestReport {
+	r := TestReport{
+		Lang:       "python",
+		ReportId:   randId(time.Now().Unix()),
+		ReportDate: time.Now().Format(io.GITRFC),
+		Epoch:      time.Now().Unix(),
+		User:       usr,
+		Revision:   rev,
+		RevDate:    revDate,
+		MaxRss:     mem,
+		Limit:      memLimit,
+		ApmFlags:   s.Join(flags, " "),
+		TestResult: result,
+	}
+	r.DocsPerRequest = int(r.Events + (r.Events * r.Spans))
 	for _, check := range []struct {
-		fn  func() bool
-		msg string
+		isOk     func() bool
+		errMsg   string
+		doEffect func()
 	}{
-		// only validate user data; eg. r.ReporterHost empty is ok
-		{func() bool { return isRemote }, "apm-server is not managed by hey-apm (an URL was provided in `apm use`)"},
-		{func() bool { return r.date().IsZero() }, "work cancelled"},
-		{func() bool { return r.Branch == "" }, "unknown branch"},
-		{func() bool { return r.Revision == "" }, "unknown revision"},
-		{func() bool { return r.revisionDate().IsZero() }, "unknown revision date"},
-		{func() bool { return unstaged }, "git reported unstaged changes"},
-		{func() bool { return r.MaxRss == 0 }, "memory usage not available"},
-		{func() bool { return r.Duration.Seconds() < 30 }, "test duration too short, must be at least 30 seconds"},
-		{func() bool { return r.Events == 0 }, "empty requests"},
-		{func() bool { return r.TotalResponses == 0 }, "no responses"},
-		{func() bool { return r.AcceptedResponses == 0 }, "no accepted requests"},
+		{
+			isOk:   func() bool { return !r.Cancelled },
+			errMsg: "test cancelled",
+		},
+		{
+			isOk:   func() bool { return !isRemote },
+			errMsg: "apm-server is not managed by hey-apm (an URL was provided in `apm use`)",
+		},
+		{
+			isOk:   func() bool { return !unstaged },
+			errMsg: "git reported unstaged changes",
+		},
+		{
+			isOk:   func() bool { return r.Branch != "" },
+			errMsg: "unknown branch",
+			doEffect: func() {
+				io.ReplyNL(bw, fmt.Sprintf("on branch %s", r.Branch))
+			},
+		},
+		{
+			isOk:   func() bool { return r.Revision != "" },
+			errMsg: "unknown revision",
+		},
+		{
+			isOk:   func() bool { return !r.revisionDate().IsZero() },
+			errMsg: "unknown revision date",
+		},
+		{
+			isOk:   func() bool { return r.Duration.Seconds() >= 30 },
+			errMsg: "test duration too short",
+		},
+		{
+			isOk: func() bool { return r.Elapsed.Seconds() > 0 },
+			doEffect: func() {
+				r.PushedRps = float64(r.TotalResponses) / r.Elapsed.Seconds()
+				r.AcceptedRps = float64(r.AcceptedResponses) / r.Elapsed.Seconds()
+				r.PushedBps = float64(r.ReqSize) * r.PushedRps
+				r.AcceptedBps = float64(r.ReqSize) * r.AcceptedRps
+				r.Throughput = float64(r.ActualDocs) / r.Elapsed.Seconds()
+
+				io.ReplyNL(bw, fmt.Sprintf("%spushed %s / sec , accepted %s / sec", io.Grey,
+					byteCountDecimal(int64(r.PushedBps)),
+					byteCountDecimal(int64(r.AcceptedBps))))
+				io.ReplyNL(bw, fmt.Sprintf("\n%s%d docs indexed (%.2f / sec)", io.Green,
+					r.ActualDocs, r.Throughput))
+			},
+		},
+		{
+			isOk:   func() bool { return r.Events > 0 && r.AcceptedResponses > 0 },
+			errMsg: "no accepted requests",
+			doEffect: func() {
+				r.Latency = 1000 / r.AcceptedRps
+				r.ExpectedDocs = float64(r.AcceptedResponses) * float64(r.DocsPerRequest)
+				r.ActualExpectRatio = float64(r.ActualDocs) / r.ExpectedDocs
+
+				io.ReplyNL(bw, fmt.Sprintf("%.2f%% of expected", 100*r.ActualExpectRatio))
+				io.ReplyNL(bw, fmt.Sprintf("%s%.2f ms / request", io.Green, r.Latency))
+			},
+		},
+		{
+			isOk:   func() bool { return r.MaxRss > 0 },
+			errMsg: "memory usage not available",
+			doEffect: func() {
+				r.Efficiency = 60 * float64(r.AcceptedBps) / float64(r.MaxRss)
+
+				io.ReplyNL(bw, io.Green+byteCountDecimal(r.MaxRss)+" (max RSS)")
+				io.ReplyNL(bw, fmt.Sprintf("%s%.3f memory efficiency (accepted data volume per minute / memory used)",
+					io.Green, r.Efficiency))
+
+			},
+		},
 	} {
-		fail, errMsg := check.fn(), check.msg
-		if fail {
-			io.ReplyNL(w, io.Red+"not saving this report: "+errMsg)
-			return w.String(), false
+		if ok := check.isOk(); ok && check.doEffect != nil {
+			check.doEffect()
+		} else if !ok && r.Error == nil {
+			r.Error = errors.New(check.errMsg)
 		}
 	}
 
-	io.ReplyNL(w, io.Green+byteCountDecimal(r.MaxRss)+" (max RSS)")
-	io.ReplyNL(w, fmt.Sprintf("%s%.3f memory efficiency (accepted data volume per minute / memory used)",
-		io.Green, r.Efficiency))
+	r.ReporterHost, _ = os.Hostname()
+	selfDir := path.Join(os.Getenv("GOPATH"), "/src/github.com/elastic/hey-apm")
+	if rRev, err := io.Shell(io.NewBufferWriter(), selfDir, false)("git", "rev-parse", "HEAD"); err != nil {
+		r.ReporterRevision = rRev
+	}
 
-	r.ApmHost = apmHost(r.ApmUrl)
-	r.PushedRps = float64(r.TotalResponses) / r.Elapsed.Seconds()
-	r.AcceptedRps = float64(r.AcceptedResponses) / r.Elapsed.Seconds()
-	r.DocsPerRequest = int(r.Events + (r.Events * r.Spans))
-	r.Latency = 1000 / r.AcceptedRps
-	r.PushedBps = float64(r.ReqSize) * r.PushedRps
-	r.AcceptedBps = float64(r.ReqSize) * r.AcceptedRps
-	r.Throughput = float64(r.ActualDocs) / r.Elapsed.Seconds()
-	r.ExpectedDocs = float64(r.AcceptedResponses) * float64(r.DocsPerRequest)
-	r.ActualExpectRatio = float64(r.ActualDocs) / r.ExpectedDocs
-	r.Efficiency = 60 * float64(r.AcceptedBps) / float64(r.MaxRss)
+	io.ReplyNL(bw, io.Grey)
 
-	io.ReplyNL(w, io.Grey+"saving report")
-	return w.String(), true
+	return r
 }
 
 func (r TestReport) esHost() string {
@@ -476,8 +552,8 @@ func sortBy(criteria string, reports []TestReport) []TestReport {
 		sort.Sort(descByDuration{reports})
 	case "pushed_volume":
 		sort.Sort(descByPushedVolume{reports})
-	case "index_success_ratio":
-		sort.Sort(descByIndexSuccessRatio{reports})
+	case "actual_expected_ratio":
+		sort.Sort(descByActualExpectedRatio{reports})
 	case "latency":
 		sort.Sort(ascByLatency{reports})
 	case "throughput":

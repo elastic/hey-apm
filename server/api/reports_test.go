@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"strings"
 
+	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/server/tests"
 	"github.com/stretchr/testify/assert"
 )
@@ -16,33 +17,35 @@ import (
 var mb1 int64 = 1000 * 1000
 
 var report = TestReport{
-	ReportId:          "01",
-	ReportDate:        "Wed, 25 Apr 2018 17:17:17 +0200",
-	ReporterHost:      "localhost",
-	ReporterRevision:  "rev32341",
-	User:              "test_user",
-	Epoch:             time.Now().Unix(),
-	Lang:              "python",
-	Duration:          time.Second * 30,
-	Elapsed:           time.Second * 30,
-	Events:            1,
-	Spans:             1,
-	Frames:            1,
-	Concurrency:       1,
-	Qps:               math.MaxInt16,
-	ReqSize:           1,
-	Limit:             -1,
-	ElasticUrl:        "http://localhost:9200",
-	ApmUrl:            "http://localhost:8200",
-	ApmHost:           "localhost",
-	ApmFlags:          "-E apm-server.host=http://localhost:8200 -E output.elasticsearch.hosts=[http://localhost:9200]",
-	Branch:            "master",
-	Revision:          "rev12345678",
-	RevDate:           "Fri, 20 Apr 2018 10:00:00 +0200",
-	TotalResponses:    1,
-	AcceptedResponses: 1,
-	MaxRss:            mb1,
-	ActualDocs:        1,
+	ReportId:         "01",
+	ReportDate:       "Wed, 25 Apr 2018 17:17:17 +0200",
+	ReporterHost:     "localhost",
+	ReporterRevision: "rev32341",
+	User:             "test_user",
+	Epoch:            time.Now().Unix(),
+	Lang:             "python",
+	Limit:            -1,
+	Revision:         "rev12345678",
+	RevDate:          "Fri, 20 Apr 2018 10:00:00 +0200",
+	ApmFlags:         "-E apm-server.host=http://localhost:8200 -E output.elasticsearch.hosts=[http://localhost:9200]",
+	MaxRss:           mb1,
+	TestResult: TestResult{
+		Duration:          time.Second * 30,
+		Elapsed:           time.Second * 30,
+		Events:            1,
+		Spans:             1,
+		Frames:            1,
+		Concurrency:       1,
+		Qps:               math.MaxInt16,
+		ReqSize:           1,
+		ElasticUrl:        "http://localhost:9200",
+		ApmUrl:            "http://localhost:8200",
+		ApmHost:           "localhost",
+		Branch:            "master",
+		TotalResponses:    1,
+		AcceptedResponses: 1,
+		ActualDocs:        1,
+	},
 }
 
 type builder struct {
@@ -160,34 +163,24 @@ func (b *builder) addFlag(s string) *builder {
 }
 
 func (b *builder) get() TestReport {
-	r := b.TestReport
-	r.Validate(false, false)
+	r := NewReport(b.TestResult, b.User, b.Revision, b.RevDate, false, false, b.MaxRss, b.Limit, b.apmFlags(), io.NewBufferWriter())
+	r.ReportId = b.ReportId
+	r.ReportDate = b.ReportDate
 	return r
 }
 
 func TestValidateResult(t *testing.T) {
 	for _, test := range []struct {
-		tr                 TestReport
-		unstaged, isRemote bool
-		msg                string
+		tr  TestReport
+		msg string
 	}{
-		{newBuilder().setDur(time.Second * 10).TestReport, false, false, "duration too short"},
-		{newBuilder().TestReport, true, false, "unstaged changes"},
-		{newBuilder().TestReport, true, true, "not managed"},
-		{newBuilder().setMaxRss(0).TestReport, false, false, "memory usage not available"},
-		{newBuilder().setBranch("").TestReport, false, false, "unknown branch"},
-		{newBuilder().setRev("").TestReport, false, false, "unknown revision"},
-		{newBuilder().setRevDate("").TestReport, false, false, "unknown revision date"},
-		{newBuilder().setDate("Mon, 01 Jan 0001 00:00:00 +0000").TestReport, false, false, "work cancelled"},
-		{newBuilder().setDur(time.Minute * 1).TestReport, false, false, "saving report"},
+		{newBuilder().setDur(time.Second * 10).get(), "duration too short"},
+		{newBuilder().setMaxRss(0).get(), "memory usage not available"},
+		{newBuilder().setBranch("").get(), "unknown branch"},
+		{newBuilder().setRev("").get(), "unknown revision"},
+		{newBuilder().setRevDate("").get(), "unknown revision date"},
 	} {
-		msg, b := test.tr.Validate(test.unstaged, test.isRemote)
-		assert.Contains(t, msg, test.msg)
-		if test.msg == "saving report" {
-			assert.True(t, b)
-		} else {
-			assert.False(t, b)
-		}
+		assert.Contains(t, test.tr.Error.Error(), test.msg)
 	}
 }
 
@@ -419,7 +412,7 @@ func TestSortedAndUnique(t *testing.T) {
 			asIs = append(asIs[:x], asIs[x+1:]...)
 		}
 		ret := unique(original)
-		assert.Equal(t, expected, ret, original)
+		assert.Equal(t, expected, ret)
 	}
 }
 
@@ -512,7 +505,7 @@ func TestTop(t *testing.T) {
 		{"5", "report_date", []TestReport{a, b}, []TestReport{b, a}},
 		{"2", "revision_date", []TestReport{a, c}, []TestReport{c, a}},
 		{"2", "pushed_volume", []TestReport{a, d}, []TestReport{d, a}},
-		{"1", "index_success_ratio", []TestReport{a, e}, []TestReport{e}},
+		{"1", "actual_expected_ratio", []TestReport{a, e}, []TestReport{e}},
 		{"3", "latency", []TestReport{a, f}, []TestReport{f, a}},
 		{"2", "throughput", []TestReport{a, e}, []TestReport{e, a}},
 		{"1", "efficiency", []TestReport{a, g}, []TestReport{g}},

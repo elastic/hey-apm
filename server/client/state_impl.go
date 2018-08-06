@@ -119,7 +119,7 @@ func (env evalEnvironment) ElasticSearch() api.ElasticSearch {
 
 func (env evalEnvironment) Ready() error {
 	var err error
-	if env.IsRunning() != nil && !*env.IsRunning() {
+	if running := env.IsRunning(); running != nil && !*running {
 		err = errors.New("apm server is not running\n")
 	}
 	if err == nil {

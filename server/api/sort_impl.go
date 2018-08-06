@@ -56,8 +56,8 @@ func (wrap descByDuration) Less(i, j int) bool {
 	return wrap.reports[i].Duration.Seconds() > wrap.reports[j].Duration.Seconds()
 }
 
-type descByIndexSuccessRatio template
+type descByActualExpectedRatio template
 
-func (wrap descByIndexSuccessRatio) Less(i, j int) bool {
+func (wrap descByActualExpectedRatio) Less(i, j int) bool {
 	return wrap.reports[i].ActualExpectRatio > wrap.reports[j].ActualExpectRatio
 }

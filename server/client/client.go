@@ -17,7 +17,6 @@ import (
 	"context"
 
 	"net/url"
-	"path"
 
 	"strconv"
 
@@ -196,11 +195,10 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			}
 
 			// load test and teardown
-			var report api.TestReport
-			out, report = api.LoadTest(conn, env, conn.waitForCancel, throttle, args1...)
+			result := api.LoadTest(conn, env, conn.waitForCancel, throttle, args1...)
 
 			var mem int64
-			if env.apm.IsRunning() != nil && *env.apm.IsRunning() {
+			if running := env.IsRunning(); running != nil && *running {
 				if env.apm.isDockerized {
 					mem, err = stopDocker(conn)
 				} else {
@@ -210,14 +208,25 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			}
 			env.apm.cmd = nil
 
-			// validate and save results
-			report = fillMissing(report, usr, env.apm.revision, env.apm.revDate, mem, docker.ToBytes(limit), flags)
+			bw := io.NewBufferWriter()
+			report := api.NewReport(
+				result,
+				usr,
+				env.apm.revision,
+				env.apm.revDate,
+				env.apm.unstaged,
+				env.apm.isRemote,
+				mem,
+				docker.ToBytes(limit),
+				flags,
+				bw,
+			)
 
-			out2, ok := report.Validate(env.apm.unstaged, env.apm.isRemote)
-			out = out + out2
-			if ok {
-				out = out + indexReport(env.es.Client, env.es.reportIndex, report)
+			if report.Error == nil {
+				report.Error = indexReport(env.es.Client, env.es.reportIndex, report)
 			}
+			io.ReplyEitherNL(bw, report.Error, "saved report to Elasticsearch")
+			out = bw.String()
 		}
 
 		io.ReplyEitherNL(conn, err, out)
@@ -437,7 +446,7 @@ func apmUse(usr, loc string) (string, *apm) {
 
 	msg := loc
 	if isRemote {
-		msg = msg + "\nNote: hey-apm won't try to start/stop apm-server and won't save test reports. \n" +
+		msg = msg + "\n\nNote: hey-apm won't try to start/stop apm-server and won't save test reports. \n" +
 			"Some commands won't take effect (eg: `apm switch`, `apm tail`). \n" +
 			"Be sure to `elasticsearch use` the same instance than apm-server is hooked to. \n"
 	}
@@ -515,16 +524,14 @@ func reset(es *es) error {
 }
 
 // saves a report in the same elasticsearch instance used for tests
-func indexReport(client *elastic.Client, prefix string, r api.TestReport) string {
+func indexReport(client *elastic.Client, prefix string, r api.TestReport) error {
 	suffix := time.Now()
-	bw := io.NewBufferWriter()
 	_, err := client.Index().
 		Index(fmt.Sprintf("%s-%d.%d.%d", prefix, suffix.Year(), suffix.Month(), suffix.Day())).
 		Type("_doc").
 		BodyJson(r).
 		Do(context.Background())
-	io.ReplyEitherNL(bw, err, "report indexed in elasticsearch")
-	return bw.String()
+	return err
 }
 
 // assumes posix
@@ -550,21 +557,4 @@ func stopDocker(w stdio.Writer) (int64, error) {
 	mem = mem * 1000
 	_, err := sh("docker", "stop", docker.Container())
 	return mem, err
-}
-
-// might silently fail, but is ok to miss some data here
-func fillMissing(r api.TestReport, usr, rev, revDate string, mem, memLimit int64, flags []string) api.TestReport {
-	// should find a better way to combine data made from bits known in LoadTest and bits known in EvalAndUpdate
-	r.User = usr
-	r.Revision = rev
-	r.RevDate = revDate
-	r.ApmFlags = s.Join(flags, " ")
-	r.MaxRss = mem
-	r.Limit = memLimit
-	r.ReporterHost, _ = os.Hostname()
-	selfDir := path.Join(os.Getenv("GOPATH"), "/src/github.com/elastic/hey-apm")
-	if rRev, err := io.Shell(io.NewBufferWriter(), selfDir, false)("git", "rev-parse", "HEAD"); err != nil {
-		r.ReporterRevision = rRev
-	}
-	return r
 }
