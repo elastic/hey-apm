@@ -4,6 +4,16 @@ import (
 	"bytes"
 )
 
+func V2Span(numFrames int) []byte {
+	stacktrace := make([]byte, len(StacktraceFrame))
+	copy(stacktrace, StacktraceFrame)
+	frames := multiply([]byte(`"stacktrace"`), stacktrace, numFrames)
+
+	span := make([]byte, len(SingleSpan))
+	copy(span, SingleSpan)
+	return bytes.Replace(span, []byte(`"stacktrace":[],`), frames, -1)
+}
+
 // Composes a request body for the v2/intake endpoint with as many transactions as
 // `numTransactions` and as many spans as `numSpans` for each, each span containing as many
 // frames as `numFrames` * 10
@@ -13,16 +23,8 @@ func V2TransactionRequest(numTransactions int, numSpans int, numFrames int) []by
 	buf.Write(Metadata)
 	buf.WriteByte('\n')
 
-	stacktrace := make([]byte, len(StacktraceFrame))
-	copy(stacktrace, StacktraceFrame)
-	frames := multiply([]byte(`"stacktrace"`), stacktrace, numFrames)
-
-	span := make([]byte, len(SingleSpan))
-	copy(span, SingleSpan)
-	span = bytes.Replace(span, []byte(`"stacktrace":[],`), frames, -1)
-
-	transaction := ndjsonWrapObj("transaction", SingleTransaction)
-	span = ndjsonWrapObj("span", span)
+	transaction := NdjsonWrapObj("transaction", SingleTransaction)
+	span := NdjsonWrapObj("span", V2Span(numFrames))
 
 	for i := 0; i < numTransactions; i++ {
 		NDJSONRepeat(&buf, transaction, 1)
@@ -63,7 +65,7 @@ func NDJSONRepeat(buf *bytes.Buffer, value []byte, times int) {
 	}
 }
 
-func ndjsonWrapObj(key string, buf []byte) []byte {
+func NdjsonWrapObj(key string, buf []byte) []byte {
 	var buff bytes.Buffer
 
 	buff.WriteString(`{"`)

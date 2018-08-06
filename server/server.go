@@ -43,7 +43,7 @@ import (
 func Serve() {
 
 	logger := log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile)
-	server, err := net.Listen("tcp", ":8234")
+	server, err := net.Listen("tcp", "localhost:8234")
 	if err != nil {
 		logger.Println(err)
 		os.Exit(1)
