@@ -20,18 +20,18 @@ func TestInvalidLoadCmds(t *testing.T) {
 		{"1s", "1", "1", "1"},
 	} {
 		bw := io.NewBufferWriter()
-		out, ret := LoadTest(bw, MockState{}, nil, "32767", invalidCmd...)
-		assert.Contains(t, out, io.Red)
-		assert.Equal(t, ret, TestReport{})
+		ret := LoadTest(bw, MockState{}, nil, "32767", invalidCmd...)
+		assert.Contains(t, bw.String(), io.Red)
+		assert.Equal(t, ret, TestResult{Cancelled: true})
 	}
 }
 
 func TestLoadNotReady(t *testing.T) {
 	bw := io.NewBufferWriter()
 	cmd := []string{"1s", "1", "0", "1", "1"}
-	out, ret := LoadTest(bw, MockState{Ok: errors.New("not ready")}, nil, "32767", cmd...)
-	assert.Equal(t, "not ready", tests.WithoutColors(out))
-	assert.Equal(t, ret, TestReport{})
+	ret := LoadTest(bw, MockState{Ok: errors.New("not ready")}, nil, "32767", cmd...)
+	assert.Equal(t, "not ready", tests.WithoutColors(bw.String()))
+	assert.Equal(t, ret, TestResult{Cancelled: true})
 }
 
 func TestLoadCancelled(t *testing.T) {
@@ -41,9 +41,8 @@ func TestLoadCancelled(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	s := MockState{MockApm{url: "localhost:822222"}, MockEs{}, nil}
-	out, ret := LoadTest(bw, s, cancel, "32767", cmd...)
-	assert.Equal(t, "\nwork cancelled\n", tests.WithoutColors(out))
-	assert.Equal(t, ret, TestReport{})
+	ret := LoadTest(bw, s, cancel, "32767", cmd...)
+	assert.Equal(t, ret, TestResult{Cancelled: true})
 }
 
 func TestLoadOk(t *testing.T) {
@@ -56,19 +55,17 @@ func TestLoadOk(t *testing.T) {
 		MockApm{url: "localhost:822222", branch: "master"},
 		MockEs{url: "localhost:922222", docs: 10},
 		nil}
-	out, ret := LoadTest(bw, s, cancel, "32767", cmd...)
-	assert.Equal(t, `
-on branch master , cmd = [1s 1 2 1 0]
+	ret := LoadTest(bw, s, cancel, "32767", cmd...)
+	assert.Equal(t, `started new work, payload size is 3.8kb...
+>>> 
+cmd = [1s 1 2 1 0]
 
-pushed 0 b / sec , accepted 0 b / sec
 localhost:822222/v1/transactions 0
   total	0 responses (0.00 rps)
 
-0 docs indexed (0.00 / sec) 
 `,
-		tests.WithoutColors(out))
+		tests.WithoutColors(bw.String()))
 
-	assert.Equal(t, "python", ret.Lang)
 	assert.Equal(t, time.Second, ret.Duration)
 	assert.Equal(t, 1, ret.Events)
 	assert.Equal(t, 2, ret.Spans)
@@ -78,15 +75,10 @@ localhost:822222/v1/transactions 0
 	assert.Equal(t, "localhost:822222", ret.ApmUrl)
 	assert.Equal(t, 0, ret.Concurrency)
 	assert.Equal(t, 32767, ret.Qps)
-	assert.Equal(t, []string(nil), ret.apmFlags())
-	assert.Equal(t, "", ret.User)
 	assert.Equal(t, "master", ret.Branch)
 	assert.Equal(t, 0, ret.AcceptedResponses)
 	assert.Equal(t, float64(0), ret.AcceptedRps)
-	assert.Equal(t, int64(0), ret.MaxRss)
 	assert.Equal(t, int64(0), ret.ActualDocs)
-	assert.Len(t, ret.ReportId, 8)
-	assert.InDelta(t, time.Now().Unix(), ret.date().Unix(), time.Second.Seconds())
 }
 
 func TestApmTail(t *testing.T) {

@@ -17,7 +17,6 @@ import (
 	"context"
 
 	"net/url"
-	"path"
 
 	"strconv"
 
@@ -98,8 +97,8 @@ type es struct {
 }
 
 type apm struct {
-	// either directory of the apm-server repo or the string "docker"
-	dir      string
+	// either the directory of the apm-server repo or, an URL, or the string "docker"
+	loc      string
 	branch   string
 	revision string
 	revDate  string
@@ -107,6 +106,10 @@ type apm struct {
 	prettyRev string
 	// if there are unstaged changes, tests can run but can't be saved because code won't be available
 	unstaged bool
+	// if true, the cli won't attempt to manage apm-server
+	isRemote bool
+	// if true, tests will accept a memory limit flag
+	isDockerized bool
 	// either the apm-server process itself when running it locally or a docker client, not the containerized process
 	cmd *exec.Cmd
 	// apm-server/docker log
@@ -150,6 +153,8 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			if env.apm.useErr != nil {
 				// `apm switch` depends on `apm use` having succeeded
 				err = env.apm.useErr
+			} else if env.apm.isRemote {
+				out = io.Grey + "apm-server is not managed by hey-apm, nothing to do"
 			} else {
 				args, opts := io.ParseCmdOptions(args2)
 				branch := strcoll.Nth(0, args)
@@ -164,7 +169,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 				err = env.apm.useErr
 				break
 			}
-			if env.apm.branch == "" || env.apm.revision == "" {
+			if !env.apm.isRemote && (env.apm.branch == "" || env.apm.revision == "") {
 				err = errors.New("unknown branch/revision")
 				break
 			}
@@ -172,7 +177,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			// parse optional arguments
 			var limit string
 			args1, limit = io.ParseCmdOption(args1, "--mem", "4g", true)
-			if !docker.IsDockerized(env.apm) {
+			if !env.apm.isDockerized {
 				limit = "-1"
 			}
 
@@ -181,19 +186,20 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 
 			flags := apmFlags(*env.es, env.apm.Url(), strcoll.Rest(5, args1))
 
-			// starts apm-server process
-			err, env.apm = apmStart(conn, *env.apm, conn.CancelSig.Broadcast, flags, limit)
-			if err != nil {
-				break
+			if !env.apm.isRemote {
+				// starts apm-server process
+				err, env.apm = apmStart(conn, *env.apm, conn.CancelSig.Broadcast, flags, limit)
+				if err != nil {
+					break
+				}
 			}
 
 			// load test and teardown
-			var report api.TestReport
-			out, report = api.LoadTest(conn, env, conn.waitForCancel, throttle, args1...)
+			result := api.LoadTest(conn, env, conn.waitForCancel, throttle, args1...)
 
 			var mem int64
-			if env.apm.IsRunning() {
-				if docker.IsDockerized(env.apm) {
+			if running := env.IsRunning(); running != nil && *running {
+				if env.apm.isDockerized {
 					mem, err = stopDocker(conn)
 				} else {
 					mem = maxRssUsed(env.apm.cmd)
@@ -202,13 +208,25 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			}
 			env.apm.cmd = nil
 
-			// validate and save results
-			report = fillMissing(report, usr, env.apm.revision, env.apm.revDate, mem, docker.ToBytes(limit), flags)
-			out2, ok := report.Validate(env.apm.unstaged)
-			out = out + out2
-			if ok {
-				out = out + indexReport(env.es.Client, env.es.reportIndex, report)
+			bw := io.NewBufferWriter()
+			report := api.NewReport(
+				result,
+				usr,
+				env.apm.revision,
+				env.apm.revDate,
+				env.apm.unstaged,
+				env.apm.isRemote,
+				mem,
+				docker.ToBytes(limit),
+				flags,
+				bw,
+			)
+
+			if report.Error == nil {
+				report.Error = indexReport(env.es.Client, env.es.reportIndex, report)
 			}
+			io.ReplyEitherNL(bw, report.Error, "saved report to Elasticsearch")
+			out = bw.String()
 		}
 
 		io.ReplyEitherNL(conn, err, out)
@@ -226,7 +244,7 @@ func apmSwitch(w stdio.Writer, apmDir, branch, revision string, opts []string) (
 	apm := newApm(apmDir)
 	verbose := strcoll.ContainsAny(opts, "v", "verbose")
 	dir := apm.Dir()
-	if docker.IsDockerized(apm) {
+	if apm.isDockerized {
 		dir = docker.Dir()
 	}
 	var sh = io.Shell(w, dir, verbose)
@@ -235,7 +253,7 @@ func apmSwitch(w stdio.Writer, apmDir, branch, revision string, opts []string) (
 
 	// true is just a harmless command
 	fetchCmd := "true"
-	if strcoll.ContainsAny(opts, "f", "fetch") || docker.IsDockerized(apm) {
+	if strcoll.ContainsAny(opts, "f", "fetch") || apm.isDockerized {
 		if len(tokens) == 2 {
 			fetchCmd = "git fetch " + tokens[0]
 		} else {
@@ -244,7 +262,7 @@ func apmSwitch(w stdio.Writer, apmDir, branch, revision string, opts []string) (
 	}
 
 	checkoutCmd := "true"
-	if strcoll.ContainsAny(opts, "c", "checkout") || docker.IsDockerized(apm) {
+	if strcoll.ContainsAny(opts, "c", "checkout") || apm.isDockerized {
 		if revision != "" {
 			checkoutCmd = "git checkout " + revision
 		} else {
@@ -253,12 +271,12 @@ func apmSwitch(w stdio.Writer, apmDir, branch, revision string, opts []string) (
 	}
 
 	makeUpdateCmd := "true"
-	if strcoll.ContainsAny(opts, "u", "make-update") || docker.IsDockerized(apm) {
+	if strcoll.ContainsAny(opts, "u", "make-update") || apm.isDockerized {
 		makeUpdateCmd = "make update"
 	}
 
 	makeCmd := "true"
-	if strcoll.ContainsAny(opts, "m", "make") || docker.IsDockerized(apm) {
+	if strcoll.ContainsAny(opts, "m", "make") || apm.isDockerized {
 		makeCmd = "make"
 	}
 
@@ -267,7 +285,7 @@ func apmSwitch(w stdio.Writer, apmDir, branch, revision string, opts []string) (
 		branch = tokens[1]
 	}
 
-	if docker.IsDockerized(apm) {
+	if apm.isDockerized {
 		cacheKey := docker.Image(branch, revision)
 		if revision == "" {
 			// do not cache HEAD because it will point to different things over time
@@ -291,7 +309,7 @@ func apmSwitch(w stdio.Writer, apmDir, branch, revision string, opts []string) (
 	// todo: use only plumbing commands
 	if _, err := sh(""); err == nil {
 		if revision == "" {
-			if docker.IsDockerized(apm) {
+			if apm.isDockerized {
 				revision, err = sh("docker", "run", "-i", "--rm", docker.Image(branch, revision), "git", "rev-parse", "HEAD")
 				_, err = sh("docker", "tag", docker.Image(branch, ""), docker.Image(branch, revision))
 			} else {
@@ -306,7 +324,7 @@ func apmSwitch(w stdio.Writer, apmDir, branch, revision string, opts []string) (
 		apm.branch = branch
 		apm.revision = revision
 
-		if docker.IsDockerized(apm) {
+		if apm.isDockerized {
 			revDate, _ := sh("docker", "run", "-i", "--rm", docker.Image(branch, revision), "git", "show", "-s", "--format=%cd", "--date=rfc", revision)
 			if t, _ := time.Parse(io.GITRFC, revDate); !t.IsZero() {
 				apm.revDate = revDate
@@ -332,13 +350,13 @@ func apmSwitch(w stdio.Writer, apmDir, branch, revision string, opts []string) (
 // starts apm with the given arguments
 // injects output.elasticsearch and apm-server.host configuration from the current state
 func apmStart(w stdio.Writer, apm apm, cancel func(), flags []string, limit string) (error, *apm) {
-	newApm := newApm(apm.Dir())
+	newApm := newApm(apm.loc)
 	newApm.branch = apm.branch
 	newApm.revision = apm.revision
 	newApm.revDate = apm.revDate
 	newApm.unstaged = apm.unstaged
 	var cmd *exec.Cmd
-	if docker.IsDockerized(newApm) {
+	if newApm.isDockerized {
 		args := []string{"run", "--rm", "-i",
 			"-p", "8200:8200",
 			"--name", docker.Container(),
@@ -394,37 +412,54 @@ func apmStart(w stdio.Writer, apm apm, cancel func(), flags []string, limit stri
 	return err, newApm
 }
 
-// informs the apm-server directory, currently limited to localhost
 // defaults to the expected Go location (make update might fail in a non default location)
 // "last" loads from disk the last working directory
 // "local" is the short for the expected location (GOPATH/src/...)
 // "docker" will cause `apmSwitch` to build an image and `test` to run it
+// a valid URL will cause hey-apm to not try to manage apm-server
 // writes to disk
-func apmUse(usr, dir string) (string, *apm) {
+func apmUse(usr, loc string) (string, *apm) {
 	w := io.NewBufferWriter()
-	if dir == "last" {
-		dir = strcoll.Nth(0, io.LoadApmcfg(usr))
+	if loc == "last" {
+		loc = strcoll.Nth(0, io.LoadApmcfg(usr))
 	}
-	if dir == "local" {
-		dir = filepath.Join(os.Getenv("GOPATH"), "/src/github.com/elastic/apm-server")
+	if loc == "local" {
+		loc = filepath.Join(os.Getenv("GOPATH"), "/src/github.com/elastic/apm-server")
 	}
+
+	var isRemote bool
 	var err error
-	if dir != "docker" {
-		err = os.Chdir(dir)
+	var netUrl *url.URL
 
+	if netUrl, err = url.ParseRequestURI(loc); err == nil && netUrl.Host != "" {
+		isRemote = true
+	} else {
+		err = nil
+		if loc != "docker" {
+			err = os.Chdir(loc)
+		}
 	}
+
 	if err == nil {
-		err = io.StoreApmcfg(usr, fileWriter, dir)
+		err = io.StoreApmcfg(usr, fileWriter, loc)
 	}
-	io.ReplyEither(w, err, io.Grey+"using "+dir)
 
-	apm := newApm(dir)
+	msg := loc
+	if isRemote {
+		msg = msg + "\n\nNote: hey-apm won't try to start/stop apm-server and won't save test reports. \n" +
+			"Some commands won't take effect (eg: `apm switch`, `apm tail`). \n" +
+			"Be sure to `elasticsearch use` the same instance than apm-server is hooked to. \n"
+	}
+	io.ReplyEither(w, err, io.Grey+"using "+msg)
+
+	apm := newApm(loc)
+	apm.isRemote = isRemote
 	apm.useErr = err
 	return w.String(), apm
 }
 
-func newApm(dir string) *apm {
-	return &apm{dir: dir, useErr: nil, unstaged: true, log: make([]string, 0), mu: sync.RWMutex{}}
+func newApm(loc string) *apm {
+	return &apm{loc: loc, useErr: nil, unstaged: true, log: make([]string, 0), mu: sync.RWMutex{}}
 }
 
 func apmFlags(es es, apmUrl string, userFlags []string) []string {
@@ -489,16 +524,14 @@ func reset(es *es) error {
 }
 
 // saves a report in the same elasticsearch instance used for tests
-func indexReport(client *elastic.Client, prefix string, r api.TestReport) string {
+func indexReport(client *elastic.Client, prefix string, r api.TestReport) error {
 	suffix := time.Now()
-	bw := io.NewBufferWriter()
 	_, err := client.Index().
 		Index(fmt.Sprintf("%s-%d.%d.%d", prefix, suffix.Year(), suffix.Month(), suffix.Day())).
 		Type("_doc").
 		BodyJson(r).
 		Do(context.Background())
-	io.ReplyEitherNL(bw, err, "report indexed in elasticsearch")
-	return bw.String()
+	return err
 }
 
 // assumes posix
@@ -524,21 +557,4 @@ func stopDocker(w stdio.Writer) (int64, error) {
 	mem = mem * 1000
 	_, err := sh("docker", "stop", docker.Container())
 	return mem, err
-}
-
-// might silently fail, but is ok to miss some data here
-func fillMissing(r api.TestReport, usr, rev, revDate string, mem, memLimit int64, flags []string) api.TestReport {
-	// should find a better way to combine data made from bits known in LoadTest and bits known in EvalAndUpdate
-	r.User = usr
-	r.Revision = rev
-	r.RevDate = revDate
-	r.ApmFlags = s.Join(flags, " ")
-	r.MaxRss = mem
-	r.Limit = memLimit
-	r.ReporterHost, _ = os.Hostname()
-	selfDir := path.Join(os.Getenv("GOPATH"), "/src/github.com/elastic/hey-apm")
-	if rRev, err := io.Shell(io.NewBufferWriter(), selfDir, false)("git", "rev-parse", "HEAD"); err != nil {
-		r.ReporterRevision = rRev
-	}
-	return r
 }

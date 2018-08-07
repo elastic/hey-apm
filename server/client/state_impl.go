@@ -70,15 +70,17 @@ func (apm *apm) Log() []string {
 	return apm.log
 }
 
-func (apm apm) IsRunning() bool {
+func (apm apm) IsRunning() *bool {
+	if apm.isRemote {
+		return nil
+	}
 	isRunning := apm.cmd != nil && apm.cmd.Process != nil && apm.cmd.ProcessState == nil
-	if docker.IsDockerized(&apm) {
+	if apm.isDockerized {
 		sh := io.Shell(io.NewBufferWriter(), docker.Dir(), false)
 		out, err := sh("docker", "exec", "-i", docker.Container(), "ps", "-C", "apm-server", "h")
-		return isRunning && err == nil && string(out) != ""
-	} else {
-		return isRunning
+		isRunning = isRunning && err == nil && string(out) != ""
 	}
+	return &isRunning
 }
 
 func (apm apm) PrettyRevision() string {
@@ -86,15 +88,21 @@ func (apm apm) PrettyRevision() string {
 }
 
 func (apm apm) Url() string {
-	if docker.IsDockerized(&apm) {
+	if apm.isDockerized {
 		return "http://0.0.0.0:8200"
+	} else if apm.isRemote {
+		return apm.loc
 	} else {
 		return "http://localhost:8200"
+
 	}
 }
 
 func (apm apm) Dir() string {
-	return apm.dir
+	if apm.isRemote || apm.isDockerized {
+		return ""
+	}
+	return apm.loc
 }
 
 func (apm apm) Branch() string {
@@ -111,7 +119,7 @@ func (env evalEnvironment) ElasticSearch() api.ElasticSearch {
 
 func (env evalEnvironment) Ready() error {
 	var err error
-	if !env.IsRunning() {
+	if running := env.IsRunning(); running != nil && !*running {
 		err = errors.New("apm server is not running\n")
 	}
 	if err == nil {

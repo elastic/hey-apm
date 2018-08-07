@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/elastic/hey-apm/server/api"
 	"github.com/elastic/hey-apm/server/api/io"
 )
 
@@ -34,10 +33,6 @@ func Dir() string {
 
 func Container() string {
 	return "heyapmserver"
-}
-
-func IsDockerized(apm api.ApmServer) bool {
-	return apm.Dir() == "docker"
 }
 
 // s has the format used by docker --memory flag
