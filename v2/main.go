@@ -31,22 +31,20 @@ var (
 )
 
 func do(parent context.Context, logger *log.Logger, client *http.Client, payloads [][]byte) {
-	var writer io.WriteCloser
 	ctx, cancel := context.WithCancel(parent)
 	reader, writer := io.Pipe()
-
-	if !*disableCompression {
-		under := *writer.(*io.PipeWriter)
-		defer under.Close()
-		writer = gzip.NewWriter(writer)
-	}
 
 	doneWriting := make(chan struct{})
 	writes := 0 // payloads
 	wrote := 0  // bytes
 	go func(w io.WriteCloser) {
+		var b = w
+		if !*disableCompression {
+			defer w.Close()
+			b = gzip.NewWriter(w)
+		}
 		defer close(doneWriting)
-		if n, err := w.Write(addNewline(compose.Metadata)); err != nil {
+		if n, err := b.Write(addNewline(compose.Metadata)); err != nil {
 			logger.Println("[error] writing metadata: ", err)
 			return
 		} else {
@@ -59,13 +57,13 @@ func do(parent context.Context, logger *log.Logger, client *http.Client, payload
 				select {
 				case <-ctx.Done():
 					//logger.Println("[debug] all done")
-					w.Close()
+					b.Close()
 					return
 				case <-rest:
 					time.Sleep(*restDuration)
 					rest = time.After(*restInterval)
 				default:
-					if n, err := w.Write(p); err != nil {
+					if n, err := b.Write(p); err != nil {
 						logger.Println("[error] writing payload: ", err)
 						return
 					} else {
