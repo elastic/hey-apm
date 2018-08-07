@@ -74,7 +74,7 @@ func do(parent context.Context, logger *log.Logger, client *http.Client, payload
 		logger.Println("[error] creating request:", err)
 		return
 	}
-	req.Header.Add("Content-Type", "application/ndjson")
+	req.Header.Add("Content-Type", "application/x-ndjson")
 	rsp, err := client.Do(req)
 	cancel()
 	if err != nil {
