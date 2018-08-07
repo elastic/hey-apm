@@ -1,6 +1,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"context"
 	"flag"
 	"fmt"
@@ -30,8 +31,15 @@ var (
 )
 
 func do(parent context.Context, logger *log.Logger, client *http.Client, payloads [][]byte) {
+	var writer io.WriteCloser
 	ctx, cancel := context.WithCancel(parent)
 	reader, writer := io.Pipe()
+
+	if !*disableCompression {
+		under := *writer.(*io.PipeWriter)
+		defer under.Close()
+		writer = gzip.NewWriter(writer)
+	}
 
 	doneWriting := make(chan struct{})
 	writes := 0 // payloads
@@ -75,6 +83,9 @@ func do(parent context.Context, logger *log.Logger, client *http.Client, payload
 		return
 	}
 	req.Header.Add("Content-Type", "application/x-ndjson")
+	if !*disableCompression {
+		req.Header.Add("Content-Encoding", "gzip")
+	}
 	rsp, err := client.Do(req)
 	cancel()
 	if err != nil {
