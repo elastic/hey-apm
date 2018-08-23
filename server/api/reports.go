@@ -16,6 +16,7 @@ import (
 
 	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/server/strcoll"
+	stdio "io"
 )
 
 type TestReport struct {
@@ -119,7 +120,7 @@ type TestResult struct {
 }
 
 // creates and validates a report out of a test result
-func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote bool, mem, memLimit int64, flags []string, bw *io.BufferWriter) TestReport {
+func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote bool, mem, memLimit int64, flags []string, w stdio.Writer) TestReport {
 	r := TestReport{
 		Lang:       "python",
 		ReportId:   randId(time.Now().Unix()),
@@ -155,7 +156,7 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 			isOk:   func() bool { return r.Branch != "" },
 			errMsg: "unknown branch",
 			doEffect: func() {
-				io.ReplyNL(bw, fmt.Sprintf("on branch %s", r.Branch))
+				io.ReplyNL(w, fmt.Sprintf("on branch %s", r.Branch))
 			},
 		},
 		{
@@ -179,10 +180,10 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 				r.AcceptedBps = float64(r.ReqSize) * r.AcceptedRps
 				r.Throughput = float64(r.ActualDocs) / r.Elapsed.Seconds()
 
-				io.ReplyNL(bw, fmt.Sprintf("%spushed %s / sec , accepted %s / sec", io.Grey,
+				io.ReplyNL(w, fmt.Sprintf("%spushed %s / sec , accepted %s / sec", io.Grey,
 					byteCountDecimal(int64(r.PushedBps)),
 					byteCountDecimal(int64(r.AcceptedBps))))
-				io.ReplyNL(bw, fmt.Sprintf("\n%s%d docs indexed (%.2f / sec)", io.Green,
+				io.ReplyNL(w, fmt.Sprintf("\n%s%d docs indexed (%.2f / sec)", io.Green,
 					r.ActualDocs, r.Throughput))
 			},
 		},
@@ -194,8 +195,8 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 				r.ExpectedDocs = float64(r.AcceptedResponses) * float64(r.DocsPerRequest)
 				r.ActualExpectRatio = float64(r.ActualDocs) / r.ExpectedDocs
 
-				io.ReplyNL(bw, fmt.Sprintf("%.2f%% of expected", 100*r.ActualExpectRatio))
-				io.ReplyNL(bw, fmt.Sprintf("%s%.2f ms / request", io.Green, r.Latency))
+				io.ReplyNL(w, fmt.Sprintf("%.2f%% of expected", 100*r.ActualExpectRatio))
+				io.ReplyNL(w, fmt.Sprintf("%s%.2f ms / request", io.Green, r.Latency))
 			},
 		},
 		{
@@ -204,8 +205,8 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 			doEffect: func() {
 				r.Efficiency = 60 * float64(r.AcceptedBps) / float64(r.MaxRss)
 
-				io.ReplyNL(bw, io.Green+byteCountDecimal(r.MaxRss)+" (max RSS)")
-				io.ReplyNL(bw, fmt.Sprintf("%s%.3f memory efficiency (accepted data volume per minute / memory used)",
+				io.ReplyNL(w, io.Green+byteCountDecimal(r.MaxRss)+" (max RSS)")
+				io.ReplyNL(w, fmt.Sprintf("%s%.3f memory efficiency (accepted data volume per minute / memory used)",
 					io.Green, r.Efficiency))
 
 			},
@@ -224,7 +225,7 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 		r.ReporterRevision = rRev
 	}
 
-	io.ReplyNL(bw, io.Grey)
+	io.ReplyNL(w, io.Grey)
 
 	return r
 }

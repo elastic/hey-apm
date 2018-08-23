@@ -220,6 +220,21 @@ Which are the commands that will be queued and executed (try `status` again)
 
 The `help` command describes the full semantics of the commands outlined above and some more things that hey-apm can do, like tail apm-server logs, etc. 
  
+ 
+# Testing
+ 
+ To run `hey-apm` unit tests:
+```
+SKIP_STRESS=1 go test -v ./...
+```
+Some tests require r/w access to disk, you can also supply SKIP_EXTERNAL=1 to omit them. 
+
+To run apm-server stress tests:
+```
+ELASTICSEARCH_URL=<URL> ELASTICSEARCH_USR=<USR> ELASTICSEARCH_PWD=<PWD> go test -v github.com/elastic/hey-apm/server/client/
+```
+This requires a running Elasticsearch instance and its connection parameters; and apm-server binary and config file in the GOPATH
+ 
 # Known issues / Todo
 
 * The race detector is unhappy - https://github.com/rakyll/hey/issues/85
