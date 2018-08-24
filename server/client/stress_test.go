@@ -68,7 +68,7 @@ func waitForServer(url string) error {
 // See `setupEnv` for details
 func TestMain(m *testing.M) {
 	if os.Getenv("SKIP_STRESS") != "" {
-		fmt.Println("skip apm-server stress tests")
+		fmt.Println("skipping apm-server stress tests")
 		os.Exit(0)
 	}
 
