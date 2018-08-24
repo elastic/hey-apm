@@ -17,7 +17,9 @@ import (
 var once sync.Once
 var environment *evalEnvironment
 
-func setupEnv() (*evalEnvironment, []string, error) {
+var noFlags []string
+
+func setupEnv(flags []string) (*evalEnvironment, []string, error) {
 	once.Do(func() {
 		url := os.Getenv("ELASTICSEARCH_URL")
 		usr := os.Getenv("ELASTICSEARCH_USR")
@@ -28,7 +30,7 @@ func setupEnv() (*evalEnvironment, []string, error) {
 		_, environment.apm = apmSwitch(os.Stdout, apmDir, "master", "", []string{"c", "m", "u"})
 	})
 
-	flags := apmFlags(*environment.es, environment.apm.Url(), []string{"-e", "-E", "apm-server.shutdown_timeout=1s"})
+	flags = apmFlags(*environment.es, environment.apm.Url(), append(flags, "-E", "apm-server.shutdown_timeout=1s"))
 	err := apmStop(environment.apm)
 	if err == nil {
 		time.Sleep(time.Second * 5)
@@ -72,12 +74,12 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 
-	env, _, timeoutErr := setupEnv()
+	env, _, timeoutErr := setupEnv(noFlags)
 	defer apmStop(env.apm)
 
 	// bootstrap checks
 	if env.es.useErr != nil {
-		fmt.Println("elasticsearch instance not available or configured, (missing ELASTICSEARCH_URL / ELASTICSEARCH_PWD?)", env.es.useErr)
+		fmt.Println("elasticsearch instance not available or configured, (missing ELASTICSEARCH_URL / ELASTICSEARCH_USR / ELASTICSEARCH_PWD?)", env.es.useErr)
 		os.Exit(1)
 	}
 
@@ -107,8 +109,8 @@ func TestMain(m *testing.M) {
 // returns all saved results (reports), including the just indexed; and an error, if occurred
 // the error might be related to failing pre-conditions (eg. no apm-server running) or post-conditions
 // (eg. no data captured, failed to save the report...)
-func doBenchmark(memLimit int64, workload ...string) ([]api.TestReport, error) {
-	env, flags, err := setupEnv()
+func doBenchmark(memLimit int64, flags []string, workload ...string) ([]api.TestReport, error) {
+	env, flags, err := setupEnv(flags)
 	if err != nil {
 		return nil, err
 	}
@@ -143,12 +145,12 @@ func assertNoError(t *testing.T, err error) bool {
 	return assert.Fail(t, err.Error())
 }
 
-func doTest(t *testing.T, numEvents, numSpans, numFrames, concurrency string) {
+func doTest(t *testing.T, flags []string, numEvents, numSpans, numFrames, concurrency string) {
 	t.Log("executing apm-server stress test, this will take long. Use SKIP_STRESS=1 to skip it. " +
 		"Use -timeout if you want to execute it and need to override the default 10 minutes timeout.")
 	duration := "3m"
 	memLimit := int64(-1)
-	reports, err := doBenchmark(memLimit, duration, numEvents, numSpans, numFrames, concurrency)
+	reports, err := doBenchmark(memLimit, flags, duration, numEvents, numSpans, numFrames, concurrency)
 
 	filter := func(k, v string) string {
 		return fmt.Sprintf("%s=%s", k, v)
@@ -174,42 +176,42 @@ func doTest(t *testing.T, numEvents, numSpans, numFrames, concurrency string) {
 }
 
 func TestSmallTransactionsSequential(t *testing.T) {
-	doTest(t, "10", "10", "10", "1")
+	doTest(t, noFlags,"10", "10", "10", "1")
 }
 
 func TestSmallTransactionsLowConcurrency(t *testing.T) {
-	doTest(t, "10", "10", "10", "5")
+	doTest(t, noFlags, "10", "10", "10", "5")
 }
 
 func TestSmallTransactionsHighConcurrency(t *testing.T) {
-	doTest(t, "10", "10", "10", "20")
+	doTest(t, noFlags, "10", "10", "10", "20")
 }
 
 func TestMediumTransactionsSequential(t *testing.T) {
-	doTest(t, "20", "20", "20", "1")
+	doTest(t, noFlags, "20", "20", "20", "1")
 }
 
 func TestMediumTransactionsLowConcurrency(t *testing.T) {
-	doTest(t, "20", "20", "20", "5")
+	doTest(t, noFlags, "20", "20", "20", "5")
 }
 
 func TestMediumTransactionsHighConcurrency(t *testing.T) {
-	doTest(t, "20", "20", "20", "20")
+	doTest(t, noFlags, "20", "20", "20", "20")
 }
 
 func TestLargeTransactionsSequential(t *testing.T) {
-	doTest(t, "20", "20", "20", "1")
+	doTest(t, noFlags, "20", "20", "20", "1")
 }
 
 func TestLargeTransactionsLowConcurrency(t *testing.T) {
-	doTest(t, "20", "20", "20", "5")
+	doTest(t, noFlags, "20", "20", "20", "5")
 }
 
 func TestLargeTransactionsHighConcurrency(t *testing.T) {
-	doTest(t, "30", "30", "30", "20")
+	doTest(t, noFlags, "30", "30", "30", "20")
 }
 
 func TestErrorsVeryHighConcurrency(t *testing.T) {
-	doTest(t, "10", "0", "100", "100")
+	doTest(t, noFlags, "10", "0", "100", "100")
 }
 
