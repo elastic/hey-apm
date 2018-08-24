@@ -76,6 +76,7 @@ func TestMain(m *testing.M) {
 
 	env, _, timeoutErr := setupEnv(noFlags)
 	defer apmStop(env.apm)
+	defer reset(env.es)
 
 	// bootstrap checks
 	if env.es.useErr != nil {
