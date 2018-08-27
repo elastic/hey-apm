@@ -12,8 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"net"
-
 	"context"
 
 	"net/url"
@@ -30,13 +28,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-type RWC interface {
-	stdio.Writer
-	stdio.ReadCloser
-}
-
 type Connection struct {
-	RWC
+	stdio.ReadWriteCloser
 	// used for the server to push commands that modify the evaluation environment state,
 	// and the client to pull them
 	EvalCh chan []string
@@ -49,9 +42,9 @@ type Connection struct {
 
 // wraps a tcp connection with a buffered channel and sync mechanisms
 // the channel holds commands that the server sends to the client for their evaluation
-func WrapConnection(c net.Conn) Connection {
+func WrapConnection(rwc stdio.ReadWriteCloser) Connection {
 	return Connection{
-		c,
+		rwc,
 		make(chan []string, 1000),
 		&sync.WaitGroup{},
 		&sync.Cond{L: &sync.Mutex{}},
@@ -203,7 +196,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 					mem, err = stopDocker(conn)
 				} else {
 					mem = maxRssUsed(env.apm.cmd)
-					env.apm.cmd.Process.Kill()
+					err = apmStop(env.apm)
 				}
 			}
 			env.apm.cmd = nil
@@ -412,6 +405,14 @@ func apmStart(w stdio.Writer, apm apm, cancel func(), flags []string, limit stri
 	return err, newApm
 }
 
+
+func apmStop(apm *apm) error {
+	if running := apm.IsRunning(); running != nil && *running && apm.cmd != nil && apm.cmd.Process != nil {
+		return apm.cmd.Process.Kill()
+	}
+	return nil
+}
+
 // defaults to the expected Go location (make update might fail in a non default location)
 // "last" loads from disk the last working directory
 // "local" is the short for the expected location (GOPATH/src/...)
@@ -420,7 +421,7 @@ func apmStart(w stdio.Writer, apm apm, cancel func(), flags []string, limit stri
 // writes to disk
 func apmUse(usr, loc string) (string, *apm) {
 	w := io.NewBufferWriter()
-	if loc == "last" {
+	if loc == "last" && usr != "" {
 		loc = strcoll.Nth(0, io.LoadApmcfg(usr))
 	}
 	if loc == "local" {
@@ -440,7 +441,7 @@ func apmUse(usr, loc string) (string, *apm) {
 		}
 	}
 
-	if err == nil {
+	if err == nil && usr != "" {
 		err = io.StoreApmcfg(usr, fileWriter, loc)
 	}
 
@@ -489,7 +490,7 @@ func apmFlags(es es, apmUrl string, userFlags []string) []string {
 // writes to disk
 func elasticSearchUse(usr string, params ...string) (string, *es) {
 	w := io.NewBufferWriter()
-	if strcoll.Nth(0, params) == "last" {
+	if strcoll.Nth(0, params) == "last" && usr != "" {
 		params = io.LoadEscfg(usr)
 	}
 	url := strcoll.Nth(0, params)
@@ -503,7 +504,7 @@ func elasticSearchUse(usr string, params ...string) (string, *es) {
 		elastic.SetBasicAuth(username, password),
 		elastic.SetSniff(false),
 	)
-	if err == nil {
+	if err == nil && usr != "" {
 		io.StoreEscfg(usr, fileWriter, url, username, password)
 	}
 	io.ReplyEither(w, err, io.Grey+"using "+url)
@@ -526,11 +527,13 @@ func reset(es *es) error {
 // saves a report in the same elasticsearch instance used for tests
 func indexReport(client *elastic.Client, prefix string, r api.TestReport) error {
 	suffix := time.Now()
+	indexName := fmt.Sprintf("%s-%d.%d.%d", prefix, suffix.Year(), suffix.Month(), suffix.Day())
 	_, err := client.Index().
-		Index(fmt.Sprintf("%s-%d.%d.%d", prefix, suffix.Year(), suffix.Month(), suffix.Day())).
+		Index(indexName).
 		Type("_doc").
 		BodyJson(r).
 		Do(context.Background())
+	client.Refresh(indexName).Do(context.Background())
 	return err
 }
 

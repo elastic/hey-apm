@@ -187,7 +187,8 @@ Can't ch to directory NOTADIR (hint: apm use <dir>)
 }
 
 func TestStatusExternal(t *testing.T) {
-	if os.Getenv("SKIP_EXTERNAL") == "" {
+	if os.Getenv("SKIP_EXTERNAL") != "" {
+		fmt.Println("skipping status test")
 		return
 	}
 	heyDir := filepath.Join(os.Getenv("GOPATH"), "src/github.com/elastic/hey-apm")
