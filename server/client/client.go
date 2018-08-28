@@ -524,9 +524,7 @@ func reset(es *es) error {
 }
 
 // saves a report in the same elasticsearch instance used for tests
-func indexReport(client *elastic.Client, prefix string, r api.TestReport) error {
-	suffix := time.Now()
-	indexName := fmt.Sprintf("%s-%d.%d.%d", prefix, suffix.Year(), suffix.Month(), suffix.Day())
+func indexReport(client *elastic.Client, indexName string, r api.TestReport) error {
 	_, err := client.Index().
 		Index(indexName).
 		Type("_doc").
