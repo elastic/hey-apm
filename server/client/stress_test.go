@@ -172,7 +172,7 @@ func doTest(t *testing.T, flags []string, numEvents, numSpans, numFrames, concur
 		// test no performance regressions since the last week for the same workload
 		// variance margin is 1.2 (see `api.MARGIN`), meaning that performance can be 20% worse than other run
 		// and the test will still pass
-		rs := api.Verify(
+		ok, msg := api.Verify(
 			"768h",
 			[]string{
 				"branch=master",
@@ -183,7 +183,7 @@ func doTest(t *testing.T, flags []string, numEvents, numSpans, numFrames, concur
 				filter("concurrency", concurrency),
 				fmt.Sprintf("limit=%d", memLimit)},
 			reports)
-		assert.Contains(t, rs, "ok", rs)
+		assert.True(t, ok, msg)
 	}
 }
 
@@ -195,10 +195,6 @@ func TestSmallTransactionsLowConcurrency(t *testing.T) {
 	doTest(t, noFlags, "10", "10", "10", "5")
 }
 
-func TestSmallTransactionsHighConcurrency(t *testing.T) {
-	doTest(t, noFlags, "10", "10", "10", "20")
-}
-
 func TestMediumTransactionsSequential(t *testing.T) {
 	doTest(t, noFlags, "20", "20", "20", "1")
 }
@@ -207,20 +203,17 @@ func TestMediumTransactionsLowConcurrency(t *testing.T) {
 	doTest(t, noFlags, "20", "20", "20", "5")
 }
 
-func TestMediumTransactionsHighConcurrency(t *testing.T) {
-	doTest(t, noFlags, "20", "20", "20", "20")
-}
-
 func TestLargeTransactionsSequential(t *testing.T) {
-	doTest(t, noFlags, "20", "20", "20", "1")
+	doTest(t, noFlags, "30", "30", "30", "1")
 }
 
 func TestLargeTransactionsLowConcurrency(t *testing.T) {
-	doTest(t, noFlags, "20", "20", "20", "5")
+	doTest(t, noFlags, "30", "30", "30", "5")
 }
 
-func TestLargeTransactionsHighConcurrency(t *testing.T) {
-	doTest(t, noFlags, "30", "30", "30", "20")
+func TestLargeTransactionsLowConcurrencyCustomFlags(t *testing.T) {
+	flags := []string{"-E", "output.elasticsearch.bulk_max_size=5000", "-E", "queue.mem.events=5000", "-E", "apm-server.concurrent_requests=10"}
+	doTest(t, flags, "30", "30", "30", "5")
 }
 
 func TestErrorsVeryHighConcurrency(t *testing.T) {

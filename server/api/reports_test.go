@@ -22,7 +22,7 @@ var report = TestReport{
 	ReporterHost:     "localhost",
 	ReporterRevision: "rev32341",
 	User:             "test_user",
-	Epoch:            time.Now().Unix(),
+	Timestamp:        time.Now(),
 	Lang:             "python",
 	Limit:            -1,
 	Revision:         "rev12345678",
