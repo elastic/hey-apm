@@ -792,7 +792,7 @@ func mapToStr(m map[string]string) string {
 	return ret
 }
 
-const MARGIN = 1.2
+const MARGIN = 1.33
 
 // returns the slice index of the best performing report efficiency wise, if significant
 func best(reports []TestReport) int {
