@@ -1,17 +1,20 @@
 package client
 
 import (
-	"testing"
 	"os"
+	"testing"
+
 	"github.com/elastic/hey-apm/server/api"
 
-	"sync"
 	"fmt"
-	"time"
-	"github.com/stretchr/testify/assert"
 	"net/http"
-	"github.com/pkg/errors"
 	"path/filepath"
+	"sync"
+	"time"
+
+	"github.com/elastic/hey-apm/server/tests"
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 )
 
 var once sync.Once
@@ -27,14 +30,14 @@ func setupEnv(flags []string) (*evalEnvironment, []string, error) {
 		environment = NewEvalEnvironment("")
 		_, environment.es = elasticSearchUse("", url, usr, pwd)
 		apmDir := filepath.Join(os.Getenv("GOPATH"), "/src/github.com/elastic/apm-server")
-		_, environment.apm = apmSwitch(os.Stdout, apmDir, "master", "", []string{"c", "m", "u", "v"})
+		_, environment.apm = apmSwitch(console, apmDir, "master", "", []string{"c", "m", "u", "v"})
 	})
 
 	flags = apmFlags(*environment.es, environment.apm.Url(), append(flags, "-E", "apm-server.shutdown_timeout=1s"))
 	err := apmStop(environment.apm)
 	if err == nil {
 		time.Sleep(time.Second * 5)
-		err, environment.apm = apmStart(os.Stdout, *environment.apm, func(){}, flags, "-1")
+		err, environment.apm = apmStart(console, *environment.apm, func() {}, flags, "-1")
 	}
 	if err == nil {
 		err = waitForServer(environment.apm.Url())
@@ -45,7 +48,7 @@ func setupEnv(flags []string) (*evalEnvironment, []string, error) {
 func waitForServer(url string) error {
 	c := make(chan error, 1)
 	defer close(c)
-	go func(){
+	go func() {
 		for {
 			res, err := http.Get(url)
 			if err == nil && res.StatusCode == http.StatusOK {
@@ -63,6 +66,14 @@ func waitForServer(url string) error {
 		return errors.New("timed out waiting for apm-server to start")
 	}
 }
+
+type consoleWriter struct{}
+
+func (_ *consoleWriter) Write(p []byte) (n int, err error) {
+	return os.Stdout.Write([]byte(tests.WithoutColors(string(p))))
+}
+
+var console = &consoleWriter{}
 
 // Executes long running apm-server stress tests, intended for CI
 // Tests different workloads with the default apm-server configuration against the master branch
@@ -115,8 +126,8 @@ func doBenchmark(memLimit int64, flags []string, workload ...string) ([]api.Test
 	if err != nil {
 		return nil, err
 	}
-	block := func(){select {}}
-	result := api.LoadTest(os.Stdout, env, block, "1000", workload...)
+	block := func() { select {} }
+	result := api.LoadTest(console, env, block, "1000", workload...)
 	report := api.NewReport(
 		result,
 		"hey-apm-tester",
@@ -127,7 +138,7 @@ func doBenchmark(memLimit int64, flags []string, workload ...string) ([]api.Test
 		maxRssUsed(env.apm.cmd),
 		memLimit,
 		flags,
-		os.Stdout,
+		console,
 	)
 	err = report.Error
 	if err == nil {
@@ -177,7 +188,7 @@ func doTest(t *testing.T, flags []string, numEvents, numSpans, numFrames, concur
 }
 
 func TestSmallTransactionsSequential(t *testing.T) {
-	doTest(t, noFlags,"10", "10", "10", "1")
+	doTest(t, noFlags, "10", "10", "10", "1")
 }
 
 func TestSmallTransactionsLowConcurrency(t *testing.T) {
@@ -215,4 +226,3 @@ func TestLargeTransactionsHighConcurrency(t *testing.T) {
 func TestErrorsVeryHighConcurrency(t *testing.T) {
 	doTest(t, noFlags, "10", "0", "100", "100")
 }
-

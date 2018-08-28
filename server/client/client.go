@@ -413,7 +413,6 @@ func apmStart(w stdio.Writer, apm apm, cancel func(), flags []string, limit stri
 	return err, newApm
 }
 
-
 func apmStop(apm *apm) error {
 	if running := apm.IsRunning(); running != nil && *running && apm.cmd != nil && apm.cmd.Process != nil {
 		return apm.cmd.Process.Kill()
