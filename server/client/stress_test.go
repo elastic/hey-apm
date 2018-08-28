@@ -211,6 +211,11 @@ func TestLargeTransactionsLowConcurrency(t *testing.T) {
 	doTest(t, noFlags, "30", "30", "30", "5")
 }
 
+func TestLargeTransactionsLowConcurrencyCustomFlags(t *testing.T) {
+	flags := []string{"-E", "output.elasticsearch.bulk_max_size=5000", "-E", "queue.mem.events=5000", "-E", "apm-server.concurrent_requests=10"}
+	doTest(t, flags, "30", "30", "30", "5")
+}
+
 func TestErrorsVeryHighConcurrency(t *testing.T) {
 	doTest(t, noFlags, "10", "0", "100", "100")
 }
