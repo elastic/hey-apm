@@ -35,7 +35,7 @@ type TestReport struct {
 	// git revision of hey-apm when generated this report, empty if `git rev-parse HEAD` failed
 	ReporterRevision string `json:"reporter_revision"`
 	// like reportDate, but better for querying ES and sorting
-	Epoch int64 `json:"timestamp"`
+	Timestamp time.Time `json:"@timestamp"`
 	// hardcoded to python for now
 	Lang string `json:"language"`
 	// any error (eg missing data) for which this report shouldn't be saved and considered for data analysis
@@ -58,7 +58,7 @@ type TestReport struct {
 
 // methods in this type are not necessarily safe (eg: divide by 0, date parsing error, etc)
 type TestResult struct {
-	Cancelled bool
+	Cancelled bool `json:"cancelled"`
 	/*
 		independent variables
 	*/
@@ -126,7 +126,7 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 		Lang:       "python",
 		ReportId:   randId(time.Now().Unix()),
 		ReportDate: time.Now().Format(io.GITRFC),
-		Epoch:      time.Now().Unix(),
+		Timestamp:  time.Now(),
 		User:       usr,
 		Revision:   rev,
 		RevDate:    revDate,
