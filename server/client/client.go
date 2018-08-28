@@ -366,8 +366,16 @@ func apmStart(w stdio.Writer, apm apm, cancel func(), flags []string, limit stri
 		cmd.Dir = apm.Dir()
 	}
 
+	fullCmd := cmd.Args
+	for idx, arg := range fullCmd {
+		kv := s.Split(arg, "=")
+		if len(kv) == 2 && (s.Contains(kv[0], "password") || s.Contains(kv[0], "user")) {
+			fullCmd[idx] = kv[0] + "=<REDACTED>"
+		}
+	}
+
 	io.ReplyNL(w, io.Cyan)
-	io.ReplyWithDots(w, cmd.Args...)
+	io.ReplyWithDots(w, fullCmd...)
 
 	// apm-server writes to stderr by default, this consumes it as soon is produced
 	stderr, err := cmd.StderrPipe()
