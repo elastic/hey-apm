@@ -14,9 +14,10 @@ import (
 	"os"
 	"path"
 
+	stdio "io"
+
 	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/server/strcoll"
-	stdio "io"
 )
 
 type TestReport struct {
