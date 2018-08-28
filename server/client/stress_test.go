@@ -87,7 +87,6 @@ func TestMain(m *testing.M) {
 
 	env, _, timeoutErr := setupEnv(noFlags)
 	defer apmStop(env.apm)
-	defer reset(env.es)
 
 	// bootstrap checks
 	if env.es.useErr != nil {
@@ -123,6 +122,7 @@ func TestMain(m *testing.M) {
 // (eg. no data captured, failed to save the report...)
 func doBenchmark(memLimit int64, flags []string, workload ...string) ([]api.TestReport, error) {
 	env, flags, err := setupEnv(flags)
+	defer reset(env.es)
 	if err != nil {
 		return nil, err
 	}
