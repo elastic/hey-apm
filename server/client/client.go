@@ -211,7 +211,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 				env.apm.isRemote,
 				mem,
 				docker.ToBytes(limit),
-				flags,
+				removeSensitiveFlags(flags),
 				bw,
 			)
 
@@ -366,16 +366,8 @@ func apmStart(w stdio.Writer, apm apm, cancel func(), flags []string, limit stri
 		cmd.Dir = apm.Dir()
 	}
 
-	fullCmd := cmd.Args
-	for idx, arg := range fullCmd {
-		kv := s.Split(arg, "=")
-		if len(kv) == 2 && (s.Contains(kv[0], "password") || s.Contains(kv[0], "user")) {
-			fullCmd[idx] = kv[0] + "=<REDACTED>"
-		}
-	}
-
 	io.ReplyNL(w, io.Cyan)
-	io.ReplyWithDots(w, fullCmd...)
+	io.ReplyWithDots(w, removeSensitiveFlags(cmd.Args)...)
 
 	// apm-server writes to stderr by default, this consumes it as soon is produced
 	stderr, err := cmd.StderrPipe()
@@ -567,4 +559,17 @@ func stopDocker(w stdio.Writer) (int64, error) {
 	mem = mem * 1000
 	_, err := sh("docker", "stop", docker.Container())
 	return mem, err
+}
+
+func removeSensitiveFlags(flags []string) []string{
+	safeFlags := make([]string, len(flags))
+	for idx, arg := range flags {
+		kv := s.Split(arg, "=")
+		if len(kv) == 2 && (s.Contains(kv[0], "password") || s.Contains(kv[0], "user")) {
+			safeFlags[idx] = kv[0] + "=<REDACTED>"
+		} else {
+			safeFlags[idx] = arg
+		}
+	}
+	return safeFlags
 }
