@@ -357,12 +357,12 @@ func queryFilters(expressions []string) ([]queryFilter, error) {
 	return ret, err
 }
 
-// returns "ok" if the report from the most recent revision shows no less efficient than reports from older revisions
+// returns true if the report from the most recent revision shows no less efficient than reports from older revisions
 // `filtersExpr` must include all the independent variables except revision and apm_host
 // `all` must not be empty
-func verify(since string, filtersExpr []string, all []TestReport) (string, error) {
+func verify(since string, filtersExpr []string, all []TestReport) (bool, string, error) {
 	if len(all) == 0 {
-		return "", errors.New("no reports")
+		return false, "", errors.New("no reports")
 	}
 	filters, err := queryFilters(filtersExpr)
 	filterKeys := make([]string, 0)
@@ -372,23 +372,23 @@ func verify(since string, filtersExpr []string, all []TestReport) (string, error
 	for k, _ := range independentVars(all[0]) {
 		if k != "revision" && k != "apm_host" && !strcoll.Contains(k, filterKeys) {
 			if k == "limit" {
-				return "", errors.New("limit is a required filter:\n " +
+				return false, "", errors.New("limit is a required filter:\n " +
 					"for localhost tests is -1, default for dockerized tests is 4000000000 (in bytes)")
 			}
-			return "", errors.New(k + " is a required filter")
+			return false, "", errors.New(k + " is a required filter")
 		}
 	}
 	reports, err := top(since, "revision_date", filters, all, err)
 	if len(reports) == 0 {
-		return "no data", err
+		return false, "no data", err
 	}
 	best := best(reports)
 	if best < 1 {
-		return io.Green + "ok", err
+		return true, io.Green + "ok", err
 	} else {
 		last := reports[0]
 		challenger := reports[best]
-		return fmt.Sprintf("revision %s (%s) outperforms %s (%s): %.3f < %.3f\n"+
+		return true, fmt.Sprintf("revision %s (%s) outperforms %s (%s): %.3f < %.3f\n"+
 			"report ids: %s, %s (elasticsearch host = %s)",
 			challenger.Revision, challenger.RevDate,
 			last.Revision, last.RevDate,

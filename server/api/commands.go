@@ -387,11 +387,11 @@ func Collate(ND, sort string, csv bool, args []string, reports []TestReport) str
 }
 
 // verifies that performance doesn't get worse over time
-func Verify(since string, filterExpr []string, reports []TestReport) string {
+func Verify(since string, filterExpr []string, reports []TestReport) (bool, string) {
 	bw := io.NewBufferWriter()
-	out, err := verify(since, filterExpr, reports)
+	ok, out, err := verify(since, filterExpr, reports)
 	io.ReplyEitherNL(bw, err, out)
-	return bw.String()
+	return ok, bw.String()
 }
 
 func atoi(attr string, err error) (int, error) {

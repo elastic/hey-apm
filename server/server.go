@@ -128,7 +128,8 @@ func eval(cmd []string, conn client.Connection, state api.State) string {
 		reports, err := state.ElasticSearch().FetchReports()
 		if err == nil {
 			args, since := io.ParseCmdOption(cmd[1:], "-n", "168h", true)
-			return api.Verify(since, args, reports)
+			_, out := api.Verify(since, args, reports)
+			return out
 		} else {
 			return io.Red + err.Error()
 		}
