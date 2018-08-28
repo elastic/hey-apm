@@ -561,7 +561,7 @@ func stopDocker(w stdio.Writer) (int64, error) {
 	return mem, err
 }
 
-func removeSensitiveFlags(flags []string) []string{
+func removeSensitiveFlags(flags []string) []string {
 	safeFlags := make([]string, len(flags))
 	for idx, arg := range flags {
 		kv := s.Split(arg, "=")
