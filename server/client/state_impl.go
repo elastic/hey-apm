@@ -42,8 +42,8 @@ func (es es) Health() (string, error) {
 func (es es) FetchReports() ([]api.TestReport, error) {
 	ret := make([]api.TestReport, 0)
 
-	search, err := es.Client.Search(es.reportIndex+"-*").
-		Sort("timestamp", false).
+	search, err := es.Client.Search(es.reportIndex).
+		Sort("@timestamp", false).
 		Size(1000).
 		Do(context.Background())
 	if err != nil {
