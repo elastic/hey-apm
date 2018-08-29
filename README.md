@@ -3,7 +3,7 @@ Basic load generation for apm-server built on [hey](https://github.com/rakyll/he
 # Install
 
 ```
-# create vendor/
+# populate vendor/
 go get github.com/golang/dep/cmd/dep
 dep ensure -v
 ```
