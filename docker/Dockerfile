@@ -1,9 +1,11 @@
 # from .. - docker build -f docker/Dockerfile .
-FROM golang:1.9
+FROM golang:1.11
 RUN useradd hey
 
 WORKDIR /go/src/github.com/elastic/hey-apm
+RUN go get -u github.com/golang/dep/cmd/dep
 COPY . .
+RUN dep ensure
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o hey-apm .
 
 FROM scratch
