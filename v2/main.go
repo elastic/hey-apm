@@ -75,7 +75,7 @@ func do(parent context.Context, logger *log.Logger, client *http.Client, payload
 		}
 	}(writer)
 
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/v2/intake", *baseUrl), reader)
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/intake/v2/events", *baseUrl), reader)
 	if err != nil {
 		logger.Println("[error] creating request:", err)
 		return
