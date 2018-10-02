@@ -2,76 +2,94 @@
 
 
 [[projects]]
+  digest = "1:0deddd908b6b4b768cfc272c16ee61e7088a60f7fe2f06c547bd3d8e1f8b8e77"
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
-  revision = "346938d642f2ec3594ed81d874461961cd0faa76"
-  version = "v1.1.0"
+  pruneopts = ""
+  revision = "8991bc29aa16c548c550c7ff78260e27b9ab7c73"
+  version = "v1.1.1"
 
 [[projects]]
   branch = "expose-report"
+  digest = "1:36c609b323a8612caf02fedf81f9ef8d753e03fd85d0eb1f16f0c323606b608e"
   name = "github.com/graphaelli/hey"
   packages = ["requester"]
+  pruneopts = ""
   revision = "0edd059b9356127256a19247cc992923451c3cd0"
   source = "github.com/graphaelli/hey"
 
 [[projects]]
   branch = "master"
+  digest = "1:212bebc561f4f654a653225868b2a97353cd5e160dc0b0bbc7232b06608474ec"
   name = "github.com/mailru/easyjson"
   packages = [
     ".",
     "buffer",
     "jlexer",
-    "jwriter"
+    "jwriter",
   ]
-  revision = "517203d186eb343d3df4068565cc0446b450d2c4"
+  pruneopts = ""
+  revision = "60711f1a8329503b04e1c88535f419d0bb440bff"
 
 [[projects]]
+  digest = "1:c77e326aa46a635d933c436b50c82c159419896cd55d37bb33b49799855cb38a"
   name = "github.com/olivere/elastic"
   packages = [
     ".",
     "config",
-    "uritemplates"
+    "uritemplates",
   ]
-  revision = "f9243358b15391d76b5d0e2cb816442f9cded8cc"
-  version = "v6.1.12"
+  pruneopts = ""
+  revision = "bd115a1132ece51519151c33b5d74e1387d3265a"
+  version = "v6.2.8"
 
 [[projects]]
+  digest = "1:7365acd48986e205ccb8652cc746f09c8b7876030d53710ea6ef7d0bd0dcd7ca"
   name = "github.com/pkg/errors"
   packages = ["."]
+  pruneopts = ""
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
   version = "v0.8.0"
 
 [[projects]]
+  digest = "1:256484dbbcd271f9ecebc6795b2df8cad4c458dd0f5fd82a8c2fa0c29f233411"
   name = "github.com/pmezard/go-difflib"
   packages = ["difflib"]
+  pruneopts = ""
   revision = "792786c7400a136282c1664665ae0a8db921c6c2"
   version = "v1.0.0"
 
 [[projects]]
+  digest = "1:c587772fb8ad29ad4db67575dad25ba17a51f072ff18a22b4f0257a4d9c24f75"
   name = "github.com/stretchr/testify"
   packages = ["assert"]
-  revision = "12b6f73e6084dad08a7c6e575284b177ecafbc71"
-  version = "v1.2.1"
+  pruneopts = ""
+  revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
+  version = "v1.2.2"
 
 [[projects]]
+  digest = "1:27079fd7d90431571941703ee2bce2d24972145f2dbc2afe1d9d719e8ca36468"
   name = "github.com/struCoder/pidusage"
   packages = ["."]
+  pruneopts = ""
   revision = "5e29cda97c066390d35b2eb889048fbc25381b2f"
   version = "v0.1.2"
 
 [[projects]]
   branch = "master"
+  digest = "1:08e41d63f8dac84d83797368b56cf0b339e42d0224e5e56668963c28aec95685"
   name = "golang.org/x/net"
   packages = [
+    "http/httpguts",
     "http2",
     "http2/hpack",
     "idna",
-    "lex/httplex"
   ]
-  revision = "434ec0c7fe3742c984919a691b2018a6e9694425"
+  pruneopts = ""
+  revision = "4dfa2610cdf3b287375bbba5b8f2a14d3b01d8de"
 
 [[projects]]
-  branch = "master"
+  digest = "1:5acd3512b047305d49e8763eef7ba423901e85d5dd2fd1e71778a0ea8de10bd4"
   name = "golang.org/x/text"
   packages = [
     "collate",
@@ -87,13 +105,21 @@
     "unicode/bidi",
     "unicode/cldr",
     "unicode/norm",
-    "unicode/rangetable"
+    "unicode/rangetable",
   ]
-  revision = "e19ae1496984b1c655b8044a65c0300a3c878dd3"
+  pruneopts = ""
+  revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
+  version = "v0.3.0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ffb026274a422f1abc14beefe8bdd3993790e23fc3244d551cbcb3faf40a7d64"
+  input-imports = [
+    "github.com/graphaelli/hey/requester",
+    "github.com/olivere/elastic",
+    "github.com/pkg/errors",
+    "github.com/stretchr/testify/assert",
+    "github.com/struCoder/pidusage",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1
