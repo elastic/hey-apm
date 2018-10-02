@@ -3,6 +3,7 @@ package main
 import (
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -95,6 +96,23 @@ func do(parent context.Context, logger *log.Logger, client *http.Client, payload
 	logger.Printf("[info] after %d writes totaling %d bytes: %s %s\n", writes, wrote, rsp.Status, string(rspBody))
 }
 
+func singleTransaction() []byte {
+	t := make(map[string]interface{})
+	if err := json.Unmarshal(compose.SingleTransaction, &t); err != nil {
+		panic(err)
+	}
+	t["span_count"] = map[string]int{
+		"started": *numSpans,
+		"dropped": 0,
+	}
+	t["trace_id"] = "XXX"
+	if b, err := json.Marshal(t); err != nil {
+		panic(err)
+	} else {
+		return b
+	}
+}
+
 func main() {
 	flag.Parse()
 	ctx, _ := context.WithTimeout(context.Background(), *runTimeout)
@@ -113,7 +131,7 @@ func main() {
 
 	span := addNewline(compose.NdjsonWrapObj("span", compose.V2Span(*numFrames)))
 	payloads := make([][]byte, 1+*numSpans)
-	payloads[0] = addNewline(compose.NdjsonWrapObj("transaction", compose.SingleTransaction))
+	payloads[0] = addNewline(compose.NdjsonWrapObj("transaction", singleTransaction()))
 	for i := 1; i <= *numSpans; i++ {
 		payloads[i] = span
 	}
