@@ -17,39 +17,55 @@ func V2Span(numFrames int) []byte {
 // Composes a request body for the v2/intake endpoint with as many transactions as
 // `numTransactions` and as many spans as `numSpans` for each, each span containing as many
 // frames as `numFrames` * 10
-func V2TransactionRequest(numTransactions int, numSpans int, numFrames int) []byte {
-	var buf bytes.Buffer
-
-	buf.Write(Metadata)
-	buf.WriteByte('\n')
-
-	transaction := NdjsonWrapObj("transaction", SingleTransaction)
-	span := NdjsonWrapObj("span", V2Span(numFrames))
-
+func V2TransactionRequest(numTransactions int, numSpans int, numFrames int) [][]byte {
+	payloads := createPayloads()
+	transaction := addNewline(NdjsonWrapObj("transaction", SingleTransaction))
+	span := addNewline(NdjsonWrapObj("span", V2Span(numFrames)))
 	for i := 0; i < numTransactions; i++ {
-		NDJSONRepeat(&buf, transaction, 1)
-		NDJSONRepeat(&buf, span, numSpans)
+		payloads = append(payloads, transaction)
+		for j := 0; j < numSpans; j++ {
+			payloads = append(payloads, span)
+		}
 	}
-
-	return buf.Bytes()
+	return payloads
 }
 
 // Composes a request body for the v2/errors endpoint with as many errors as
 // `numErrors`, each containing as many frames as `numFrames` * 10
-func V2ErrorRequest(numErrors int, numFrames int) []byte {
-	var buf bytes.Buffer
+func V2ErrorRequest(numErrors int, numFrames int) [][]byte {
+	payloads := createPayloads()
 
 	stacktrace := make([]byte, len(StacktraceFrame))
 	copy(stacktrace, StacktraceFrame)
 	frames := multiply([]byte(`"stacktrace"`), stacktrace, numFrames)
 
-	error := make([]byte, len(SingleError))
-	copy(error, SingleError)
-	error = bytes.Replace(error, []byte(`"stacktrace":[],`), frames, -1)
+	event := make([]byte, len(SingleError))
+	copy(event, SingleError)
+	event = bytes.Replace(event, []byte(`"stacktrace":[],`), frames, -1)
 
-	NDJSONRepeat(&buf, error, numErrors)
+	for i := 0; i < numErrors; i++ {
+		payloads = append(payloads, event)
+	}
+	return payloads
+}
 
-	return buf.Bytes()
+func multiply(key []byte, value []byte, times int) []byte {
+	var ret bytes.Buffer
+	var c int
+	ret.Write(key)
+	ret.WriteString(":[")
+	ret.Write(value)
+	for c < times-1 {
+		ret.WriteByte(',')
+		ret.Write(value)
+		c++
+	}
+	ret.WriteString("],")
+	return ret.Bytes()
+}
+
+func createPayloads() [][]byte {
+	return [][]byte{addNewline(Metadata)}
 }
 
 func NDJSONRepeat(buf *bytes.Buffer, value []byte, times int) {
@@ -77,4 +93,8 @@ func NdjsonWrapObj(key string, buf []byte) []byte {
 	buff.Write(buf)
 	buff.WriteString(`}`)
 	return buff.Bytes()
+}
+
+func addNewline(p []byte) []byte {
+	return append(p, '\n')
 }

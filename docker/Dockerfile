@@ -16,4 +16,4 @@ COPY --from=0 /go/src/github.com/elastic/hey-apm/hey-apm /hey-apm
 
 USER hey
 ENTRYPOINT ["/hey-apm"]
-CMD ["-base-url", "http://apm-server:8200/"]
+CMD ["-base-url", "http://apm-server:8201/"]

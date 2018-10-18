@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	baseUrl            = flag.String("base-url", "http://localhost:8200", "apm-server url")
+	baseUrl            = flag.String("base-url", "http://localhost:8201", "apm-server url")
 	runTimeout         = flag.Duration("run", 10*time.Second, "stop run after this duration")
 	disableCompression = flag.Bool("disable-compression", false, "")
 	disableKeepAlives  = flag.Bool("disable-keepalive", false, "")
@@ -77,6 +77,7 @@ func do(parent context.Context, logger *log.Logger, client *http.Client, payload
 	}(writer)
 
 	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/intake/v2/events", *baseUrl), reader)
+	logger.Printf("url: %s", fmt.Sprintf("%s/intake/v2/events", *baseUrl))
 	if err != nil {
 		logger.Println("[error] creating request:", err)
 		return

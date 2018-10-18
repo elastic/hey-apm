@@ -2,11 +2,10 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"math"
 	"strings"
-
-	"encoding/json"
 
 	"github.com/elastic/hey-apm/server/api"
 	"github.com/elastic/hey-apm/server/api/io"
@@ -87,9 +86,9 @@ func (apm apm) PrettyRevision() string {
 
 func (apm apm) Url() string {
 	if docker.IsDockerized(&apm) {
-		return "http://0.0.0.0:8200"
+		return "http://0.0.0.0:8201"
 	} else {
-		return "http://localhost:8200"
+		return "http://localhost:8201"
 	}
 }
 

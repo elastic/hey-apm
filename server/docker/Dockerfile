@@ -20,4 +20,4 @@ RUN ${fetch_cmd} && \
   ${checkout_cmd} && \
   ${make_update_cmd} && \
   ${make_cmd}
-EXPOSE 8200
+EXPOSE 8201

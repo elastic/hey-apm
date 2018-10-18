@@ -1,13 +1,11 @@
 package target
 
 import (
-	"bytes"
-	"compress/gzip"
+	"io"
 	"io/ioutil"
 	"math"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/graphaelli/hey/requester"
 )
@@ -23,7 +21,7 @@ type Config struct {
 
 type Target struct {
 	Method, Url string
-	Body        []byte
+	Body        [][]byte
 	Concurrent  int
 	Qps         float64
 }
@@ -45,7 +43,8 @@ func (targets Targets) GetWork(baseUrl string, cfg *Config) []*requester.Work {
 	work := make([]*requester.Work, len(targets))
 	for i, t := range targets {
 		url := baseUrl + t.Url
-		req, err := http.NewRequest(t.Method, url, nil)
+		pReader, pWriter := io.Pipe()
+		req, err := http.NewRequest(t.Method, url, pReader)
 		if err != nil {
 			panic(err)
 		}
@@ -62,7 +61,7 @@ func (targets Targets) GetWork(baseUrl string, cfg *Config) []*requester.Work {
 		}
 
 		if t.Body != nil {
-			if strings.HasPrefix(t.Url, "/v2/") {
+			if strings.HasPrefix(t.Url, "/intake/v2/") {
 				req.Header.Add("Content-Type", "application/x-ndjson")
 			} else {
 				req.Header.Add("Content-Type", "application/json")
@@ -70,24 +69,14 @@ func (targets Targets) GetWork(baseUrl string, cfg *Config) []*requester.Work {
 		}
 
 		report := ioutil.Discard
-		body := bytes.Replace(t.Body, []byte("2018-01-09T03:35:37.604813Z"), []byte(time.Now().UTC().Format(time.RFC3339)), -1)
-
 		if !cfg.DisableCompression {
-			var b bytes.Buffer
-			gz := gzip.NewWriter(&b)
-			if _, err := gz.Write([]byte(body)); err != nil {
-				panic(err)
-			}
-			if err := gz.Close(); err != nil {
-				panic(err)
-			}
-			body = b.Bytes()
 			req.Header.Add("Content-Encoding", "gzip")
 		}
-		req.ContentLength = int64(len(body))
 		work[i] = &requester.Work{
 			Request:            req,
-			RequestBody:        body,
+			RequestBody:        t.Body,
+			PipeWriter:         pWriter,
+			PipeReader:         pReader,
 			N:                  cfg.MaxRequests,
 			C:                  t.Concurrent,
 			QPS:                t.Qps,

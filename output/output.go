@@ -67,7 +67,7 @@ func collapseError(e string) string {
 		return "read: connection reset by peer"
 	}
 
-	// Post http://localhost:8200/v1/transactions: net/http: HTTP/1.x transport connection broken: write tcp [::1]:63967->[::1]:8200: write: broken pipe
+	// Post http://localhost:8201/v1/transactions: net/http: HTTP/1.x transport connection broken: write tcp [::1]:63967->[::1]:8201: write: broken pipe
 	if strings.HasSuffix(e, "write: broken pipe") {
 		return "write: broken pipe"
 	}

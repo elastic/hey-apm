@@ -2,26 +2,20 @@ package client
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	stdio "io"
 	"math"
+	"net"
+	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"strconv"
 	s "strings"
 	"sync"
 	"time"
-
-	"net"
-
-	"context"
-
-	"net/url"
-	"path"
-
-	"strconv"
-
-	"github.com/struCoder/pidusage"
 
 	"github.com/elastic/hey-apm/server/api"
 	"github.com/elastic/hey-apm/server/api/io"
@@ -29,6 +23,7 @@ import (
 	"github.com/elastic/hey-apm/server/strcoll"
 	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
+	"github.com/struCoder/pidusage"
 )
 
 type RWC interface {
@@ -180,7 +175,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			args1, throttle = io.ParseCmdOption(args1, "--throttle", "32767", true)
 
 			var intakeAPIVersion string
-			args1, intakeAPIVersion = io.ParseCmdOption(args1, "--api-version", "1", true)
+			args1, intakeAPIVersion = io.ParseCmdOption(args1, "--api-version", "2", true)
 
 			flags := apmFlags(*env.es, env.apm.Url(), strcoll.Rest(5, args1))
 
@@ -343,7 +338,7 @@ func apmStart(w stdio.Writer, apm apm, cancel func(), flags []string, limit stri
 	var cmd *exec.Cmd
 	if docker.IsDockerized(newApm) {
 		args := []string{"run", "--rm", "-i",
-			"-p", "8200:8200",
+			"-p", "8201:8201",
 			"--name", docker.Container(),
 			"--memory=" + limit,
 			// disallow swapping

@@ -1,9 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"compress/gzip"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -24,16 +21,16 @@ import (
 )
 
 var (
-	baseUrls    = newStringsOpt("base-url", []string{"http://localhost:8200/"}, "")
+	baseUrls    = newStringsOpt("base-url", []string{"http://localhost:8201/"}, "")
 	headers     = newStringsOpt("header", []string{}, "header(s) added to all requests")
 	profileName = flag.String("profile", "heavy",
-		fmt.Sprintf("load profile: one of %s", profile.Choices()))
+		fmt.Sprintf("load profile: one of undefined"))
 	runTimeout         = flag.Duration("run", 10*time.Second, "stop run after this duration")
 	disableCompression = flag.Bool("disable-compression", false, "")
 	disableKeepAlives  = flag.Bool("disable-keepalive", false, "")
 	disableRedirects   = flag.Bool("disable-redirects", false, "")
 	maxRequests        = flag.Int("requests", math.MaxInt32, "maximum requests to make")
-	timeout            = flag.Int("timeout", 3, "request timeout")
+	timeout            = flag.Int("timeout", 10, "request timeout")
 	describe           = flag.Bool("describe", false, "describe payloads and exit")
 	dump               = flag.Bool("dump", false, "dump payloads in loadbeat config format and exit")
 	interactive        = flag.Bool("interactive", false, "run hey-apm in interactive mode listening on 8234")
@@ -82,7 +79,7 @@ func dumpLoadbeat(profileName string, work []*requester.Work) {
 		fmt.Fprintf(f, "      url: %s\n", w.Request.URL)
 		if len(w.RequestBody) > 0 {
 			fmt.Fprintln(f, "      headers:")
-			fmt.Fprintln(f, "        - Content-Type:application/json")
+			fmt.Fprintln(f, "        - Content-Type:application/x-ndjson")
 			fmt.Fprintf(f, "      body: >\n        %s\n", w.RequestBody)
 		}
 		fmt.Fprintln(f)
@@ -90,32 +87,32 @@ func dumpLoadbeat(profileName string, work []*requester.Work) {
 }
 
 func desc(work []*requester.Work) {
-	for _, w := range work {
-		var gzBody bytes.Buffer
-		if len(w.RequestBody) > 0 {
-			zw := gzip.NewWriter(&gzBody)
-			zw.Write(w.RequestBody)
-			zw.Close()
-		}
-		fmt.Printf("%s %s - %d (%d gz) bytes", w.Request.Method, w.Request.URL, len(w.RequestBody), len(gzBody.Bytes()))
+	//for _, w := range work {
+	//var gzBody bytes.Buffer
+	//if len(w.RequestBody) > 0 {
+	//zw := gzip.NewWriter(&gzBody)
+	//zw.Write(w.RequestBody)
+	//zw.Close()
+	//}
+	//fmt.Printf("%s %s - %d (%d gz) bytes", w.Request.Method, w.Request.URL, len(w.RequestBody), len(gzBody.Bytes()))
 
-		var j map[string]interface{}
-		if err := json.Unmarshal(w.RequestBody, &j); err != nil {
-			fmt.Println()
-			continue
-		}
-		if ts := j["transactions"]; ts != nil {
-			tsList := ts.([]interface{})
-			fmt.Printf(" - %d transactions", len(tsList))
-			if len(tsList) > 0 {
-				fmt.Print(" with spans of length: ")
-			}
-			for _, t := range tsList {
-				fmt.Print(len(t.(map[string]interface{})["spans"].([]interface{})), " ")
-			}
-		}
-		fmt.Println()
-	}
+	//var j map[string]interface{}
+	//if err := json.Unmarshal(w.RequestBody, &j); err != nil {
+	//fmt.Println()
+	//continue
+	//}
+	//if ts := j["transactions"]; ts != nil {
+	//tsList := ts.([]interface{})
+	//fmt.Printf(" - %d transactions", len(tsList))
+	//if len(tsList) > 0 {
+	//fmt.Print(" with spans of length: ")
+	//}
+	//for _, t := range tsList {
+	//fmt.Print(len(t.(map[string]interface{})["spans"].([]interface{})), " ")
+	//}
+	//}
+	//fmt.Println()
+	//}
 }
 
 func main() {

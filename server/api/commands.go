@@ -5,14 +5,12 @@ import (
 	"fmt"
 	stdio "io"
 	"math"
+	"math/rand"
 	"os"
+	"sort"
 	"strconv"
 	s "strings"
 	"time"
-
-	"math/rand"
-
-	"sort"
 
 	"github.com/elastic/hey-apm/compose"
 	"github.com/elastic/hey-apm/output"
@@ -36,24 +34,6 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle, intak
 	conc, err := atoi(strcoll.Nth(4, cmd), err)
 	qps, err := atoi(throttle, err)
 
-	var reqBody []byte
-	var url string
-
-	if intakeAPIVersion == "1" {
-		reqBody = compose.TransactionRequest(events, spans, frames)
-		url = "/v1/transactions"
-		if spans == 0 {
-			reqBody = compose.ErrorRequest(events, frames)
-			url = "/v1/errors"
-		}
-	} else {
-		url = "/v2/intake"
-		reqBody = compose.V2TransactionRequest(events, spans, frames)
-		if spans == 0 {
-			reqBody = compose.V2ErrorRequest(events, frames)
-		}
-	}
-
 	if err == nil {
 		// apm-server warm up
 		time.Sleep(time.Second)
@@ -63,20 +43,29 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle, intak
 		return io.Red + err.Error(), TestReport{}
 	}
 
+	var reqBody [][]byte
+	var url string
+
+	url = "/intake/v2/events"
+	reqBody = compose.V2TransactionRequest(events, spans, frames)
+	if spans == 0 {
+		reqBody = compose.V2ErrorRequest(events, frames)
+	}
+
 	var targets t.Targets = []t.Target{
 		{"POST", url, reqBody, conc, float64(qps)},
 	}
 	work := targets.GetWork(state.ApmServer().Url(), &t.Config{
 		MaxRequests: math.MaxInt32,
 		// should match the one in apm-server
-		RequestTimeout:     30,
+		RequestTimeout:     10,
 		DisableCompression: false,
 	})[0]
 	docsBefore := state.ElasticSearch().Count()
 	start := time.Now()
 	go work.Run()
-	io.ReplyNL(w, io.Grey+fmt.Sprintf("started new work, payload size is %s...",
-		byteCountDecimal(int64(len(reqBody)))))
+	//TODO: calculate payload size
+	io.ReplyNL(w, io.Grey+fmt.Sprintf("started new work, payload size is unknown"))
 	io.Prompt(w)
 
 	cancelled := make(chan struct{}, 1)
@@ -87,6 +76,7 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle, intak
 
 	bw := io.NewBufferWriter()
 	var report TestReport
+	// TODO: calculate ReqSize
 	select {
 	case <-time.After(duration):
 		work.Stop()
@@ -105,7 +95,6 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle, intak
 			Frames:       frames,
 			Concurrency:  conc,
 			Qps:          qps,
-			ReqSize:      len(reqBody),
 			ElasticUrl:   state.ElasticSearch().Url(),
 			ApmUrl:       state.ApmServer().Url(),
 			Branch:       state.ApmServer().Branch(),
@@ -258,21 +247,23 @@ func Status(state State) *io.BufferWriter {
 
 // writes to disk
 func Dump(fw io.FileWriter, fileName string, args ...string) string {
-	w := io.NewBufferWriter()
-	events, err := atoi(strcoll.Nth(0, args), nil)
-	spans, err := atoi(strcoll.Nth(1, args), err)
-	frames, err := atoi(strcoll.Nth(2, args), err)
-	if err != nil {
-		io.ReplyEitherNL(w, err)
-		return w.String()
-	}
-	var reqBody = compose.ErrorRequest(events, frames)
-	if spans > 0 {
-		reqBody = compose.TransactionRequest(events, spans, frames)
-	}
-	err = fw.WriteToFile(fileName, reqBody)
-	io.ReplyEitherNL(w, err, io.Grey+byteCountDecimal(int64(len(reqBody)))+" written to disk")
-	return w.String()
+	//w := io.NewBufferWriter()
+	//events, err := atoi(strcoll.Nth(0, args), nil)
+	//spans, err := atoi(strcoll.Nth(1, args), err)
+	//frames, err := atoi(strcoll.Nth(2, args), err)
+	//if err != nil {
+	//io.ReplyEitherNL(w, err)
+	//return w.String()
+	//}
+	//var reqBody = compose.V2ErrorRequest(events, frames)
+	//if spans > 0 {
+	//reqBody = compose.V2TransactionRequest(events, spans, frames)
+	//}
+	//TODO
+	//err = fw.WriteToFile(fileName, reqBody)
+	//io.ReplyEitherNL(w, err, io.Grey+byteCountDecimal(int64(len(reqBody)))+" written to disk")
+	//return w.String()
+	return ""
 }
 
 func Help() string {
