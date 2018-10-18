@@ -1,27 +1,3 @@
 package compose
 
-var SingleError = []byte(`
-{"context":
-	{"custom":{},
-	"request":{"body":null,
-				"cookies":{},
-				"env":{"REMOTE_ADDR":"127.0.0.1","SERVER_NAME":"1.0.0.127.in-addr.arpa","SERVER_PORT":"8000"},
-				"headers":{"accept":"*/*","accept-encoding":"gzip, deflate, br","accept-language":"en-US,en;q=0.9","connection":"keep-alive","content-length":"","content-type":"text/plain","host":"localhost:8000","referer":"http://localhost:8000/dashboard","user-agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.84 Safari/537.36"},
-				"method":"GET",
-				"socket":{"encrypted":false,"remote_address":"127.0.0.1"},
-				"url":{"full":"http://localhost:8000/api/stats","hostname":"localhost","pathname":"/api/stats","port":"8000","protocol":"http:"}
-				},
-	"user":{"id":null,"is_authenticated":false,"username":""}
-	},
-"culprit":"opbeans.views.stats",
-"exception":
-	{"message":"ConnectionError: Error 61 connecting to localhost:6379. Connection refused.",
-		"module":"redis.exceptions",
-		"stacktrace":[],
- 		"type":"ConnectionError",
-		"handled":false
-	},
-
-"id":"e99fd5d7-516f-422d-a6fe-3550a49283e0",
-"transaction":{"id":"87d45146-e0ce-4a04-877c-a672921df059"}}
-`)
+var SingleError = []byte(`{"id": "0123456789012345", "timestamp": 1494342245999999, "culprit": "my.module.function_name","log": { "message": "My service could not talk to the database named foobar", "param_message": "My service could not talk to the database named %s", "logger_name": "my.logger.name", "level": "warning", "stacktrace": []},"exception": {"message": "The username root is unknown","type": "DbError","module": "__builtins__","code": 42,"handled": false,"attributes": {"foo": "bar" },"stacktrace": []},"context": {"request": {"socket": {"remote_address": "12.53.12.1","encrypted": true},"http_version": "1.1","method": "POST","url": {"protocol": "https:","full": "https://www.example.com/p/a/t/h?query=string#hash","hostname": "www.example.com","port": "8080","pathname": "/p/a/t/h","search": "?query=string", "hash": "#hash","raw": "/p/a/t/h?query=string#hash"},"headers": {"user-agent": "Mozilla Chrome Edge","content-type": "text/html","cookie": "c1=v1; c2=v2","some-other-header": "foo","array": ["foo","bar","baz"]}, "cookies": {"c1": "v1", "c2": "v2" },"env": {"SERVER_SOFTWARE": "nginx", "GATEWAY_INTERFACE": "CGI/1.1"},"body": "Hello World"},"response": { "status_code": 200, "headers": { "content-type": "application/json" },"headers_sent": true, "finished": true }, "user": { "id": 99, "username": "foo", "email": "foo@example.com"},"tags": {"organization_uuid": "9f0e9d64-c185-4d21-a6f4-4673ed561ec8"}, "custom": {"my_key": 1,"some_other_value": "foo bar","and_objects": {"foo": ["bar","baz" ] }}}}`)
