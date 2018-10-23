@@ -14,6 +14,13 @@ dep ensure -v
 docker build -f docker/Dockerfile .
 ```
 
+# Versions
+
+To work with the apm-server V1, use the v1 branch of this repo.
+
+Support for apm-server V2 is under active development, so master will likely be unstable.
+ 
+
 # Interactive shell mode
 
 To run hey-apm in interactive shell mode pass the `interactive` flag without additional arguments.

@@ -4,9 +4,9 @@ import (
 	"bytes"
 )
 
-// Composes a request body for the v2/intake endpoint with as many transactions as
+// Composes a request body for the v2 API with as many transactions as
 // `numTransactions` and as many spans as `numSpans` for each, each span containing as many
-// frames as `numFrames` * 10
+// frames as `numFrames`
 func V2TransactionRequest(numTransactions int, numSpans int, numFrames int) []byte {
 	var buf bytes.Buffer
 
@@ -32,8 +32,8 @@ func V2TransactionRequest(numTransactions int, numSpans int, numFrames int) []by
 	return buf.Bytes()
 }
 
-// Composes a request body for the v2/errors endpoint with as many errors as
-// `numErrors`, each containing as many frames as `numFrames` * 10
+// Composes a request body for the v2 API with as many errors as
+// `numErrors`, each containing as many frames as `numFrames`
 func V2ErrorRequest(numErrors int, numFrames int) []byte {
 	var buf bytes.Buffer
 
