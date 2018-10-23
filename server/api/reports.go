@@ -3,18 +3,15 @@ package api
 import (
 	"errors"
 	"fmt"
+	stdio "io"
+	"math"
+	"net/url"
+	"os"
+	"path"
 	"sort"
 	"strconv"
 	s "strings"
 	"time"
-
-	"math"
-	"net/url"
-
-	"os"
-	"path"
-
-	stdio "io"
 
 	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/server/strcoll"

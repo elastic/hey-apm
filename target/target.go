@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"math"
 	"net/http"
-	"time"
 
 	"github.com/graphaelli/hey/requester"
 )
@@ -61,11 +60,11 @@ func (targets Targets) GetWork(baseUrl string, cfg *Config) []*requester.Work {
 		}
 
 		if t.Body != nil {
-			req.Header.Add("Content-Type", "application/json")
+			req.Header.Add("Content-Type", "application/x-ndjson")
 		}
 
 		report := ioutil.Discard
-		body := bytes.Replace(t.Body, []byte("2018-01-09T03:35:37.604813Z"), []byte(time.Now().UTC().Format(time.RFC3339)), -1)
+		body := t.Body
 
 		if !cfg.DisableCompression {
 			var b bytes.Buffer

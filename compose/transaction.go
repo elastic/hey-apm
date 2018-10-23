@@ -6,8 +6,7 @@ var SingleTransaction = []byte(`{
 "name": "GET /api/types",
 "type": "request",
 "duration": 32.592981,
-"result": "success", 
-"timestamp": 1496170407154000, 
+"result": "success",  
 "sampled": true, 
 "span_count": {"started": 17},
 "context":{

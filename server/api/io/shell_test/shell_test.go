@@ -3,9 +3,8 @@ package shell_test
 import (
 	"fmt"
 	"os"
-	"testing"
-
 	"path"
+	"testing"
 
 	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/stretchr/testify/assert"

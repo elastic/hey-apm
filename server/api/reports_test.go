@@ -1,13 +1,12 @@
 package api
 
 import (
-	"math"
-	"testing"
-	"time"
-
 	"fmt"
+	"math"
 	"math/rand"
 	"strings"
+	"testing"
+	"time"
 
 	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/server/tests"

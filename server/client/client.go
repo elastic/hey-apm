@@ -2,23 +2,18 @@ package client
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	stdio "io"
 	"math"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	s "strings"
 	"sync"
 	"time"
-
-	"context"
-
-	"net/url"
-
-	"strconv"
-
-	"github.com/struCoder/pidusage"
 
 	"github.com/elastic/hey-apm/server/api"
 	"github.com/elastic/hey-apm/server/api/io"
@@ -26,6 +21,7 @@ import (
 	"github.com/elastic/hey-apm/server/strcoll"
 	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
+	"github.com/struCoder/pidusage"
 )
 
 type Connection struct {

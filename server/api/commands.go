@@ -5,14 +5,12 @@ import (
 	"fmt"
 	stdio "io"
 	"math"
+	"math/rand"
 	"os"
+	"sort"
 	"strconv"
 	s "strings"
 	"time"
-
-	"math/rand"
-
-	"sort"
 
 	"github.com/elastic/hey-apm/compose"
 	"github.com/elastic/hey-apm/output"
@@ -37,12 +35,13 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 	frames, err := atoi(strcoll.Nth(3, cmd), err)
 	conc, err := atoi(strcoll.Nth(4, cmd), err)
 	qps, err := atoi(throttle, err)
-	reqBody := compose.TransactionRequest(events, spans, frames)
-	url := "/v1/transactions"
+
+	url := "intake/v2/events"
+	reqBody := compose.V2TransactionRequest(events, spans, frames)
 	if spans == 0 {
-		reqBody = compose.ErrorRequest(events, frames)
-		url = "/v1/errors"
+		reqBody = compose.V2ErrorRequest(events, frames)
 	}
+
 	if err == nil {
 		// apm-server warm up
 		time.Sleep(time.Second)
@@ -52,6 +51,7 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 		io.ReplyEither(w, err)
 		return result
 	}
+
 	var targets t.Targets = []t.Target{
 		{"POST", url, reqBody, conc, float64(qps)},
 	}

@@ -1,17 +1,15 @@
 package client
 
 import (
-	"os"
-	"testing"
-
-	"github.com/elastic/hey-apm/server/api"
-
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sync"
+	"testing"
 	"time"
 
+	"github.com/elastic/hey-apm/server/api"
 	"github.com/elastic/hey-apm/server/tests"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"

@@ -1,9 +1,8 @@
 package io
 
 import (
-	"testing"
-
 	"sort"
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
