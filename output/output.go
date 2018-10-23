@@ -6,40 +6,34 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/graphaelli/hey/requester"
+	"github.com/simitt/hey/requester"
 )
 
-func PrintResults(work []*requester.Work, dur float64, writer io.Writer) {
-	for i, w := range work {
-		if i > 0 {
-			fmt.Fprintln(writer)
-		}
+func PrintResults(w *requester.Work, dur float64, writer io.Writer) {
+	statusCodeDist := w.StatusCodes()
+	codes, total := SortedTotal(statusCodeDist)
+	div := float64(total)
+	fmt.Fprintln(writer)
+	for _, code := range codes {
+		cnt := statusCodeDist[code]
+		fmt.Fprintf(writer, "  [%d]\t%d responses (%.2f%%) \n", code, cnt, 100*float64(cnt)/div)
+	}
+	fmt.Fprintf(writer, "  total\t%d responses (%.2f rps)\n", total, div/dur)
 
-		statusCodeDist := w.StatusCodes()
-		codes, total := SortedTotal(statusCodeDist)
-		div := float64(total)
-		fmt.Fprintln(writer, w.Request.URL, i)
-		for _, code := range codes {
-			cnt := statusCodeDist[code]
-			fmt.Fprintf(writer, "  [%d]\t%d responses (%.2f%%) \n", code, cnt, 100*float64(cnt)/div)
-		}
-		fmt.Fprintf(writer, "  total\t%d responses (%.2f rps)\n", total, div/dur)
+	errorTotal := 0
+	errorDist := make(map[string]int)
+	for err, num := range w.ErrorDist() {
+		err = collapseError(err)
+		errorDist[err] += num
+		errorTotal += num
+	}
 
-		errorTotal := 0
-		errorDist := make(map[string]int)
-		for err, num := range w.ErrorDist() {
-			err = collapseError(err)
-			errorDist[err] += num
-			errorTotal += num
-		}
-
-		if errorTotal > 0 {
-			errorKeys := sortedErrors(errorDist)
-			fmt.Fprintf(writer, "\n  %d errors:\n", errorTotal)
-			for _, err := range errorKeys {
-				num := errorDist[err]
-				fmt.Fprintf(writer, "  [%d]\t%s\n", num, err)
-			}
+	if errorTotal > 0 {
+		errorKeys := sortedErrors(errorDist)
+		fmt.Fprintf(writer, "\n  %d errors:\n", errorTotal)
+		for _, err := range errorKeys {
+			num := errorDist[err]
+			fmt.Fprintf(writer, "  [%d]\t%s\n", num, err)
 		}
 	}
 }

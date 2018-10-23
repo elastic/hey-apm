@@ -5,22 +5,17 @@ import (
 	"fmt"
 	stdio "io"
 	"math"
+	"math/rand"
 	"os"
+	"sort"
 	"strconv"
 	s "strings"
 	"time"
 
-	"math/rand"
-
-	"sort"
-
-	"github.com/elastic/hey-apm/compose"
 	"github.com/elastic/hey-apm/output"
 	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/server/strcoll"
-	t "github.com/elastic/hey-apm/target"
-	"github.com/graphaelli/hey/requester"
-	"bytes"
+	"github.com/elastic/hey-apm/target"
 )
 
 // creates a test workload for the apm-server and returns a string to be printed and a report to be saved
@@ -33,17 +28,13 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 	result := TestResult{Cancelled: true}
 
 	duration, err := time.ParseDuration(strcoll.Nth(0, cmd))
-	events, err := atoi(strcoll.Nth(1, cmd), err)
-	spans, err := atoi(strcoll.Nth(2, cmd), err)
-	frames, err := atoi(strcoll.Nth(3, cmd), err)
-	conc, err := atoi(strcoll.Nth(4, cmd), err)
+	numErrors, err := atoi(strcoll.Nth(1, cmd), err)
+	numTransactions, err := atoi(strcoll.Nth(2, cmd), err)
+	numSpans, err := atoi(strcoll.Nth(3, cmd), err)
+	numFrames, err := atoi(strcoll.Nth(4, cmd), err)
+	conc, err := atoi(strcoll.Nth(5, cmd), err)
 	qps, err := atoi(throttle, err)
-	reqBody := compose.TransactionRequest(events, spans, frames)
-	url := "/v1/transactions"
-	if spans == 0 {
-		reqBody = compose.ErrorRequest(events, frames)
-		url = "/v1/errors"
-	}
+
 	if err == nil {
 		// apm-server warm up
 		time.Sleep(time.Second)
@@ -53,20 +44,29 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 		io.ReplyEither(w, err)
 		return result
 	}
-	var targets t.Targets = []t.Target{
-		{"POST", url, reqBody, conc, float64(qps)},
-	}
-	work := targets.GetWork(state.ApmServer().Url(), &t.Config{
-		MaxRequests: math.MaxInt32,
-		// should match the one in apm-server
-		RequestTimeout:     30,
+
+	cfg := &target.Config{
+		Concurrent:     conc,
+		Qps:            float64(qps),
+		MaxRequests:    math.MaxInt32,
+		RequestTimeout: 30,
+		Endpoint:       "/intake/v2/events",
+		BodyConfig: &target.BodyConfig{
+			NumErrors:       numErrors,
+			NumTransactions: numTransactions,
+			NumSpans:        numSpans,
+			NumFrames:       numFrames,
+		},
 		DisableCompression: false,
-	})[0]
+	}
+	t := target.NewTarget(state.ApmServer().Url(), "POST", cfg)
+	work := t.GetWork()
+
 	docsBefore := state.ElasticSearch().Count()
 	start := time.Now()
 	go work.Run()
 	io.ReplyNL(w, io.Grey+fmt.Sprintf("started new work, payload size is %s...",
-		byteCountDecimal(int64(len(reqBody)))))
+		byteCountDecimal(int64(len(t.Body)))))
 	io.Prompt(w)
 
 	cancelled := make(chan struct{}, 1)
@@ -84,12 +84,13 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 		result = TestResult{
 			Elapsed:           elapsedTime,
 			Duration:          duration,
-			Events:            events,
-			Spans:             spans,
-			Frames:            frames,
+			Errors:            numErrors,
+			Transactions:      numTransactions,
+			Spans:             numSpans,
+			Frames:            numFrames,
 			Concurrency:       conc,
 			Qps:               qps,
-			ReqSize:           len(reqBody),
+			ReqSize:           len(t.Body),
 			ElasticUrl:        state.ElasticSearch().Url(),
 			ApmUrl:            state.ApmServer().Url(),
 			ApmHost:           apmHost(state.ApmServer().Url()),
@@ -99,7 +100,7 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 			ActualDocs:        state.ElasticSearch().Count() - docsBefore,
 		}
 		io.ReplyNL(w, fmt.Sprintf("\n%scmd = %v\n%s", io.Yellow, cmd, io.Grey))
-		output.PrintResults([]*requester.Work{work}, elapsedTime.Seconds(), w)
+		output.PrintResults(work, elapsedTime.Seconds(), w)
 		io.ReplyNL(w, io.Grey)
 
 	case <-cancelled:
@@ -230,18 +231,15 @@ func Status(state State) *io.BufferWriter {
 // writes to disk
 func Dump(fw io.FileWriter, fileName string, args ...string) string {
 	w := io.NewBufferWriter()
-	events, err := atoi(strcoll.Nth(0, args), nil)
-	spans, err := atoi(strcoll.Nth(1, args), err)
-	frames, err := atoi(strcoll.Nth(2, args), err)
+	errors, err := atoi(strcoll.Nth(0, args), nil)
+	transactions, err := atoi(strcoll.Nth(1, args), nil)
+	spans, err := atoi(strcoll.Nth(2, args), err)
+	frames, err := atoi(strcoll.Nth(3, args), err)
 	if err != nil {
 		io.ReplyEitherNL(w, err)
 		return w.String()
 	}
-	var reqBody = compose.V2ErrorRequest(events, frames)
-	if spans > 0 {
-		reqBody = compose.V2TransactionRequest(events, spans, frames)
-	}
-	reqBody = bytes.TrimSpace(reqBody)
+	var reqBody = target.BuildBody(&target.BodyConfig{errors, transactions, spans, frames})
 	err = fw.WriteToFile(fileName, reqBody)
 	io.ReplyEitherNL(w, err, io.Grey+byteCountDecimal(int64(len(reqBody)))+" written to disk")
 	return w.String()

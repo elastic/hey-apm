@@ -3,18 +3,15 @@ package api
 import (
 	"errors"
 	"fmt"
+	stdio "io"
+	"math"
+	"net/url"
+	"os"
+	"path"
 	"sort"
 	"strconv"
 	s "strings"
 	"time"
-
-	"math"
-	"net/url"
-
-	"os"
-	"path"
-
-	stdio "io"
 
 	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/server/strcoll"
@@ -65,9 +62,9 @@ type TestResult struct {
 	// specified by the user, used for querying
 	Duration time.Duration `json:"duration"`
 	// actual Elapsed time, used for X-per-second kind of metrics
-	Elapsed time.Duration `json:"elapsed"`
-	// events per request
-	Events int `json:"events"`
+	Elapsed      time.Duration `json:"elapsed"`
+	Errors       int           `json:"errors"`
+	Transactions int           `json:"transactions"`
 	// spans per transaction
 	Spans int `json:"spans"`
 	// frames per doc
@@ -135,7 +132,7 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 		ApmFlags:   s.Join(flags, " "),
 		TestResult: result,
 	}
-	r.DocsPerRequest = int(r.Events + (r.Events * r.Spans))
+	r.DocsPerRequest = int(r.Errors + r.Transactions + (r.Transactions * r.Spans))
 	for _, check := range []struct {
 		isOk     func() bool
 		errMsg   string
@@ -189,7 +186,7 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 			},
 		},
 		{
-			isOk:   func() bool { return r.Events > 0 && r.AcceptedResponses > 0 },
+			isOk:   func() bool { return (r.Transactions+r.Errors) > 0 && r.AcceptedResponses > 0 },
 			errMsg: "no accepted requests",
 			doEffect: func() {
 				r.Latency = 1000 / r.AcceptedRps
@@ -274,15 +271,16 @@ func independentVars(r TestReport) map[string]string {
 	return map[string]string{
 		// r.esHost() is an independent variable, but not queryable by the user
 		// esHost() is always an implicit filter for each query
-		"duration":    r.Duration.String(),
-		"events":      strconv.Itoa(r.Events),
-		"spans":       strconv.Itoa(r.Spans),
-		"frames":      strconv.Itoa(r.Frames),
-		"concurrency": strconv.Itoa(r.Concurrency),
-		"revision":    r.Revision,
-		"branch":      r.Branch,
-		"apm_host":    r.ApmHost,
-		"limit":       strconv.Itoa(int(r.Limit)),
+		"duration":     r.Duration.String(),
+		"errors":       strconv.Itoa(r.Errors),
+		"transactions": strconv.Itoa(r.Transactions),
+		"spans":        strconv.Itoa(r.Spans),
+		"frames":       strconv.Itoa(r.Frames),
+		"concurrency":  strconv.Itoa(r.Concurrency),
+		"revision":     r.Revision,
+		"branch":       r.Branch,
+		"apm_host":     r.ApmHost,
+		"limit":        strconv.Itoa(int(r.Limit)),
 	}
 }
 

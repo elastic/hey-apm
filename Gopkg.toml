@@ -21,9 +21,9 @@
 
 
 [[constraint]]
-  name = "github.com/graphaelli/hey"
-  source = "github.com/graphaelli/hey"
-  branch = "expose-report"
+  name = "github.com/simitt/hey"
+  source = "github.com/simitt/hey"
+  branch = "stream-requests"
 
 [[constraint]]
   name = "github.com/olivere/elastic"
