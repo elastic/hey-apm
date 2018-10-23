@@ -37,6 +37,9 @@ func V2TransactionRequest(numTransactions int, numSpans int, numFrames int) []by
 func V2ErrorRequest(numErrors int, numFrames int) []byte {
 	var buf bytes.Buffer
 
+	buf.Write(Metadata)
+	buf.WriteByte('\n')
+
 	stacktrace := make([]byte, len(StacktraceFrame))
 	copy(stacktrace, StacktraceFrame)
 	frames := multiply([]byte(`"stacktrace"`), stacktrace, numFrames)
