@@ -101,7 +101,6 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 		}
 		io.ReplyNL(w, fmt.Sprintf("\n%scmd = %v\n%s", io.Yellow, cmd, io.Grey))
 		output.PrintResults(work, elapsedTime.Seconds(), w)
-		io.ReplyNL(w, io.Grey)
 
 	case <-cancelled:
 		work.Stop()

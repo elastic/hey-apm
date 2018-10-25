@@ -27,12 +27,12 @@ var (
 	maxRequests = flag.Int("requests", math.MaxInt32, "maximum requests to make")
 
 	// payload options
-	numAgents       = flag.Int("c", 3, "concurrent clients")
+	numAgents       = flag.Int("c", 1, "concurrent clients")
 	qps             = flag.Float64("q", 0, "queries per second")
-	numErrors       = flag.Int("e", 50, "number of errors")
+	numErrors       = flag.Int("e", 1, "number of errors")
 	numFrames       = flag.Int("f", 1, "number of stacktrace frames per span")
-	numSpans        = flag.Int("s", 1, "number of spans")
-	numTransactions = flag.Int("t", 50, "number of transactions")
+	numSpans        = flag.Int("s", 2, "number of spans")
+	numTransactions = flag.Int("t", 1, "number of transactions")
 
 	// http options
 	baseUrl            = flag.String("base-url", "http://localhost:8200", "")

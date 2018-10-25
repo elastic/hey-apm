@@ -659,7 +659,7 @@ func keysExcluding(exclude string, m map[string]string) []string {
 func digestMatrixHeader(variable string, m map[string]string) []string {
 	ret := make([]string, 0)
 	// always the same order
-	for _, attr := range []string{"duration", "events", "spans", "frames", "concurrency", "branch"} {
+	for _, attr := range []string{"duration", "errors", "transactions", "spans", "frames", "concurrency", "branch"} {
 		if variable != attr {
 			ret = append(ret, io.Magenta+attr+" "+io.Grey+m[attr])
 		}

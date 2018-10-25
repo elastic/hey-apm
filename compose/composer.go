@@ -17,7 +17,7 @@ func Compose(numErrors, numTransactions, numSpans, numFrames int) []byte {
 
 	span := make([]byte, len(SingleSpan))
 	copy(span, SingleSpan)
-	span = bytes.Replace(span, []byte(`"stacktrace":[],`), frames, -1)
+	span = bytes.Replace(span, []byte(`"stacktrace": [],`), frames, -1)
 
 	transaction := ndjsonWrapObj("transaction", SingleTransaction)
 	span = ndjsonWrapObj("span", span)
@@ -29,7 +29,7 @@ func Compose(numErrors, numTransactions, numSpans, numFrames int) []byte {
 
 	errEvent := make([]byte, len(SingleError))
 	copy(errEvent, SingleError)
-	errEvent = bytes.Replace(errEvent, []byte(`"stacktrace":[],`), frames, -1)
+	errEvent = bytes.Replace(errEvent, []byte(`"stacktrace": [],`), frames, -1)
 
 	errEvent = ndjsonWrapObj("error", errEvent)
 	NDJSONRepeat(&buf, errEvent, numErrors)
