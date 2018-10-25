@@ -47,6 +47,7 @@ func V2ErrorRequest(numErrors int, numFrames int) []byte {
 	error := make([]byte, len(SingleError))
 	copy(error, SingleError)
 	error = bytes.Replace(error, []byte(`"stacktrace":[],`), frames, -1)
+	error = ndjsonWrapObj("error", error)
 
 	NDJSONRepeat(&buf, error, numErrors)
 

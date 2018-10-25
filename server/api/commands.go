@@ -20,6 +20,7 @@ import (
 	"github.com/elastic/hey-apm/server/strcoll"
 	t "github.com/elastic/hey-apm/target"
 	"github.com/graphaelli/hey/requester"
+	"bytes"
 )
 
 // creates a test workload for the apm-server and returns a string to be printed and a report to be saved
@@ -236,10 +237,11 @@ func Dump(fw io.FileWriter, fileName string, args ...string) string {
 		io.ReplyEitherNL(w, err)
 		return w.String()
 	}
-	var reqBody = compose.ErrorRequest(events, frames)
+	var reqBody = compose.V2ErrorRequest(events, frames)
 	if spans > 0 {
-		reqBody = compose.TransactionRequest(events, spans, frames)
+		reqBody = compose.V2TransactionRequest(events, spans, frames)
 	}
+	reqBody = bytes.TrimSpace(reqBody)
 	err = fw.WriteToFile(fileName, reqBody)
 	io.ReplyEitherNL(w, err, io.Grey+byteCountDecimal(int64(len(reqBody)))+" written to disk")
 	return w.String()
