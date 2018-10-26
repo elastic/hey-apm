@@ -4,14 +4,14 @@
 [[projects]]
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
-  revision = "346938d642f2ec3594ed81d874461961cd0faa76"
-  version = "v1.1.0"
+  revision = "8991bc29aa16c548c550c7ff78260e27b9ab7c73"
+  version = "v1.1.1"
 
 [[projects]]
   branch = "expose-report"
   name = "github.com/graphaelli/hey"
   packages = ["requester"]
-  revision = "0edd059b9356127256a19247cc992923451c3cd0"
+  revision = "970056b80a5dc3738032d7d674635eb69176013d"
   source = "github.com/graphaelli/hey"
 
 [[projects]]
@@ -23,7 +23,7 @@
     "jlexer",
     "jwriter"
   ]
-  revision = "517203d186eb343d3df4068565cc0446b450d2c4"
+  revision = "60711f1a8329503b04e1c88535f419d0bb440bff"
 
 [[projects]]
   name = "github.com/olivere/elastic"
@@ -32,8 +32,8 @@
     "config",
     "uritemplates"
   ]
-  revision = "f9243358b15391d76b5d0e2cb816442f9cded8cc"
-  version = "v6.1.12"
+  revision = "425e5369a8f054f4f447f7c8ee1bf605f48425ab"
+  version = "v6.2.11"
 
 [[projects]]
   name = "github.com/pkg/errors"
@@ -50,8 +50,8 @@
 [[projects]]
   name = "github.com/stretchr/testify"
   packages = ["assert"]
-  revision = "12b6f73e6084dad08a7c6e575284b177ecafbc71"
-  version = "v1.2.1"
+  revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
+  version = "v1.2.2"
 
 [[projects]]
   name = "github.com/struCoder/pidusage"
@@ -63,15 +63,14 @@
   branch = "master"
   name = "golang.org/x/net"
   packages = [
+    "http/httpguts",
     "http2",
     "http2/hpack",
-    "idna",
-    "lex/httplex"
+    "idna"
   ]
-  revision = "434ec0c7fe3742c984919a691b2018a6e9694425"
+  revision = "04a2e542c03f1d053ab3e4d6e5abcd4b66e2be8e"
 
 [[projects]]
-  branch = "master"
   name = "golang.org/x/text"
   packages = [
     "collate",
@@ -89,7 +88,8 @@
     "unicode/norm",
     "unicode/rangetable"
   ]
-  revision = "e19ae1496984b1c655b8044a65c0300a3c878dd3"
+  revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
+  version = "v0.3.0"
 
 [solve-meta]
   analyzer-name = "dep"

@@ -20,7 +20,7 @@ func TestInvalidLoadCmds(t *testing.T) {
 		{"1s", "1", "1", "1"},
 	} {
 		bw := io.NewBufferWriter()
-		ret := LoadTest(bw, MockState{}, nil, "32767", invalidCmd...)
+		ret := LoadTest(bw, MockState{}, nil, "32767", "0", invalidCmd...)
 		assert.Contains(t, bw.String(), io.Red)
 		assert.Equal(t, ret, TestResult{Cancelled: true})
 	}
@@ -29,7 +29,7 @@ func TestInvalidLoadCmds(t *testing.T) {
 func TestLoadNotReady(t *testing.T) {
 	bw := io.NewBufferWriter()
 	cmd := []string{"1s", "1", "0", "1", "1"}
-	ret := LoadTest(bw, MockState{Ok: errors.New("not ready")}, nil, "32767", cmd...)
+	ret := LoadTest(bw, MockState{Ok: errors.New("not ready")}, nil, "32767", "0", cmd...)
 	assert.Equal(t, "not ready", tests.WithoutColors(bw.String()))
 	assert.Equal(t, ret, TestResult{Cancelled: true})
 }
@@ -41,12 +41,13 @@ func TestLoadCancelled(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	s := MockState{MockApm{url: "localhost:822222"}, MockEs{}, nil}
-	ret := LoadTest(bw, s, cancel, "32767", cmd...)
+	ret := LoadTest(bw, s, cancel, "32767", "", cmd...)
 	assert.Equal(t, ret, TestResult{Cancelled: true})
 }
 
 func TestLoadOk(t *testing.T) {
 	bw := io.NewBufferWriter()
+	// set number of agents to 0 so the worker doesn't actually run
 	cmd := []string{"1s", "1", "2", "1", "0"}
 	cancel := func() {
 		time.Sleep(time.Second * 2)
@@ -55,25 +56,24 @@ func TestLoadOk(t *testing.T) {
 		MockApm{url: "localhost:822222", branch: "master"},
 		MockEs{url: "localhost:922222", docs: 10},
 		nil}
-	ret := LoadTest(bw, s, cancel, "32767", cmd...)
-	assert.Equal(t, `started new work, payload size is 3.8kb...
+	ret := LoadTest(bw, s, cancel, "32767", "1", cmd...)
+	assert.Equal(t, `started new work, url localhost:822222/intake/v2/events, payload size 5.6kb (uncompressed), 1.6kb (compressed) ...
 >>> 
 cmd = [1s 1 2 1 0]
 
-localhost:822222/v1/transactions 0
   total	0 responses (0.00 rps)
-
 `,
 		tests.WithoutColors(bw.String()))
 
 	assert.Equal(t, time.Second, ret.Duration)
-	assert.Equal(t, 1, ret.Events)
+	assert.Equal(t, 1, ret.Errors)
+	assert.Equal(t, 1, ret.Transactions)
 	assert.Equal(t, 2, ret.Spans)
 	assert.Equal(t, 1, ret.Frames)
-	assert.Equal(t, 3764, ret.ReqSize)
+	assert.Equal(t, 1583, ret.ReqSize)
 	assert.Equal(t, "localhost:922222", ret.ElasticUrl)
 	assert.Equal(t, "localhost:822222", ret.ApmUrl)
-	assert.Equal(t, 0, ret.Concurrency)
+	assert.Equal(t, 0, ret.Agents)
 	assert.Equal(t, 32767, ret.Qps)
 	assert.Equal(t, "master", ret.Branch)
 	assert.Equal(t, 0, ret.AcceptedResponses)
@@ -157,15 +157,14 @@ func TestDefine(t *testing.T) {
 
 func TestDump(t *testing.T) {
 	mfw := &tests.MockFileWriter{}
-	out := Dump(mfw, "json", "1", "0", "1")
-	assert.Equal(t, "2.5kb written to disk\n", tests.WithoutColors(out))
-	assert.Equal(t, "\n{\"errors\":[\n{\"context\":\n\t{\"custom\":{},\n\t\"request\":{\"body\":null,\n\t\t\t\t\"cookies\":{},\n\t\t\t\t\"env\":{\"REMOTE_ADDR\":\"127.0.0.1\",\"SERVER_NAME\":\"1.0.0.127.in-addr.arpa\",\"SERVER_PORT\":\"8000\"},\n\t\t\t\t\"headers\":{\"accept\":\"*/*\",\"accept-encoding\":\"gzip, deflate, br\",\"accept-language\":\"en-US,en;q=0.9\",\"connection\":\"keep-alive\",\"content-length\":\"\",\"content-type\":\"text/plain\",\"host\":\"localhost:8000\",\"referer\":\"http://localhost:8000/dashboard\",\"user-agent\":\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.84 Safari/537.36\"},\n\t\t\t\t\"method\":\"GET\",\n\t\t\t\t\"socket\":{\"encrypted\":false,\"remote_address\":\"127.0.0.1\"},\n\t\t\t\t\"url\":{\"full\":\"http://localhost:8000/api/stats\",\"hostname\":\"localhost\",\"pathname\":\"/api/stats\",\"port\":\"8000\",\"protocol\":\"http:\"}\n\t\t\t\t},\n\t\"user\":{\"id\":null,\"is_authenticated\":false,\"username\":\"\"}\n\t},\n\"culprit\":\"opbeans.views.stats\",\n\"exception\":\n\t{\"message\":\"ConnectionError: Error 61 connecting to localhost:6379. Connection refused.\",\n\t\t\"module\":\"redis.exceptions\",\n\t\t\"stacktrace\":[\n{\"abs_path\":\"/opbeans/lib/python3.6/site-packages/redis/client.py\",\"context_line\":\"            connection.send_command(*args)\",\"filename\":\"redis/client.py\",\"function\":\"execute_command\",\"library_frame\":true,\"lineno\":673,\"module\":\"redis.client\",\"post_context\":[\"            return self.parse_response(connection, command_name, **options)\",\"        finally:\"],\"pre_context\":[\"            connection.disconnect()\",\"            if not connection.retry_on_timeout and isinstance(e, TimeoutError):\",\"                raise\"],\"vars\":{\"args\":[\"GET\",\"cache:1:shop-stats\"],\"command_name\":\"GET\",\"connection\":\"Connection\\u003chost=localhost,port=6379,db=1\\u003e\",\"options\":{},\"pool\":\"ConnectionPool\\u003cConnection\\u003chost=localhost,port=6379,db=1\\u003e\\u003e\",\"self\":\"StrictRedis\\u003cConnectionPool\\u003cConnection\\u003chost=localhost,port=6379,db=1\\u003e\\u003e\\u003e\"}}\n],\n \t\t\"type\":\"ConnectionError\",\n\t\t\"handled\":false\n\t},\n\n\"id\":\"e99fd5d7-516f-422d-a6fe-3550a49283e0\",\n\"transaction\":{\"id\":\"87d45146-e0ce-4a04-877c-a672921df059\"}}\n],\n\"process\":{\"argv\":[\"./manage.py\",\"runserver\"],\"pid\":52687,\"title\":null},\n\"service\":{\"agent\":{\"name\":\"python\",\"version\":\"1.0.0\"},\n\t\t\t\"environment\":null,\n\t\t\t\"framework\":{\"name\":\"django\",\"version\":\"1.11.8\"},\n\t\t\t\"language\":{\"name\":\"python\",\"version\":\"3.6.3\"},\n\t\t\t\"name\":\"opbeans-python\",\n\t\t\t\"runtime\":{\"name\":\"CPython\",\"version\":\"3.6.3\"},\"version\":null},\n\"system\":{\"architecture\":\"x86_64\",\"hostname\":\"localhost.localdomain\",\"platform\":\"darwin\"}\n}\n",
-		mfw.Data)
-
-	out = Dump(mfw, "json", "1", "1", "1")
-	assert.Equal(t, "2.7kb written to disk\n", tests.WithoutColors(out))
-	assert.Equal(t, "\n{\"transactions\":[\n{\"spans\":[\n{\"stacktrace\":[\n{\"abs_path\":\"/opbeans/lib/python3.6/site-packages/redis/client.py\",\"context_line\":\"            connection.send_command(*args)\",\"filename\":\"redis/client.py\",\"function\":\"execute_command\",\"library_frame\":true,\"lineno\":673,\"module\":\"redis.client\",\"post_context\":[\"            return self.parse_response(connection, command_name, **options)\",\"        finally:\"],\"pre_context\":[\"            connection.disconnect()\",\"            if not connection.retry_on_timeout and isinstance(e, TimeoutError):\",\"                raise\"],\"vars\":{\"args\":[\"GET\",\"cache:1:shop-stats\"],\"command_name\":\"GET\",\"connection\":\"Connection\\u003chost=localhost,port=6379,db=1\\u003e\",\"options\":{},\"pool\":\"ConnectionPool\\u003cConnection\\u003chost=localhost,port=6379,db=1\\u003e\\u003e\",\"self\":\"StrictRedis\\u003cConnectionPool\\u003cConnection\\u003chost=localhost,port=6379,db=1\\u003e\\u003e\\u003e\"}}\n],\n\"context\":null,\n\"duration\":0.12803077697753906,\n\"id\":0,\n\"start\":1.4657974243164062,\n\"type\":\"template.django\",\n\"name\":\"\\u003ctemplate string\\u003e\",\n\"parent\":null\n}\n],\n\"context\":\n\t{\"request\":\n\t\t{\"body\":null,\n\t\t\"cookies\":{},\n\t\t\"env\":{\"REMOTE_ADDR\":\"127.0.0.1\",\"SERVER_NAME\":\"1.0.0.127.in-addr.arpa\",\"SERVER_PORT\":\"8000\"},\n\t\t\"headers\":{\"accept\":\"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8\",\"accept-encoding\":\"gzip, deflate, br\",\"accept-language\":\"en-US,en;q=0.9\",\"connection\":\"keep-alive\",\"content-length\":\"\",\"content-type\":\"text/plain\",\"host\":\"localhost:8000\",\"upgrade-insecure-requests\":\"1\",\"user-agent\":\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.84 Safari/537.36\"},\n\t\t\"method\":\"GET\",\n\t\t\"socket\":{\"encrypted\":false,\"remote_address\":\"127.0.0.1\"},\n\t\t\"url\":{\"full\":\"http://localhost:8000/\",\"hostname\":\"localhost\",\"pathname\":\"/\",\"port\":\"8000\",\"protocol\":\"http:\"}\n\t},\n\t\"response\":{\"headers\":{\"content-length\":\"365\",\"content-type\":\"text/html; charset=utf-8\",\"x-frame-options\":\"SAMEORIGIN\"},\n\t\t\t\t\"status_code\":200},\n\t\"tags\":{},\n\t\"user\":{\"id\":null,\"is_authenticated\":false,\"username\":\"\"}\n},\n\"type\":\"request\",\n\"duration\":25.555133819580078,\n\"id\":\"9eb1899c-f767-4f40-85af-e2de18aaaf0c\",\n\"name\":\"GET django.views.generic.base.TemplateView\",\n\"result\":\"HTTP 2xx\",\n\"sampled\":true\n}\n],\n\"process\":{\"argv\":[\"./manage.py\",\"runserver\"],\"pid\":52687,\"title\":null},\n\"service\":{\"agent\":{\"name\":\"python\",\"version\":\"1.0.0\"},\n\t\"environment\":null,\n\t\"framework\":{\"name\":\"django\",\"version\":\"1.11.8\"},\n\t\"language\":{\"name\":\"python\",\"version\":\"3.6.3\"},\n\t\"name\":\"opbeans-python\",\n\t\"runtime\":{\"name\":\"CPython\",\"version\":\"3.6.3\"},\"version\":null},\n\"system\":{\"architecture\":\"x86_64\",\"hostname\":\"localhost.localdomain\",\"platform\":\"darwin\"}\n}\n",
-		mfw.Data)
+	out := Dump(mfw, "json", "1", "1", "1", "1")
+	assert.Equal(t, "4.8kb written to disk\n", tests.WithoutColors(out))
+	expected := `{"metadata": {"user": {"id": "123", "email": "s@test.com", "username": "john"}, "process": {"ppid": 6789, "pid": 1234,"argv": ["node", "server.js"], "title": "node"}, "system": {"platform": "darwin", "hostname": "prod1.example.com", "architecture": "x64"}, "service":{"name": "backendspans", "language": {"version": "8", "name": "ecmascript"}, "agent": {"version": "3.14.0", "name": "elastic-node"}, "environment": "staging", "framework": {"version": "1.2.3", "name": "Express"}, "version": "5.1.3", "runtime": {"version": "8.0.0", "name": "node"}}}}
+{"transaction": {"id": "4340a8e0df1906ecbfa9", "trace_id": "0acd456789abcdef0123456789abcdef", "name": "GET /api/types","type": "request","duration": 32.592981,"result": "success",  "sampled": true, "span_count": {"started": 17},"context":{"request": {"socket": {"remote_address": "12.53.12.1","encrypted": true},"http_version": "1.1","method": "POST","url": {"protocol": "https:","full": "https://www.example.com/p/a/t/h?query=string#hash","hostname": "www.example.com","port": "8080","pathname": "/p/a/t/h","search": "?query=string","hash": "#hash","raw": "/p/a/t/h?query=string#hash"},"headers": {"user-agent": "Mozilla Chrome Edge","content-type": "text/html","cookie": "c1=v1; c2=v2","some-other-header": "foo","array": ["foo","bar","baz"]},"cookies": {"c1": "v1","c2": "v2"},"env": {"SERVER_SOFTWARE": "nginx","GATEWAY_INTERFACE": "CGI/1.1"},"body": {"str": "hello world","additional": { "foo": {},"bar": 123,"req": "additional information"}}},"response":{"status_code": 200,"headers": {"content-type": "application/json"},"headers_sent": true,"finished": true}, "user": {"id": "99","username": "foo","email": "foo@example.com"},"tags": {"organization_uuid": "9f0e9d64-c185-4d21-a6f4-4673ed561ec8"},"custom": {"my_key": 1,"some_other_value": "foo bar","and_objects": {"foo": ["bar","baz"]}}}}}
+{"span": {"trace_id": "abcdef0123456789abcdef9876543210", "parent_id": "abcdef0123456789", "id": "1234567890aaaade", "transaction_id": "aff4567890aaaade", "name": "SELECT FROM product_types", "type": "db.postgresql.query", "start": 2.83092, "duration": 3.781912, "stacktrace":[{"function": "onread", "abs_path": "net.js", "filename": "net.js", "lineno": 547, "library_frame": true, "vars": {"key": "value"}, "module": "some module", "colno": 4, "context_line": "line3", "pre_context": [ "  var trans = this.currentTransaction", "" ], "post_context": [ "    ins.currentTransaction = prev", "    return result"]}], "context":{"db":{"instance": "customers", "statement": "SELECT * FROM product_types WHERE user_id=?", "type": "sql", "user": "readonly_user" }, "http": {"url": "http://localhost:8000"}}}}
+{"error": {"id": "0123456789012345", "culprit": "my.module.function_name","log":{"message": "My service could not talk to the database named foobar", "param_message": "My service could not talk to the database named %s", "logger_name": "my.logger.name", "stacktrace":[{"function": "onread", "abs_path": "net.js", "filename": "net.js", "lineno": 547, "library_frame": true, "vars": {"key": "value"}, "module": "some module", "colno": 4, "context_line": "line3", "pre_context": [ "  var trans = this.currentTransaction", "" ], "post_context": [ "    ins.currentTransaction = prev", "    return result"]}], "level": "warning"},"exception":{"message": "The username root is unknown","type": "DbError","module": "__builtins__","code": 42,"attributes": {"foo": "bar" },"stacktrace":[{"function": "onread", "abs_path": "net.js", "filename": "net.js", "lineno": 547, "library_frame": true, "vars": {"key": "value"}, "module": "some module", "colno": 4, "context_line": "line3", "pre_context": [ "  var trans = this.currentTransaction", "" ], "post_context": [ "    ins.currentTransaction = prev", "    return result"]}], "handled": false},"context":{"request":{"socket": {"remote_address": "12.53.12.1","encrypted": true},"http_version": "1.1","method": "POST","url":{"protocol": "https:","full": "https://www.example.com/p/a/t/h?query=string#hash","hostname": "www.example.com","port": "8080","pathname": "/p/a/t/h","search": "?query=string", "hash": "#hash","raw": "/p/a/t/h?query=string#hash"},"headers": {"user-agent": "Mozilla Chrome Edge","content-type": "text/html","cookie": "c1=v1; c2=v2","some-other-header": "foo","array": ["foo","bar","baz"]}, "cookies": {"c1": "v1", "c2": "v2" },"env": {"SERVER_SOFTWARE": "nginx", "GATEWAY_INTERFACE": "CGI/1.1"},"body": "Hello World"},"response":{"status_code": 200, "headers": {"content-type": "application/json"},"headers_sent": true, "finished": true}, "user": {"id": 99, "username": "foo", "email": "foo@example.com"},"tags": {"organization_uuid": "9f0e9d64-c185-4d21-a6f4-4673ed561ec8"},"custom": {"my_key": 1,"some_other_value": "foo bar","and_objects": {"foo": ["bar","baz"]}}}}}
+`
+	assert.Equal(t, expected, mfw.Data)
 
 	out = Dump(mfw, "json", "a")
 	assert.Contains(t, out, "invalid syntax")

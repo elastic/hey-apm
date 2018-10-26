@@ -81,15 +81,17 @@ You can execute `status` again to verify that `apm switch` worked, and you shoul
 That will start an apm-server process, run a test for 30 seconds, stop the apm-server, and save a report in elasticsearch. 
 There are 4 arguments describing the test, plus any optional flags passed to the apm-server:
 
-`1` - number of events per request
+`1` - number of transactions per request
 
-`2` - number of spans per event (if this number is 0 events are errors, otherwise they are transactions)
+`2` - number of spans per event
 
 `3` - size of the stacktrace, ie number of frames per span (or error)
 
 `4` - number of workers sending requests in parallel. 
 
 Throttling is disabled, which means that as soon a response is returned a worker will fire a new request.  
+
+You can specify `--errors N` to also ingest error events.
 
 After 30 seconds you should see something like the following:
 
@@ -125,12 +127,12 @@ To analyze the report data you can read the test summaries, query elasticsearch 
 `collate` takes a required argument indicating which attribute interests you (the "variable"), and any number of query filters.
 
 It will groups reports with all the independent variables having the same value except for the specified variable, and show a digest of them. 
-Independent variables are the ones such as number of events per request, duration of the test, elasticsearch host, memory limit passed to Docker, and so on.  
+Independent variables are the ones such as number of transactions per request, duration of the test, elasticsearch host, memory limit passed to Docker, and so on.  
  
 Some useful possibilities are: 
 - `collate branch` to see how branches compare to each other.
 - `collate duration` to see if performance degrades over time (by comparing eg 1 minute tests with 20 minute tests). 
-- `collate concurrency` to see how apm-server scales with heavier traffic.
+- `collate agents` to see how apm-server scales with heavier traffic.
 - `collate events` to see how apm-server scales with heavier payloads.
 - `collate revision branch=master --sort revision_date` to see how a branch (master in this case) changes over time. 
 - `collate <flag>` to see how configuration  affect performance.
@@ -150,19 +152,19 @@ When all the tests complete (`status` informs there are no queued commands and a
 collate apm-server.tracing.enabled branch=trace-apm-server
 ```
 
-That will show 2 groups of reports, one with `concurrency=1` and another one with `concurrency=20`. 
+That will show 2 groups of reports, one with `agents=1` and another one with `agents=20`. 
 
-If you run tests with different parameter values (events, duration, etc), you will get 1 group per variant.
+If you run tests with different parameter values (transactions, duration, etc), you will get 1 group per variant.
 Then, per each group you will see 2 reports, one with tracing enabled and other with tracing disabled:
 
 ```
-duration 30s  events 10  spans 10  frames 10  concurrency 20  branch trace-apm-server  revision c961d664fbe5893d523bd9077be64617f57a96e7
+duration 30s  errors 0 transactions 10  spans 10  frames 10  agents 20  branch trace-apm-server  revision c961d664fbe5893d523bd9077be64617f57a96e7
 report id  revision date   pushed     accepted    throughput  latency  index  max rss  effic  apm-server.tracing.enabled
 v5yruht0   18-05-18 10:21  7.5Mbps    4.8Mbps     435.3dps    185ms    73.3%  432.9Mb  0.669  false
 958l1oly   18-05-18 10:21  7.7Mbps    4.0Mbps     349.6dps    222ms    70.6%  428.3Mb  0.564  true
 ```
 ```
-duration 30s  events 10  spans 10  frames 10  concurrency 1  branch trace-apm-server  revision c961d664fbe5893d523bd9077be64617f57a96e7
+duration 30s  transactions 10  spans 10  frames 10  agents 1  branch trace-apm-server  revision c961d664fbe5893d523bd9077be64617f57a96e7
 report id  revision date   pushed     accepted    throughput  latency  index  max rss  effic  apm-server.tracing.enabled
 xmlob0sh   18-05-18 10:21  5.2Mbps    5.3Mbps     491.2dps    169ms    75.7%  422.1Mb  0.750  false
 bcl41bfu   18-05-18 10:21  5.1Mbps    5.1Mbps     494.5dps    174ms    78.4%  354.5Mb  0.868  true
@@ -192,7 +194,7 @@ Full semantics for filters, sorting, etc. are given in the `help` command.
 A number of filters are required:
 
 ```
-verify -n 168h branch=master duration=30s events=10 spans=10 frames=10 concurrency=1 limit=-1
+verify -n 168h branch=master duration=30s errors=0 transactions=10 spans=10 frames=10 agents=1 limit=-1
 ```
 
 ### define

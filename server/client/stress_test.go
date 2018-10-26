@@ -1,17 +1,15 @@
 package client
 
 import (
-	"os"
-	"testing"
-
-	"github.com/elastic/hey-apm/server/api"
-
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sync"
+	"testing"
 	"time"
 
+	"github.com/elastic/hey-apm/server/api"
 	"github.com/elastic/hey-apm/server/tests"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -120,14 +118,14 @@ func TestMain(m *testing.M) {
 // returns all saved results (reports), including the just indexed; and an error, if occurred
 // the error might be related to failing pre-conditions (eg. no apm-server running) or post-conditions
 // (eg. no data captured, failed to save the report...)
-func doBenchmark(memLimit int64, flags []string, workload ...string) ([]api.TestReport, error) {
+func doBenchmark(memLimit int64, flags []string, numErrs string, workload ...string) ([]api.TestReport, error) {
 	env, flags, err := setupEnv(flags)
 	defer reset(env.es)
 	if err != nil {
 		return nil, err
 	}
 	block := func() { select {} }
-	result := api.LoadTest(console, env, block, "1000", workload...)
+	result := api.LoadTest(console, env, block, "1000", numErrs, workload...)
 	report := api.NewReport(
 		result,
 		"hey-apm-tester",
@@ -157,12 +155,12 @@ func assertNoError(t *testing.T, err error) bool {
 	return assert.Fail(t, err.Error())
 }
 
-func doTest(t *testing.T, flags []string, numEvents, numSpans, numFrames, concurrency string) {
+func doTest(t *testing.T, flags []string, numErrors, numTransactions, numSpans, numFrames, numAgents string) {
 	t.Log("executing apm-server stress test, this will take long. Use SKIP_STRESS=1 to skip it. " +
 		"Use -timeout if you want to execute it and need to override the default 10 minutes timeout.")
 	duration := "3m"
 	memLimit := int64(-1)
-	reports, err := doBenchmark(memLimit, flags, duration, numEvents, numSpans, numFrames, concurrency)
+	reports, err := doBenchmark(memLimit, flags, numErrors, duration, numTransactions, numSpans, numFrames, numAgents)
 
 	filter := func(k, v string) string {
 		return fmt.Sprintf("%s=%s", k, v)
@@ -177,10 +175,11 @@ func doTest(t *testing.T, flags []string, numEvents, numSpans, numFrames, concur
 			[]string{
 				"branch=master",
 				filter("duration", duration),
-				filter("events", numEvents),
+				filter("errors", numErrors),
+				filter("transactions", numTransactions),
 				filter("spans", numSpans),
 				filter("frames", numFrames),
-				filter("concurrency", concurrency),
+				filter("agents", numAgents),
 				fmt.Sprintf("limit=%d", memLimit)},
 			reports)
 		assert.True(t, ok, msg)
@@ -188,34 +187,38 @@ func doTest(t *testing.T, flags []string, numEvents, numSpans, numFrames, concur
 }
 
 func TestSmallTransactionsSequential(t *testing.T) {
-	doTest(t, noFlags, "10", "10", "10", "1")
+	doTest(t, noFlags, "0", "10", "10", "10", "1")
 }
 
-func TestSmallTransactionsLowConcurrency(t *testing.T) {
-	doTest(t, noFlags, "10", "10", "10", "5")
+func TestSmallErrorsSequential(t *testing.T) {
+	doTest(t, noFlags, "10", "0", "0", "10", "1")
+}
+
+func TestSmallTransactionsLowNumConcurrentAgents(t *testing.T) {
+	doTest(t, noFlags, "0", "10", "10", "10", "5")
 }
 
 func TestMediumTransactionsSequential(t *testing.T) {
-	doTest(t, noFlags, "20", "20", "20", "1")
+	doTest(t, noFlags, "0", "20", "20", "20", "1")
 }
 
-func TestMediumTransactionsLowConcurrency(t *testing.T) {
-	doTest(t, noFlags, "20", "20", "20", "5")
+func TestMediumTransactionsLowNumConcurrentAgents(t *testing.T) {
+	doTest(t, noFlags, "0", "20", "20", "20", "5")
 }
 
 func TestLargeTransactionsSequential(t *testing.T) {
-	doTest(t, noFlags, "30", "30", "30", "1")
+	doTest(t, noFlags, "0", "30", "30", "30", "1")
 }
 
-func TestLargeTransactionsLowConcurrency(t *testing.T) {
-	doTest(t, noFlags, "30", "30", "30", "5")
+func TestLargeTransactionsLowNumConcurrentAgents(t *testing.T) {
+	doTest(t, noFlags, "0", "30", "30", "30", "5")
 }
 
-func TestLargeTransactionsLowConcurrencyCustomFlags(t *testing.T) {
+func TestLargeTransactionsLowNumConcurrentAgentsCustomFlags(t *testing.T) {
 	flags := []string{"-E", "output.elasticsearch.bulk_max_size=5000", "-E", "queue.mem.events=5000", "-E", "apm-server.concurrent_requests=10"}
-	doTest(t, flags, "30", "30", "30", "5")
+	doTest(t, flags, "0", "30", "30", "30", "5")
 }
 
-func TestErrorsVeryHighConcurrency(t *testing.T) {
-	doTest(t, noFlags, "10", "0", "100", "100")
+func TestErrorsVeryHighNumConcurrentAgents(t *testing.T) {
+	doTest(t, noFlags, "0", "10", "0", "100", "100")
 }

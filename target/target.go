@@ -6,8 +6,10 @@ import (
 	"io/ioutil"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/elastic/hey-apm/compose"
 	"github.com/graphaelli/hey/requester"
 )
 
@@ -15,85 +17,108 @@ const defaultUserAgent = "hey-apm/1.0"
 
 // Config holds global work configuration
 type Config struct {
-	MaxRequests, RequestTimeout                             int
+	NumAgents      int
+	Qps            float64
+	MaxRequests    int
+	RequestTimeout int
+	RunTimeout     time.Duration
+	Endpoint       string
+
+	BodyConfig *BodyConfig
+
 	DisableCompression, DisableKeepAlives, DisableRedirects bool
 	http.Header
+	Stream bool
+}
+
+type BodyConfig struct {
+	NumErrors, NumTransactions, NumSpans, NumFrames int
 }
 
 type Target struct {
-	Method, Url string
-	Body        []byte
-	Concurrent  int
-	Qps         float64
+	Url    string
+	Method string
+	Body   []byte
+	Config *Config
 }
-
-type Targets []Target
 
 var (
 	defaultCfg = Config{
 		MaxRequests:    math.MaxInt32,
 		RequestTimeout: 10,
+		Endpoint:       "/intake/v2/events",
 	}
 )
 
-// Get constructs the list of work to be completed
-func (targets Targets) GetWork(baseUrl string, cfg *Config) []*requester.Work {
+func BuildBody(b *BodyConfig) []byte {
+	return compose.Compose(b.NumErrors, b.NumTransactions, b.NumSpans, b.NumFrames)
+}
+
+func NewTarget(baseUrl, method string, cfg *Config) *Target {
 	if cfg == nil {
 		cfg = &defaultCfg
 	}
-	work := make([]*requester.Work, len(targets))
-	for i, t := range targets {
-		url := baseUrl + t.Url
-		req, err := http.NewRequest(t.Method, url, nil)
-		if err != nil {
-			panic(err)
-		}
+	body := BuildBody(cfg.BodyConfig)
+	url := strings.TrimSuffix(baseUrl, "/") + cfg.Endpoint
+	return &Target{Config: cfg, Body: body, Url: url, Method: method}
+}
 
-		// add global headers
-		for header, values := range cfg.Header {
-			for _, v := range values {
-				req.Header.Add(header, v)
-			}
-		}
-		// Use the defaultUserAgent unless the Header contains one, which may be blank to not send the header.
-		if _, ok := req.Header["User-Agent"]; !ok {
-			req.Header.Add("User-Agent", defaultUserAgent)
-		}
+// Get constructs the list of work to be completed
+func (t *Target) GetWork() *requester.Work {
+	// request
+	req, err := http.NewRequest(t.Method, t.Url, nil)
+	if err != nil {
+		panic(err)
+	}
 
-		if t.Body != nil {
-			req.Header.Add("Content-Type", "application/json")
-		}
-
-		report := ioutil.Discard
-		body := bytes.Replace(t.Body, []byte("2018-01-09T03:35:37.604813Z"), []byte(time.Now().UTC().Format(time.RFC3339)), -1)
-
-		if !cfg.DisableCompression {
-			var b bytes.Buffer
-			gz := gzip.NewWriter(&b)
-			if _, err := gz.Write([]byte(body)); err != nil {
-				panic(err)
-			}
-			if err := gz.Close(); err != nil {
-				panic(err)
-			}
-			body = b.Bytes()
-			req.Header.Add("Content-Encoding", "gzip")
-		}
-		req.ContentLength = int64(len(body))
-		work[i] = &requester.Work{
-			Request:            req,
-			RequestBody:        body,
-			N:                  cfg.MaxRequests,
-			C:                  t.Concurrent,
-			QPS:                t.Qps,
-			Timeout:            cfg.RequestTimeout,
-			DisableCompression: cfg.DisableCompression,
-			DisableKeepAlives:  cfg.DisableKeepAlives,
-			DisableRedirects:   cfg.DisableRedirects,
-			H2:                 false,
-			ProxyAddr:          nil,
-			Writer:             report,
+	// headers
+	for header, values := range t.Config.Header {
+		for _, v := range values {
+			req.Header.Add(header, v)
 		}
 	}
-	return work
+	// Use the defaultUserAgent unless the Header contains one, which may be blank to not send the header.
+	if _, ok := req.Header["User-Agent"]; !ok {
+		req.Header.Add("User-Agent", defaultUserAgent)
+	}
+
+	if len(t.Body) > 0 {
+		req.Header.Add("Content-Type", "application/x-ndjson")
+	}
+
+	report := ioutil.Discard
+
+	if !t.Config.DisableCompression {
+		var b bytes.Buffer
+		gz := gzip.NewWriter(&b)
+		if _, err := gz.Write([]byte(t.Body)); err != nil {
+			panic(err)
+		}
+		if err := gz.Close(); err != nil {
+			panic(err)
+		}
+		t.Body = b.Bytes()
+		req.Header.Add("Content-Encoding", "gzip")
+	}
+
+	req.ContentLength = int64(len(t.Body))
+
+	workReq := &requester.SimpleReq{
+		Request:     req,
+		RequestBody: t.Body,
+		Timeout:     t.Config.RequestTimeout,
+		QPS:         t.Config.Qps,
+	}
+
+	return &requester.Work{
+		Req:                workReq,
+		N:                  t.Config.MaxRequests,
+		C:                  t.Config.NumAgents,
+		DisableCompression: t.Config.DisableCompression,
+		DisableKeepAlives:  t.Config.DisableKeepAlives,
+		DisableRedirects:   t.Config.DisableRedirects,
+		H2:                 false,
+		ProxyAddr:          nil,
+		Writer:             report,
+	}
 }
