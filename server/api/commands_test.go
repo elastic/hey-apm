@@ -20,7 +20,7 @@ func TestInvalidLoadCmds(t *testing.T) {
 		{"1s", "1", "1", "1"},
 	} {
 		bw := io.NewBufferWriter()
-		ret := LoadTest(bw, MockState{}, nil, "32767", invalidCmd...)
+		ret := LoadTest(bw, MockState{}, nil, "32767", "0", invalidCmd...)
 		assert.Contains(t, bw.String(), io.Red)
 		assert.Equal(t, ret, TestResult{Cancelled: true})
 	}
@@ -28,27 +28,27 @@ func TestInvalidLoadCmds(t *testing.T) {
 
 func TestLoadNotReady(t *testing.T) {
 	bw := io.NewBufferWriter()
-	cmd := []string{"1s", "1", "1", "0", "1", "1"}
-	ret := LoadTest(bw, MockState{Ok: errors.New("not ready")}, nil, "32767", cmd...)
+	cmd := []string{"1s", "1", "0", "1", "1"}
+	ret := LoadTest(bw, MockState{Ok: errors.New("not ready")}, nil, "32767", "0", cmd...)
 	assert.Equal(t, "not ready", tests.WithoutColors(bw.String()))
 	assert.Equal(t, ret, TestResult{Cancelled: true})
 }
 
 func TestLoadCancelled(t *testing.T) {
 	bw := io.NewBufferWriter()
-	cmd := []string{"2s", "0", "1", "0", "1", "1"}
+	cmd := []string{"2s", "1", "0", "1", "1"}
 	cancel := func() {
 		time.Sleep(100 * time.Millisecond)
 	}
 	s := MockState{MockApm{url: "localhost:822222"}, MockEs{}, nil}
-	ret := LoadTest(bw, s, cancel, "32767", cmd...)
+	ret := LoadTest(bw, s, cancel, "32767", "", cmd...)
 	assert.Equal(t, ret, TestResult{Cancelled: true})
 }
 
 func TestLoadOk(t *testing.T) {
 	bw := io.NewBufferWriter()
 	// set number of agents to 0 so the worker doesn't actually run
-	cmd := []string{"1s", "1", "1", "2", "1", "0"}
+	cmd := []string{"1s", "1", "2", "1", "0"}
 	cancel := func() {
 		time.Sleep(time.Second * 2)
 	}
@@ -56,10 +56,10 @@ func TestLoadOk(t *testing.T) {
 		MockApm{url: "localhost:822222", branch: "master"},
 		MockEs{url: "localhost:922222", docs: 10},
 		nil}
-	ret := LoadTest(bw, s, cancel, "32767", cmd...)
+	ret := LoadTest(bw, s, cancel, "32767", "1", cmd...)
 	assert.Equal(t, `started new work, payload size 5.6kb (uncompressed), 1.6kb (compressed) ...
 >>> 
-cmd = [1s 1 1 2 1 0]
+cmd = [1s 1 2 1 0]
 
 
   total	0 responses (0.00 rps)

@@ -24,15 +24,15 @@ import (
 // it will send `N` simultaneous requests repeatedly as fast as possible for the given `duration`
 // if `spans/transaction is` 0, it creates errors; otherwise it creates transactions
 // blocks current goroutine for as long as `duration` or until waitForCancel returns
-func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string, cmd ...string) TestResult {
+func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string, errs string, cmd ...string) TestResult {
 	result := TestResult{Cancelled: true}
 
 	duration, err := time.ParseDuration(strcoll.Nth(0, cmd))
-	numErrors, err := atoi(strcoll.Nth(1, cmd), err)
-	numTransactions, err := atoi(strcoll.Nth(2, cmd), err)
-	numSpans, err := atoi(strcoll.Nth(3, cmd), err)
-	numFrames, err := atoi(strcoll.Nth(4, cmd), err)
-	numAgents, err := atoi(strcoll.Nth(5, cmd), err)
+	numTransactions, err := atoi(strcoll.Nth(1, cmd), err)
+	numSpans, err := atoi(strcoll.Nth(2, cmd), err)
+	numFrames, err := atoi(strcoll.Nth(3, cmd), err)
+	numAgents, err := atoi(strcoll.Nth(4, cmd), err)
+	numErrors, err := atoi(errs, err)
 	qps, err := atoi(throttle, err)
 
 	if err == nil {
@@ -274,18 +274,19 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"        -m, --make"+io.Grey+" runs make")
 	io.ReplyNL(w, io.Magenta+"        -v, --verbose"+io.Grey+" shows the output")
 	io.ReplyNL(w, io.Grey+"    when using docker, the only applicable option is -v, all the others are implicitly used")
-	io.ReplyNL(w, io.Magenta+"test <duration> <events> <spans> <frames> <numAgents> [<apmserver-flags> <OPTIONS>...]")
+	io.ReplyNL(w, io.Magenta+"test <duration> <events> <spans> <frames> <agents> [<apmserver-flags> <OPTIONS>...]")
 	io.ReplyNL(w, io.Grey+"    starts the apm-server and performs a workload test against it")
 	io.ReplyNL(w, io.Magenta+"        <duration>"+io.Grey+" duration of the load test (eg \"1m\")")
-	io.ReplyNL(w, io.Magenta+"        <events>"+io.Grey+" events per request, either transactions or errors")
-	io.ReplyNL(w, io.Magenta+"        <spans>"+io.Grey+" spans per transaction: if 0 events are errors, otherwise they are transactions")
-	io.ReplyNL(w, io.Magenta+"        <frames>"+io.Grey+" frames per document, either spans or errors")
-	io.ReplyNL(w, io.Magenta+"        <numAgents>"+io.Grey+" number of simultaneous agents sending queries")
+	io.ReplyNL(w, io.Magenta+"        <transactions>"+io.Grey+" transactions per request")
+	io.ReplyNL(w, io.Magenta+"        <spans>"+io.Grey+" spans per transaction")
+	io.ReplyNL(w, io.Magenta+"        <frames>"+io.Grey+" frames per document (for spans and errors)")
+	io.ReplyNL(w, io.Magenta+"        <agents>"+io.Grey+" number of simultaneous agents sending queries")
 	io.ReplyNL(w, io.Magenta+"        <apmserver-flags>"+io.Grey+" any flags passed to apm-server (elasticsearch url/username/password and apm-server url are overwritten), it doesn't have doEffect if apm-server is not managed by hey-apm")
 	io.ReplyNL(w, io.Grey+"    OPTIONS:")
 	io.ReplyNL(w, io.Magenta+"        --mem <mem-limit>"+io.Grey+" memory limit passed to docker run, it doesn't have doEffect if apm-server is not dockerized")
 	io.ReplyNL(w, io.Grey+"        defaults to 4g")
 	io.ReplyNL(w, io.Magenta+"        --throttle <throttle>"+io.Grey+" upper limit of queries per second to send")
+	io.ReplyNL(w, io.Magenta+"        --numErrors <errors>"+io.Grey+" number of errors per request (sent in addition to other events)")
 	io.ReplyNL(w, io.Magenta+"apm tail [-<n> <pattern>]")
 	io.ReplyNL(w, io.Grey+"    shows the last lines of the apm server log")
 	io.ReplyNL(w, io.Magenta+"        -<n>"+io.Grey+" shows the last <n> lines up to 1000, defaults to 10")

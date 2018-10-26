@@ -276,7 +276,7 @@ func independentVars(r TestReport) map[string]string {
 		"transactions": strconv.Itoa(r.Transactions),
 		"spans":        strconv.Itoa(r.Spans),
 		"frames":       strconv.Itoa(r.Frames),
-		"num_agents":   strconv.Itoa(r.NumAgents),
+		"numAgents":    strconv.Itoa(r.NumAgents),
 		"revision":     r.Revision,
 		"branch":       r.Branch,
 		"apm_host":     r.ApmHost,

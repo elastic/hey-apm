@@ -173,7 +173,10 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			var throttle string
 			args1, throttle = io.ParseCmdOption(args1, "--throttle", "32767", true)
 
-			flags := apmFlags(*env.es, env.apm.Url(), strcoll.Rest(6, args1))
+			var errs string
+			args1, errs = io.ParseCmdOption(args1, "--numErrors", "0", true)
+
+			flags := apmFlags(*env.es, env.apm.Url(), strcoll.Rest(5, args1))
 
 			if !env.apm.isRemote {
 				// starts apm-server process
@@ -184,7 +187,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			}
 
 			// load test and teardown
-			result := api.LoadTest(conn, env, conn.waitForCancel, throttle, args1...)
+			result := api.LoadTest(conn, env, conn.waitForCancel, throttle, errs, args1...)
 
 			var mem int64
 			if running := env.IsRunning(); running != nil && *running {

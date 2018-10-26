@@ -118,14 +118,14 @@ func TestMain(m *testing.M) {
 // returns all saved results (reports), including the just indexed; and an error, if occurred
 // the error might be related to failing pre-conditions (eg. no apm-server running) or post-conditions
 // (eg. no data captured, failed to save the report...)
-func doBenchmark(memLimit int64, flags []string, workload ...string) ([]api.TestReport, error) {
+func doBenchmark(memLimit int64, flags []string, numErrs string, workload ...string) ([]api.TestReport, error) {
 	env, flags, err := setupEnv(flags)
 	defer reset(env.es)
 	if err != nil {
 		return nil, err
 	}
 	block := func() { select {} }
-	result := api.LoadTest(console, env, block, "1000", workload...)
+	result := api.LoadTest(console, env, block, "1000", numErrs, workload...)
 	report := api.NewReport(
 		result,
 		"hey-apm-tester",
@@ -160,7 +160,7 @@ func doTest(t *testing.T, flags []string, numErrors, numTransactions, numSpans, 
 		"Use -timeout if you want to execute it and need to override the default 10 minutes timeout.")
 	duration := "3m"
 	memLimit := int64(-1)
-	reports, err := doBenchmark(memLimit, flags, duration, numErrors, numTransactions, numSpans, numFrames, numAgents)
+	reports, err := doBenchmark(memLimit, flags, numErrors, duration, numTransactions, numSpans, numFrames, numAgents)
 
 	filter := func(k, v string) string {
 		return fmt.Sprintf("%s=%s", k, v)
