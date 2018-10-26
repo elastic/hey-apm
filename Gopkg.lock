@@ -8,6 +8,13 @@
   version = "v1.1.1"
 
 [[projects]]
+  branch = "expose-report"
+  name = "github.com/graphaelli/hey"
+  packages = ["requester"]
+  revision = "970056b80a5dc3738032d7d674635eb69176013d"
+  source = "github.com/graphaelli/hey"
+
+[[projects]]
   branch = "master"
   name = "github.com/mailru/easyjson"
   packages = [
@@ -39,13 +46,6 @@
   packages = ["difflib"]
   revision = "792786c7400a136282c1664665ae0a8db921c6c2"
   version = "v1.0.0"
-
-[[projects]]
-  branch = "stream-requests"
-  name = "github.com/simitt/hey"
-  packages = ["requester"]
-  revision = "dcf6c660adb9c27505e9a4964ba91fc02c1d33a5"
-  source = "github.com/simitt/hey"
 
 [[projects]]
   name = "github.com/stretchr/testify"
@@ -94,6 +94,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d175a9816bdbcdee52b6c2a8a608a4cc5051de6f8bbd3942dab7810aada7dadf"
+  inputs-digest = "ffb026274a422f1abc14beefe8bdd3993790e23fc3244d551cbcb3faf40a7d64"
   solver-name = "gps-cdcl"
   solver-version = 1

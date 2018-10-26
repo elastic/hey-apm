@@ -335,7 +335,7 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"        -n <n>"+io.Grey+" verifies the up to last <n> reports if n is a number, or since n time ago if n is a duration")
 	io.ReplyNL(w, io.Grey+"    defaults to 168h (1 week)")
 	io.ReplyNL(w, io.Magenta+"    FILTERS"+io.Grey+" are specified like <FIELD>=|!=|<|><value>")
-	io.ReplyNL(w, io.Grey+"    all FIELDS are required: duration, transactions, spans, frames, agents, branch, limit")
+	io.ReplyNL(w, io.Grey+"    all FIELDS are required: duration, errors, transactions, spans, frames, agents, branch, limit")
 	io.ReplyNL(w, io.Magenta+"define [<pattern> | <name> <sequence> | rm <name>]")
 	io.ReplyNL(w, io.Grey+"    without arguments, shows the current saved name definitions")
 	io.ReplyNL(w, io.Magenta+"       <pattern>"+io.Grey+"  shows the current saved name definitions matching the pattern (no regex support)")

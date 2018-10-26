@@ -158,7 +158,7 @@ If you run tests with different parameter values (transactions, duration, etc), 
 Then, per each group you will see 2 reports, one with tracing enabled and other with tracing disabled:
 
 ```
-duration 30s  transactions 10  spans 10  frames 10  agents 20  branch trace-apm-server  revision c961d664fbe5893d523bd9077be64617f57a96e7
+duration 30s  errors 0 transactions 10  spans 10  frames 10  agents 20  branch trace-apm-server  revision c961d664fbe5893d523bd9077be64617f57a96e7
 report id  revision date   pushed     accepted    throughput  latency  index  max rss  effic  apm-server.tracing.enabled
 v5yruht0   18-05-18 10:21  7.5Mbps    4.8Mbps     435.3dps    185ms    73.3%  432.9Mb  0.669  false
 958l1oly   18-05-18 10:21  7.7Mbps    4.0Mbps     349.6dps    222ms    70.6%  428.3Mb  0.564  true
@@ -194,7 +194,7 @@ Full semantics for filters, sorting, etc. are given in the `help` command.
 A number of filters are required:
 
 ```
-verify -n 168h branch=master duration=30s transactions=10 spans=10 frames=10 agents=1 limit=-1
+verify -n 168h branch=master duration=30s errors=0 transactions=10 spans=10 frames=10 agents=1 limit=-1
 ```
 
 ### define

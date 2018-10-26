@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/simitt/hey/requester"
+	"github.com/graphaelli/hey/requester"
 )
 
 func PrintResults(w *requester.Work, dur float64, writer io.Writer) {
