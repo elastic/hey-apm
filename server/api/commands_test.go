@@ -47,7 +47,7 @@ func TestLoadCancelled(t *testing.T) {
 
 func TestLoadOk(t *testing.T) {
 	bw := io.NewBufferWriter()
-	// set concurrency to 0 so the worker doesn't actually run
+	// set number of agents to 0 so the worker doesn't actually run
 	cmd := []string{"1s", "1", "1", "2", "1", "0"}
 	cancel := func() {
 		time.Sleep(time.Second * 2)
@@ -57,7 +57,7 @@ func TestLoadOk(t *testing.T) {
 		MockEs{url: "localhost:922222", docs: 10},
 		nil}
 	ret := LoadTest(bw, s, cancel, "32767", cmd...)
-	assert.Equal(t, `started new work, payload size is 1.6kb...
+	assert.Equal(t, `started new work, payload size 5.6kb (uncompressed), 1.6kb (compressed) ...
 >>> 
 cmd = [1s 1 1 2 1 0]
 
@@ -74,7 +74,7 @@ cmd = [1s 1 1 2 1 0]
 	assert.Equal(t, 1583, ret.ReqSize)
 	assert.Equal(t, "localhost:922222", ret.ElasticUrl)
 	assert.Equal(t, "localhost:822222", ret.ApmUrl)
-	assert.Equal(t, 0, ret.Concurrency)
+	assert.Equal(t, 0, ret.NumAgents)
 	assert.Equal(t, 32767, ret.Qps)
 	assert.Equal(t, "master", ret.Branch)
 	assert.Equal(t, 0, ret.AcceptedResponses)

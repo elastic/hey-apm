@@ -130,7 +130,7 @@ Independent variables are the ones such as number of events per request, duratio
 Some useful possibilities are: 
 - `collate branch` to see how branches compare to each other.
 - `collate duration` to see if performance degrades over time (by comparing eg 1 minute tests with 20 minute tests). 
-- `collate concurrency` to see how apm-server scales with heavier traffic.
+- `collate numAgents` to see how apm-server scales with heavier traffic.
 - `collate events` to see how apm-server scales with heavier payloads.
 - `collate revision branch=master --sort revision_date` to see how a branch (master in this case) changes over time. 
 - `collate <flag>` to see how configuration  affect performance.
@@ -150,19 +150,19 @@ When all the tests complete (`status` informs there are no queued commands and a
 collate apm-server.tracing.enabled branch=trace-apm-server
 ```
 
-That will show 2 groups of reports, one with `concurrency=1` and another one with `concurrency=20`. 
+That will show 2 groups of reports, one with `numAgents=1` and another one with `numAgents=20`. 
 
 If you run tests with different parameter values (events, duration, etc), you will get 1 group per variant.
 Then, per each group you will see 2 reports, one with tracing enabled and other with tracing disabled:
 
 ```
-duration 30s  events 10  spans 10  frames 10  concurrency 20  branch trace-apm-server  revision c961d664fbe5893d523bd9077be64617f57a96e7
+duration 30s  events 10  spans 10  frames 10  numAgents 20  branch trace-apm-server  revision c961d664fbe5893d523bd9077be64617f57a96e7
 report id  revision date   pushed     accepted    throughput  latency  index  max rss  effic  apm-server.tracing.enabled
 v5yruht0   18-05-18 10:21  7.5Mbps    4.8Mbps     435.3dps    185ms    73.3%  432.9Mb  0.669  false
 958l1oly   18-05-18 10:21  7.7Mbps    4.0Mbps     349.6dps    222ms    70.6%  428.3Mb  0.564  true
 ```
 ```
-duration 30s  events 10  spans 10  frames 10  concurrency 1  branch trace-apm-server  revision c961d664fbe5893d523bd9077be64617f57a96e7
+duration 30s  events 10  spans 10  frames 10  numAgents 1  branch trace-apm-server  revision c961d664fbe5893d523bd9077be64617f57a96e7
 report id  revision date   pushed     accepted    throughput  latency  index  max rss  effic  apm-server.tracing.enabled
 xmlob0sh   18-05-18 10:21  5.2Mbps    5.3Mbps     491.2dps    169ms    75.7%  422.1Mb  0.750  false
 bcl41bfu   18-05-18 10:21  5.1Mbps    5.1Mbps     494.5dps    174ms    78.4%  354.5Mb  0.868  true
@@ -192,7 +192,7 @@ Full semantics for filters, sorting, etc. are given in the `help` command.
 A number of filters are required:
 
 ```
-verify -n 168h branch=master duration=30s events=10 spans=10 frames=10 concurrency=1 limit=-1
+verify -n 168h branch=master duration=30s events=10 spans=10 frames=10 numAgents=1 limit=-1
 ```
 
 ### define

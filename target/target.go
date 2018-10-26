@@ -17,7 +17,7 @@ const defaultUserAgent = "hey-apm/1.0"
 
 // Config holds global work configuration
 type Config struct {
-	Concurrent     int
+	NumAgents      int
 	Qps            float64
 	MaxRequests    int
 	RequestTimeout int
@@ -113,7 +113,7 @@ func (t *Target) GetWork() *requester.Work {
 	return &requester.Work{
 		Req:                workReq,
 		N:                  t.Config.MaxRequests,
-		C:                  t.Config.Concurrent,
+		C:                  t.Config.NumAgents,
 		DisableCompression: t.Config.DisableCompression,
 		DisableKeepAlives:  t.Config.DisableKeepAlives,
 		DisableRedirects:   t.Config.DisableRedirects,

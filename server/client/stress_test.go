@@ -155,12 +155,12 @@ func assertNoError(t *testing.T, err error) bool {
 	return assert.Fail(t, err.Error())
 }
 
-func doTest(t *testing.T, flags []string, numErrors, numTransactions, numSpans, numFrames, concurrency string) {
+func doTest(t *testing.T, flags []string, numErrors, numTransactions, numSpans, numFrames, numAgents string) {
 	t.Log("executing apm-server stress test, this will take long. Use SKIP_STRESS=1 to skip it. " +
 		"Use -timeout if you want to execute it and need to override the default 10 minutes timeout.")
 	duration := "3m"
 	memLimit := int64(-1)
-	reports, err := doBenchmark(memLimit, flags, duration, numErrors, numTransactions, numSpans, numFrames, concurrency)
+	reports, err := doBenchmark(memLimit, flags, duration, numErrors, numTransactions, numSpans, numFrames, numAgents)
 
 	filter := func(k, v string) string {
 		return fmt.Sprintf("%s=%s", k, v)
@@ -179,7 +179,7 @@ func doTest(t *testing.T, flags []string, numErrors, numTransactions, numSpans, 
 				filter("transactions", numTransactions),
 				filter("spans", numSpans),
 				filter("frames", numFrames),
-				filter("concurrency", concurrency),
+				filter("numAgents", numAgents),
 				fmt.Sprintf("limit=%d", memLimit)},
 			reports)
 		assert.True(t, ok, msg)
@@ -190,7 +190,7 @@ func TestSmallTransactionsSequential(t *testing.T) {
 	doTest(t, noFlags, "10", "10", "10", "10", "1")
 }
 
-func TestSmallTransactionsLowConcurrency(t *testing.T) {
+func TestSmallTransactionsLowNumConcurrentAgents(t *testing.T) {
 	doTest(t, noFlags, "10", "10", "10", "10", "5")
 }
 
@@ -198,7 +198,7 @@ func TestMediumTransactionsSequential(t *testing.T) {
 	doTest(t, noFlags, "20", "20", "20", "20", "1")
 }
 
-func TestMediumTransactionsLowConcurrency(t *testing.T) {
+func TestMediumTransactionsLowNumConcurrentAgents(t *testing.T) {
 	doTest(t, noFlags, "20", "20", "20", "20", "5")
 }
 
@@ -206,15 +206,15 @@ func TestLargeTransactionsSequential(t *testing.T) {
 	doTest(t, noFlags, "30", "30", "30", "30", "1")
 }
 
-func TestLargeTransactionsLowConcurrency(t *testing.T) {
+func TestLargeTransactionsLowNumConcurrentAgents(t *testing.T) {
 	doTest(t, noFlags, "30", "30", "30", "30", "5")
 }
 
-func TestLargeTransactionsLowConcurrencyCustomFlags(t *testing.T) {
+func TestLargeTransactionsLowNumConcurrentAgentsCustomFlags(t *testing.T) {
 	flags := []string{"-E", "output.elasticsearch.bulk_max_size=5000", "-E", "queue.mem.events=5000", "-E", "apm-server.concurrent_requests=10"}
 	doTest(t, flags, "30", "30", "30", "30", "5")
 }
 
-func TestErrorsVeryHighConcurrency(t *testing.T) {
+func TestErrorsVeryHighNumConcurrentAgents(t *testing.T) {
 	doTest(t, noFlags, "10", "10", "0", "100", "100")
 }

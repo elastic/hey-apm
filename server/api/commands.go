@@ -32,7 +32,7 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 	numTransactions, err := atoi(strcoll.Nth(2, cmd), err)
 	numSpans, err := atoi(strcoll.Nth(3, cmd), err)
 	numFrames, err := atoi(strcoll.Nth(4, cmd), err)
-	conc, err := atoi(strcoll.Nth(5, cmd), err)
+	numAgents, err := atoi(strcoll.Nth(5, cmd), err)
 	qps, err := atoi(throttle, err)
 
 	if err == nil {
@@ -46,7 +46,7 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 	}
 
 	cfg := &target.Config{
-		Concurrent:     conc,
+		NumAgents:      numAgents,
 		Qps:            float64(qps),
 		MaxRequests:    math.MaxInt32,
 		RequestTimeout: 30,
@@ -60,13 +60,14 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 		DisableCompression: false,
 	}
 	t := target.NewTarget(state.ApmServer().Url(), "POST", cfg)
+	uncompressed := int64(len(t.Body))
 	work := t.GetWork()
 
 	docsBefore := state.ElasticSearch().Count()
 	start := time.Now()
 	go work.Run()
-	io.ReplyNL(w, io.Grey+fmt.Sprintf("started new work, payload size is %s...",
-		byteCountDecimal(int64(len(t.Body)))))
+	io.ReplyNL(w, io.Grey+fmt.Sprintf("started new work, payload size %s (uncompressed), %s (compressed) ...",
+		byteCountDecimal(uncompressed), byteCountDecimal(int64(len(t.Body)))))
 	io.Prompt(w)
 
 	cancelled := make(chan struct{}, 1)
@@ -88,7 +89,7 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 			Transactions:      numTransactions,
 			Spans:             numSpans,
 			Frames:            numFrames,
-			Concurrency:       conc,
+			NumAgents:         numAgents,
 			Qps:               qps,
 			ReqSize:           len(t.Body),
 			ElasticUrl:        state.ElasticSearch().Url(),
@@ -231,7 +232,7 @@ func Status(state State) *io.BufferWriter {
 func Dump(fw io.FileWriter, fileName string, args ...string) string {
 	w := io.NewBufferWriter()
 	errors, err := atoi(strcoll.Nth(0, args), nil)
-	transactions, err := atoi(strcoll.Nth(1, args), nil)
+	transactions, err := atoi(strcoll.Nth(1, args), err)
 	spans, err := atoi(strcoll.Nth(2, args), err)
 	frames, err := atoi(strcoll.Nth(3, args), err)
 	if err != nil {
@@ -273,13 +274,13 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"        -m, --make"+io.Grey+" runs make")
 	io.ReplyNL(w, io.Magenta+"        -v, --verbose"+io.Grey+" shows the output")
 	io.ReplyNL(w, io.Grey+"    when using docker, the only applicable option is -v, all the others are implicitly used")
-	io.ReplyNL(w, io.Magenta+"test <duration> <events> <spans> <frames> <concurrency> [<apmserver-flags> <OPTIONS>...]")
+	io.ReplyNL(w, io.Magenta+"test <duration> <events> <spans> <frames> <numAgents> [<apmserver-flags> <OPTIONS>...]")
 	io.ReplyNL(w, io.Grey+"    starts the apm-server and performs a workload test against it")
 	io.ReplyNL(w, io.Magenta+"        <duration>"+io.Grey+" duration of the load test (eg \"1m\")")
 	io.ReplyNL(w, io.Magenta+"        <events>"+io.Grey+" events per request, either transactions or errors")
 	io.ReplyNL(w, io.Magenta+"        <spans>"+io.Grey+" spans per transaction: if 0 events are errors, otherwise they are transactions")
 	io.ReplyNL(w, io.Magenta+"        <frames>"+io.Grey+" frames per document, either spans or errors")
-	io.ReplyNL(w, io.Magenta+"        <concurrency>"+io.Grey+" number of simultaneous queries to send")
+	io.ReplyNL(w, io.Magenta+"        <numAgents>"+io.Grey+" number of simultaneous agents sending queries")
 	io.ReplyNL(w, io.Magenta+"        <apmserver-flags>"+io.Grey+" any flags passed to apm-server (elasticsearch url/username/password and apm-server url are overwritten), it doesn't have doEffect if apm-server is not managed by hey-apm")
 	io.ReplyNL(w, io.Grey+"    OPTIONS:")
 	io.ReplyNL(w, io.Magenta+"        --mem <mem-limit>"+io.Grey+" memory limit passed to docker run, it doesn't have doEffect if apm-server is not dockerized")
@@ -313,7 +314,7 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"                events"+io.Grey+" events per request")
 	io.ReplyNL(w, io.Magenta+"                spans"+io.Grey+" spans per transaction")
 	io.ReplyNL(w, io.Magenta+"                frames"+io.Grey+" frames per document")
-	io.ReplyNL(w, io.Magenta+"                concurrency"+io.Grey+" number of concurrent requests targeted")
+	io.ReplyNL(w, io.Magenta+"                numAgents"+io.Grey+" number of concurrent agents sending requests")
 	io.ReplyNL(w, io.Magenta+"                branch"+io.Grey+" git branch and commit (if the branch is variable, the revision necessarily varies too)")
 	io.ReplyNL(w, io.Magenta+"                revision"+io.Grey+" git commit")
 	io.ReplyNL(w, io.Magenta+"                limit"+io.Grey+" memory limit passed to docker")
@@ -326,14 +327,14 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"                report_date"+io.Grey+" date of the generated report")
 	io.ReplyNL(w, io.Magenta+"                request_size"+io.Grey+" number of bytes in the request body")
 	io.ReplyNL(w, io.Magenta+"                revision_date"+io.Grey+" date of the git commit")
-	io.ReplyNL(w, io.Grey+"        command example: \"collate -24h revision branch=master revision_date>2018-28-02 concurrency=10 duration<5m --sort latency\"")
+	io.ReplyNL(w, io.Grey+"        command example: \"collate -24h revision branch=master revision_date>2018-28-02 numAgents=10 duration<5m --sort latency\"")
 	io.ReplyNL(w, io.Magenta+"verify -n <n> <FILTER>...")
 	io.ReplyNL(w, io.Grey+"    verifies that there is not a negative trend over time")
 	io.ReplyNL(w, io.Grey+"    (apm-server flags might skew results)")
 	io.ReplyNL(w, io.Magenta+"        -n <n>"+io.Grey+" verifies the up to last <n> reports if n is a number, or since n time ago if n is a duration")
 	io.ReplyNL(w, io.Grey+"    defaults to 168h (1 week)")
 	io.ReplyNL(w, io.Magenta+"    FILTERS"+io.Grey+" are specified like <FIELD>=|!=|<|><value>")
-	io.ReplyNL(w, io.Grey+"    all FIELDS are required: duration, events, spans, frames, concurrency, branch, limit")
+	io.ReplyNL(w, io.Grey+"    all FIELDS are required: duration, events, spans, frames, numAgents, branch, limit")
 	io.ReplyNL(w, io.Magenta+"define [<pattern> | <name> <sequence> | rm <name>]")
 	io.ReplyNL(w, io.Grey+"    without arguments, shows the current saved name definitions")
 	io.ReplyNL(w, io.Magenta+"       <pattern>"+io.Grey+"  shows the current saved name definitions matching the pattern (no regex support)")

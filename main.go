@@ -27,7 +27,7 @@ var (
 	maxRequests = flag.Int("requests", math.MaxInt32, "maximum requests to make")
 
 	// payload options
-	numAgents       = flag.Int("c", 1, "concurrent clients")
+	numAgents       = flag.Int("c", 1, "number of agents sending data concurrently")
 	qps             = flag.Float64("q", 0, "queries per second")
 	numErrors       = flag.Int("e", 1, "number of errors")
 	numFrames       = flag.Int("f", 1, "number of stacktrace frames per span")
@@ -122,7 +122,7 @@ func dumpLoadbeat(t *target.Target) {
 	fmt.Fprintln(f, "loadbeat:")
 	fmt.Fprintln(f, "  targets:")
 	defer f.Close()
-	fmt.Fprintf(f, "    - concurrent: %d\n", *numAgents)
+	fmt.Fprintf(f, "    - number of agents: %d\n", *numAgents)
 	fmt.Fprintf(f, "      qps: %.5f\n", *qps)
 	fmt.Fprintf(f, "      method: %s\n", t.Method)
 	fmt.Fprintf(f, "      url: %s\n", t.Url)
@@ -160,7 +160,7 @@ func main() {
 	}
 
 	cfg := &target.Config{
-		Concurrent:     *numAgents,
+		NumAgents:      *numAgents,
 		Qps:            *qps,
 		MaxRequests:    *maxRequests,
 		RequestTimeout: *requestTimeout,
