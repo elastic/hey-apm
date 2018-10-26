@@ -82,7 +82,6 @@ func newStringsOpt(name string, value []string, usage string) *stringsOpt {
 }
 
 func desc(t *target.Target) {
-	//TODO: ensure body is properly handled
 	var gzBody bytes.Buffer
 	if len(t.Body) > 0 {
 		zw := gzip.NewWriter(&gzBody)
@@ -116,7 +115,6 @@ func desc(t *target.Target) {
 }
 
 func dumpLoadbeat(t *target.Target) {
-	//TODO: ensure body is properly decoded
 	profileName := fmt.Sprintf("%s_%d_%d_%d_%d_%d_%d.yml", t.Method, *numErrors, *numTransactions, *numSpans, *numFrames, *numAgents, int(*qps))
 	f, _ := os.Create(profileName)
 	fmt.Fprintln(f, "loadbeat:")

@@ -174,7 +174,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			args1, throttle = io.ParseCmdOption(args1, "--throttle", "32767", true)
 
 			var errs string
-			args1, errs = io.ParseCmdOption(args1, "--numErrors", "0", true)
+			args1, errs = io.ParseCmdOption(args1, "--errors", "0", true)
 
 			flags := apmFlags(*env.es, env.apm.Url(), strcoll.Rest(5, args1))
 

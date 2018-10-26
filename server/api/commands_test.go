@@ -57,10 +57,9 @@ func TestLoadOk(t *testing.T) {
 		MockEs{url: "localhost:922222", docs: 10},
 		nil}
 	ret := LoadTest(bw, s, cancel, "32767", "1", cmd...)
-	assert.Equal(t, `started new work, payload size 5.6kb (uncompressed), 1.6kb (compressed) ...
+	assert.Equal(t, `started new work, url localhost:822222/intake/v2/events, payload size 5.6kb (uncompressed), 1.6kb (compressed) ...
 >>> 
 cmd = [1s 1 2 1 0]
-
 
   total	0 responses (0.00 rps)
 `,
@@ -74,7 +73,7 @@ cmd = [1s 1 2 1 0]
 	assert.Equal(t, 1583, ret.ReqSize)
 	assert.Equal(t, "localhost:922222", ret.ElasticUrl)
 	assert.Equal(t, "localhost:822222", ret.ApmUrl)
-	assert.Equal(t, 0, ret.NumAgents)
+	assert.Equal(t, 0, ret.Agents)
 	assert.Equal(t, 32767, ret.Qps)
 	assert.Equal(t, "master", ret.Branch)
 	assert.Equal(t, 0, ret.AcceptedResponses)

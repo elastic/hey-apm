@@ -35,7 +35,7 @@ var report = TestReport{
 		Transactions:      1,
 		Spans:             1,
 		Frames:            1,
-		NumAgents:         1,
+		Agents:            1,
 		Qps:               math.MaxInt16,
 		ReqSize:           1,
 		ElasticUrl:        "http://localhost:9200",
@@ -101,8 +101,8 @@ func (b *builder) setSpt(x int) *builder {
 	return b
 }
 
-func (b *builder) setNumAgents(x int) *builder {
-	b.NumAgents = x
+func (b *builder) setAgents(x int) *builder {
+	b.Agents = x
 	return b
 }
 
@@ -251,25 +251,25 @@ func TestFilterOk(t *testing.T) {
 	revDate := "Thu, 26 Apr 2018 17:36:14 +0200"
 	reports := []TestReport{
 		newBuilder().
-			setBranch("branch").setEpr(10).setSpt(5).setNumAgents(1).setRevDate(revDate).
+			setBranch("branch").setEpr(10).setSpt(5).setAgents(1).setRevDate(revDate).
 			get(),
 		newBuilder().
-			setEpr(10).setEs("http://127.0.0.1:9200").setSpt(15).setFpd(1).setNumAgents(1).setDur(time.Hour).
+			setEpr(10).setEs("http://127.0.0.1:9200").setSpt(15).setFpd(1).setAgents(1).setDur(time.Hour).
 			get(),
 		newBuilder().
-			setSize(9999).setEpr(1).setSpt(5).setFpd(1).setNumAgents(1).setRevDate(revDate).
+			setSize(9999).setEpr(1).setSpt(5).setFpd(1).setAgents(1).setRevDate(revDate).
 			get(),
 		newBuilder().
-			setSpt(10).setFpd(1).setNumAgents(1).setDur(time.Hour).setRevDate(revDate).
+			setSpt(10).setFpd(1).setAgents(1).setDur(time.Hour).setRevDate(revDate).
 			get(),
 		newBuilder().
-			setBranch("branch").setEpr(10).setNumAgents(0).setDur(time.Hour).setRevDate(revDate).
+			setBranch("branch").setEpr(10).setAgents(0).setDur(time.Hour).setRevDate(revDate).
 			get(),
 		newBuilder().
-			setSize(999).setEs("http://localhost:9202").setEpr(10).setSpt(5).setFpd(1).setNumAgents(1).
+			setSize(999).setEs("http://localhost:9202").setEpr(10).setSpt(5).setFpd(1).setAgents(1).
 			get(),
 		newBuilder().
-			setEpr(10).setSpt(5).setFpd(1).setNumAgents(1).setDur(time.Minute).setRevDate(revDate).
+			setEpr(10).setSpt(5).setFpd(1).setAgents(1).setDur(time.Minute).setRevDate(revDate).
 			get(),
 	}
 
@@ -302,14 +302,14 @@ func TestFilterOk(t *testing.T) {
 		},
 		{
 			[]queryFilter{
-				{"num_agents", "0", ">"},
+				{"agents", "0", ">"},
 				{"duration", "60m", "="},
 			},
 			[]int{1, 3},
 		},
 		{
 			[]queryFilter{
-				{"num_agents", "0", ">"},
+				{"agents", "0", ">"},
 				{"duration", "60m", "="},
 			},
 			[]int{1, 3},
@@ -439,7 +439,7 @@ func TestFindVariants(t *testing.T) {
 	b9 := copyBuilder(b7).setSpt(5).get()
 	b10 := copyBuilder(a).setSpt(8).get()
 	b11 := copyBuilder(a).setFpd(13).get()
-	b12 := copyBuilder(a).setNumAgents(21).get()
+	b12 := copyBuilder(a).setAgents(21).get()
 	b13 := copyBuilder(template).addFlag("mem.queue.size=70").get()
 	b14 := copyBuilder(b13).addFlag("apm-server.frontend.enabled=true").get()
 	b15 := copyBuilder(template).addFlag("apm-server.frontend.enabled=true").get()
@@ -470,7 +470,7 @@ func TestFindVariants(t *testing.T) {
 			"frames", []int{11},
 		},
 		{
-			"num_agents", []int{12},
+			"agents", []int{12},
 		},
 		{
 			"mem.queue.size", []int{13},
@@ -539,7 +539,7 @@ func TestCollate(t *testing.T) {
 	a := copyBuilder(template).setId("a").TestReport
 	// will be excluded from unique because c is the same but more efficient
 	b := copyBuilder(template).setId("b").
-		setNumAgents(10).setDur(time.Minute * 10).TestReport
+		setAgents(10).setDur(time.Minute * 10).TestReport
 	c := copyBuilder(template).setId("c").
 		setMaxRss(500000).setDate(date1).TestReport
 	// won't be excluded from unique because e and f are different (flag, revision)
@@ -554,16 +554,15 @@ func TestCollate(t *testing.T) {
 		setDur(time.Minute * 20).setDate(date2).TestReport
 
 	reports := []TestReport{a, b, c, d, e, f, g}
-	ret, err := collate("10", "branch", "report_date", false, []string{"num_agents>9"}, reports)
-	fmt.Println(ret)
+	ret, err := collate("10", "branch", "report_date", false, []string{"agents>9"}, reports)
 	var text = func(idx0, idx1 int) string {
 		return tests.WithoutColors(strings.Join(ret[idx0][idx1], " "))
 	}
 	assert.NoError(t, err)
-	assert.Equal(t, "duration 20m0s errors 1 transactions 1 spans 100 frames 10 num_agents 10", text(0, 0))
+	assert.Equal(t, "duration 20m0s errors 1 transactions 1 spans 100 frames 10 agents 10", text(0, 0))
 	assert.Equal(t, "report id revision date  pushed    accepted   throughput latency index max rss effic branch flags", text(0, 1))
 	assert.Equal(t, "g 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.4% 1.0Mb 0.000 master ", text(0, 2))
-	assert.Equal(t, "duration 10m0s errors 1 transactions 1 spans 100 frames 10 num_agents 10", text(1, 0))
+	assert.Equal(t, "duration 10m0s errors 1 transactions 1 spans 100 frames 10 agents 10", text(1, 0))
 	assert.Equal(t, "report id revision date  pushed    accepted   throughput latency index max rss effic branch flags", text(1, 1))
 	assert.Equal(t, "b 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.4% 1.0Mb 0.000 master ", text(1, 2))
 	assert.Equal(t, "d 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.4% 1.0Mb 0.000 branch2 ", text(1, 3))

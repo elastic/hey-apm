@@ -70,7 +70,7 @@ type TestResult struct {
 	// frames per doc
 	Frames int `json:"frames"`
 	// Number of concurrent agents sending requests.
-	NumAgents int `json:"num_agents"`
+	Agents int `json:"agents"`
 	// queries per second cap, fixed to a very high number
 	Qps int `json:"qps"`
 	// size in bytes of a single request payload
@@ -276,7 +276,7 @@ func independentVars(r TestReport) map[string]string {
 		"transactions": strconv.Itoa(r.Transactions),
 		"spans":        strconv.Itoa(r.Spans),
 		"frames":       strconv.Itoa(r.Frames),
-		"numAgents":    strconv.Itoa(r.NumAgents),
+		"agents":       strconv.Itoa(r.Agents),
 		"revision":     r.Revision,
 		"branch":       r.Branch,
 		"apm_host":     r.ApmHost,
@@ -659,7 +659,7 @@ func keysExcluding(exclude string, m map[string]string) []string {
 func digestMatrixHeader(variable string, m map[string]string) []string {
 	ret := make([]string, 0)
 	// always the same order
-	for _, attr := range []string{"duration", "errors", "transactions", "spans", "frames", "num_agents", "branch"} {
+	for _, attr := range []string{"duration", "errors", "transactions", "spans", "frames", "agents", "branch"} {
 		if variable != attr {
 			ret = append(ret, io.Magenta+attr+" "+io.Grey+m[attr])
 		}

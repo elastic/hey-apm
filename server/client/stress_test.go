@@ -179,7 +179,7 @@ func doTest(t *testing.T, flags []string, numErrors, numTransactions, numSpans, 
 				filter("transactions", numTransactions),
 				filter("spans", numSpans),
 				filter("frames", numFrames),
-				filter("numAgents", numAgents),
+				filter("agents", numAgents),
 				fmt.Sprintf("limit=%d", memLimit)},
 			reports)
 		assert.True(t, ok, msg)
@@ -187,34 +187,38 @@ func doTest(t *testing.T, flags []string, numErrors, numTransactions, numSpans, 
 }
 
 func TestSmallTransactionsSequential(t *testing.T) {
-	doTest(t, noFlags, "10", "10", "10", "10", "1")
+	doTest(t, noFlags, "0", "10", "10", "10", "1")
+}
+
+func TestSmallErrorsSequential(t *testing.T) {
+	doTest(t, noFlags, "10", "0", "0", "10", "1")
 }
 
 func TestSmallTransactionsLowNumConcurrentAgents(t *testing.T) {
-	doTest(t, noFlags, "10", "10", "10", "10", "5")
+	doTest(t, noFlags, "0", "10", "10", "10", "5")
 }
 
 func TestMediumTransactionsSequential(t *testing.T) {
-	doTest(t, noFlags, "20", "20", "20", "20", "1")
+	doTest(t, noFlags, "0", "20", "20", "20", "1")
 }
 
 func TestMediumTransactionsLowNumConcurrentAgents(t *testing.T) {
-	doTest(t, noFlags, "20", "20", "20", "20", "5")
+	doTest(t, noFlags, "0", "20", "20", "20", "5")
 }
 
 func TestLargeTransactionsSequential(t *testing.T) {
-	doTest(t, noFlags, "30", "30", "30", "30", "1")
+	doTest(t, noFlags, "0", "30", "30", "30", "1")
 }
 
 func TestLargeTransactionsLowNumConcurrentAgents(t *testing.T) {
-	doTest(t, noFlags, "30", "30", "30", "30", "5")
+	doTest(t, noFlags, "0", "30", "30", "30", "5")
 }
 
 func TestLargeTransactionsLowNumConcurrentAgentsCustomFlags(t *testing.T) {
 	flags := []string{"-E", "output.elasticsearch.bulk_max_size=5000", "-E", "queue.mem.events=5000", "-E", "apm-server.concurrent_requests=10"}
-	doTest(t, flags, "30", "30", "30", "30", "5")
+	doTest(t, flags, "0", "30", "30", "30", "5")
 }
 
 func TestErrorsVeryHighNumConcurrentAgents(t *testing.T) {
-	doTest(t, noFlags, "10", "10", "0", "100", "100")
+	doTest(t, noFlags, "0", "10", "0", "100", "100")
 }

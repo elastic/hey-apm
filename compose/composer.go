@@ -5,7 +5,6 @@ import (
 )
 
 func Compose(numErrors, numTransactions, numSpans, numFrames int) []byte {
-	//TODO: shuffle body except for metadata
 	var buf bytes.Buffer
 
 	buf.Write(Metadata)

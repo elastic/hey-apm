@@ -13,7 +13,6 @@ func PrintResults(w *requester.Work, dur float64, writer io.Writer) {
 	statusCodeDist := w.StatusCodes()
 	codes, total := SortedTotal(statusCodeDist)
 	div := float64(total)
-	fmt.Fprintln(writer)
 	for _, code := range codes {
 		cnt := statusCodeDist[code]
 		fmt.Fprintf(writer, "  [%d]\t%d responses (%.2f%%) \n", code, cnt, 100*float64(cnt)/div)
