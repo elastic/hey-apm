@@ -15,9 +15,9 @@ func PrintResults(w *requester.Work, dur float64, writer io.Writer) {
 	div := float64(total)
 	for _, code := range codes {
 		cnt := statusCodeDist[code]
-		fmt.Fprintf(writer, "  [%d]\t%d responses (%.2f%%) \n", code, cnt, 100*float64(cnt)/div)
+		fmt.Fprintf(writer, "[%d] %d responses (%.2f%%) \n", code, cnt, 100*float64(cnt)/div)
 	}
-	fmt.Fprintf(writer, "  total\t%d responses (%.2f rps)\n", total, div/dur)
+	fmt.Fprintf(writer, "total %d responses (%.2f rps)\n", total, div/dur)
 
 	errorTotal := 0
 	errorDist := make(map[string]int)

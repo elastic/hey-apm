@@ -11,24 +11,23 @@ import (
 
 	"github.com/elastic/hey-apm/compose"
 	"github.com/graphaelli/hey/requester"
+	"strconv"
 )
 
 const defaultUserAgent = "hey-apm/1.0"
 
-// Config holds global work configuration
+
 type Config struct {
-	NumAgents      int
-	Qps            float64
-	MaxRequests    int
-	RequestTimeout int
-	RunTimeout     time.Duration
-	Endpoint       string
-
-	BodyConfig *BodyConfig
-
+	NumAgents                                               int
+	Throttle                                                float64
+	MaxRequests                                             int
+	RequestTimeout                                          int
+	RunTimeout                                              time.Duration
+	Endpoint                                                string
+	Stream                                                  bool
+	*BodyConfig
 	DisableCompression, DisableKeepAlives, DisableRedirects bool
 	http.Header
-	Stream bool
 }
 
 type BodyConfig struct {
@@ -47,46 +46,129 @@ var (
 		MaxRequests:    math.MaxInt32,
 		RequestTimeout: 10,
 		Endpoint:       "/intake/v2/events",
+		BodyConfig: 	&BodyConfig{},
+		Header: 		make(http.Header),
 	}
 )
 
-func BuildBody(b *BodyConfig) []byte {
+func buildBody(b *BodyConfig) []byte {
 	return compose.Compose(b.NumErrors, b.NumTransactions, b.NumSpans, b.NumFrames)
 }
 
-func NewTarget(baseUrl, method string, cfg *Config) *Target {
+func NewTargetFromConfig(baseUrl, method string, cfg *Config) *Target {
 	if cfg == nil {
-		cfg = &defaultCfg
+		copyCfg := defaultCfg
+		cfg = &copyCfg
 	}
-	body := BuildBody(cfg.BodyConfig)
+	body := buildBody(cfg.BodyConfig)
 	url := strings.TrimSuffix(baseUrl, "/") + cfg.Endpoint
 	return &Target{Config: cfg, Body: body, Url: url, Method: method}
 }
 
-// Get constructs the list of work to be completed
-func (t *Target) GetWork() *requester.Work {
-	// request
-	req, err := http.NewRequest(t.Method, t.Url, nil)
-	if err != nil {
-		panic(err)
+func NewTargetFromOptions(baseUrl string, opts ...OptionFunc) (*Target, error) {
+	copyCfg := defaultCfg
+	cfg := &copyCfg
+	var err error
+	for _, opt := range opts {
+		err = with(cfg, opt, err)
 	}
+	body := buildBody(cfg.BodyConfig)
+	url := strings.TrimSuffix(baseUrl, "/") + cfg.Endpoint
+	return &Target{Config: cfg, Body: body, Url: url, Method: "POST"}, err
+}
 
-	// headers
-	for header, values := range t.Config.Header {
-		for _, v := range values {
-			req.Header.Add(header, v)
-		}
+type OptionFunc func(*Config) error
+
+func with(c *Config, f OptionFunc, err error) error {
+	if err != nil {
+		return err
 	}
+	return f(c)
+}
+
+func RunTimeout(s string) OptionFunc {
+	return func(c *Config) error {
+		var err error
+		c.RunTimeout, err = time.ParseDuration(s)
+		return err
+	}
+}
+
+func RequestTimeout(s string) OptionFunc {
+	return func(c *Config) error {
+		timeout, err := time.ParseDuration(s)
+		c.RequestTimeout = int(timeout.Nanoseconds())
+		return err
+	}
+}
+
+func NumAgents(s string) OptionFunc {
+	return func(c *Config) error {
+		var err error
+		c.NumAgents, err = strconv.Atoi(s)
+		return err
+	}
+}
+
+func Throttle(s string) OptionFunc {
+	return func(c *Config) error {
+		throttle, err := strconv.Atoi(s)
+		c.Throttle = float64(throttle)
+		return err
+	}
+}
+
+func Stream(s string) OptionFunc {
+	return func(c *Config) error {
+		c.Stream = s == ""
+		return nil
+	}
+}
+
+func NumErrors(s string) OptionFunc {
+	return func(c *Config) error {
+		var err error
+		c.NumErrors, err = strconv.Atoi(s)
+		return err
+	}
+}
+
+func NumTransactions(s string) OptionFunc {
+	return func(c *Config) error {
+		var err error
+		c.NumTransactions, err = strconv.Atoi(s)
+		return err
+	}
+}
+
+func NumSpans(s string) OptionFunc {
+	return func(c *Config) error {
+		var err error
+		c.NumSpans, err = strconv.Atoi(s)
+		return err
+	}
+}
+
+func NumFrames(s string) OptionFunc {
+	return func(c *Config) error {
+		var err error
+		c.NumFrames, err = strconv.Atoi(s)
+		return err
+	}
+}
+
+// Returns a runnable that simulates APM agents sending requests to APM Server with the `target` configuration
+// Mutates t.Body (for compression) and t.Headers
+func (t *Target) GetWork() *requester.Work {
+
 	// Use the defaultUserAgent unless the Header contains one, which may be blank to not send the header.
-	if _, ok := req.Header["User-Agent"]; !ok {
-		req.Header.Add("User-Agent", defaultUserAgent)
+	if _, ok := t.Config.Header["User-Agent"]; !ok {
+		t.Config.Header.Add("User-Agent", defaultUserAgent)
 	}
 
 	if len(t.Body) > 0 {
-		req.Header.Add("Content-Type", "application/x-ndjson")
+		t.Config.Header.Add("Content-Type", "application/x-ndjson")
 	}
-
-	report := ioutil.Discard
 
 	if !t.Config.DisableCompression {
 		var b bytes.Buffer
@@ -98,16 +180,27 @@ func (t *Target) GetWork() *requester.Work {
 			panic(err)
 		}
 		t.Body = b.Bytes()
-		req.Header.Add("Content-Encoding", "gzip")
+		t.Config.Header.Add("Content-Encoding", "gzip")
 	}
 
-	req.ContentLength = int64(len(t.Body))
-
-	workReq := &requester.SimpleReq{
-		Request:     req,
-		RequestBody: t.Body,
-		Timeout:     t.Config.RequestTimeout,
-		QPS:         t.Config.Qps,
+	var workReq requester.Req
+	if t.Config.Stream {
+		workReq = &requester.StreamReq{
+			Method:     t.Method,
+			Url: t.Url,
+			Header: t.Config.Header,
+			Timeout: time.Duration(t.Config.RequestTimeout),
+			RunTimeout: t.Config.RunTimeout,
+			EPS: t.Config.Throttle,
+			RequestBody: [][]byte{t.Body},
+		}
+	} else {
+		workReq = &requester.SimpleReq{
+			Request:     request(t.Method, t.Url, t.Config.Header, t.Body),
+			RequestBody: t.Body,
+			Timeout:     t.Config.RequestTimeout,
+			QPS:         t.Config.Throttle,
+		}
 	}
 
 	return &requester.Work{
@@ -119,6 +212,20 @@ func (t *Target) GetWork() *requester.Work {
 		DisableRedirects:   t.Config.DisableRedirects,
 		H2:                 false,
 		ProxyAddr:          nil,
-		Writer:             report,
+		Writer:             ioutil.Discard,
 	}
+}
+
+func request(method, url string, headers http.Header, body []byte) *http.Request {
+	req, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		panic(err)
+	}
+	for header, values := range headers {
+		for _, v := range values {
+			req.Header.Add(header, v)
+		}
+	}
+	req.ContentLength = int64(len(body))
+	return req
 }

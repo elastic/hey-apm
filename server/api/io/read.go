@@ -112,6 +112,18 @@ func parseCmdOptions(cmd []string, prefix string) ([]string, []string) {
 	}
 }
 
+// searches `prefix` in `cmd`, "consuming" `cmd`.
+// returns a tuple with the matched string, and the consumed `cmd` array:
+// if no string in `cmd` starts with `prefix`, it returns `cmd` and `dfault` untouched, eg:
+// 		cmd: {"-m"}, prefix: "-n", dfault:"X" => {"-m"}, "X"
+// otherwise, if `next` is true:
+// 		the matched string is the string after the one starting with `prefix`, eg:
+// 		cmd: {"-n", "42", "-m"}, prefix: "-n" => {"-m"}, "42"
+// otherwise (`next` is false):
+// 		the matched string is the string starting with `prefix` *without* the prefix, eg:
+// 		cmd: {"-n42"}, prefix: "-n" => {}, "42"
+//
+// chaining `ParseCmdOption` calls allows any options to be passed in any order
 func ParseCmdOption(cmd []string, prefix, dfault string, next bool) ([]string, string) {
 	for idx, arg := range cmd {
 		if s.HasPrefix(arg, prefix) {

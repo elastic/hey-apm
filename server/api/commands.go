@@ -16,50 +16,25 @@ import (
 	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/server/strcoll"
 	"github.com/elastic/hey-apm/target"
+	"github.com/elastic/hey-apm/compose"
 )
 
 // creates a test workload for the apm-server and returns a string to be printed and a report to be saved
 // apm-server must be running
 // cmd format is `duration transactions/request spans/transaction frames/doc N`
-// it will send simultanous requests from `N` agents repeatedly as fast as possible for the given `duration`
+// it will send simultaneous requests from `N` agents repeatedly as fast as possible for the given `duration`
 // if --errors N is given, N errors will be added to every payload
 // blocks current goroutine for as long as `duration` or until waitForCancel returns
-func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string, errs string, cmd ...string) TestResult {
+func LoadTest(w stdio.Writer, state State, waitForCancel func(), t target.Target) TestResult {
 	result := TestResult{Cancelled: true}
 
-	duration, err := time.ParseDuration(strcoll.Nth(0, cmd))
-	numTransactions, err := atoi(strcoll.Nth(1, cmd), err)
-	numSpans, err := atoi(strcoll.Nth(2, cmd), err)
-	numFrames, err := atoi(strcoll.Nth(3, cmd), err)
-	numAgents, err := atoi(strcoll.Nth(4, cmd), err)
-	errors, err := atoi(errs, err)
-	qps, err := atoi(throttle, err)
-
-	if err == nil {
-		// apm-server warm up
-		time.Sleep(time.Second)
-		err = state.Ready()
-	}
-	if err != nil {
+	// apm-server warm up
+	time.Sleep(time.Second)
+	if err := state.Ready(); err != nil {
 		io.ReplyEither(w, err)
 		return result
 	}
 
-	cfg := &target.Config{
-		NumAgents:      numAgents,
-		Qps:            float64(qps),
-		MaxRequests:    math.MaxInt32,
-		RequestTimeout: 30,
-		Endpoint:       "/intake/v2/events",
-		BodyConfig: &target.BodyConfig{
-			NumErrors:       errors,
-			NumTransactions: numTransactions,
-			NumSpans:        numSpans,
-			NumFrames:       numFrames,
-		},
-		DisableCompression: false,
-	}
-	t := target.NewTarget(state.ApmServer().Url(), "POST", cfg)
 	uncompressed := int64(len(t.Body))
 	work := t.GetWork()
 
@@ -77,21 +52,24 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 	}()
 
 	select {
-	case <-time.After(duration):
+	case <-time.After(t.Config.RunTimeout):
 		work.Stop()
 		elapsedTime := time.Now().Sub(start)
 		codes := work.StatusCodes()
 		_, totalResponses := output.SortedTotal(codes)
 		result = TestResult{
 			Elapsed:           elapsedTime,
-			Duration:          duration,
-			Errors:            errors,
-			Transactions:      numTransactions,
-			Spans:             numSpans,
-			Frames:            numFrames,
-			Agents:            numAgents,
-			Qps:               qps,
-			ReqSize:           len(t.Body),
+			Duration:          t.Config.RunTimeout,
+			Errors:            t.Config.NumErrors,
+			Transactions:      t.Config.NumTransactions,
+			Spans:             t.Config.NumSpans,
+			Frames:            t.Config.NumFrames,
+			DocsPerRequest:    int(t.Config.NumErrors + t.Config.NumTransactions + (t.Config.NumTransactions * t.Config.NumSpans)),
+			Agents:            t.Config.NumAgents,
+			Throttle:          int(t.Config.Throttle),
+			Stream: 		   t.Config.Stream,
+			GzipReqSize:       len(t.Body),
+			ReqTimeout:		   time.Duration(t.Config.RequestTimeout),
 			ElasticUrl:        state.ElasticSearch().Url(),
 			ApmUrl:            state.ApmServer().Url(),
 			ApmHost:           apmHost(state.ApmServer().Url()),
@@ -100,7 +78,21 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 			TotalResponses:    totalResponses,
 			ActualDocs:        state.ElasticSearch().Count() - docsBefore,
 		}
-		io.ReplyNL(w, fmt.Sprintf("\n%scmd = %v\n%s", io.Yellow, cmd, io.Grey))
+
+		var format string
+		var throttled string
+		if t.Config.Stream {
+			if result.Throttle < math.MaxInt16 {
+				throttled = fmt.Sprintf("throttled at %d events per second", result.Throttle)
+			}
+			format = "%s\nstreamed %d events per request with %d agent(s) %s\n%s"
+		} else {
+			if result.Throttle < math.MaxInt16 {
+				throttled = fmt.Sprintf("throttled at %d requests per second", result.Throttle)
+			}
+			format = "%s\nsent %d events per request with %d agent(s) %s\n%s"
+		}
+		io.ReplyNL(w, fmt.Sprintf(format, io.Yellow, result.DocsPerRequest, result.Agents, throttled, io.Grey))
 		output.PrintResults(work, elapsedTime.Seconds(), w)
 
 	case <-cancelled:
@@ -239,7 +231,7 @@ func Dump(fw io.FileWriter, fileName string, args ...string) string {
 		io.ReplyEitherNL(w, err)
 		return w.String()
 	}
-	var reqBody = target.BuildBody(&target.BodyConfig{errors, transactions, spans, frames})
+	var reqBody = compose.Compose(errors, transactions, spans, frames)
 	err = fw.WriteToFile(fileName, reqBody)
 	io.ReplyEitherNL(w, err, io.Grey+byteCountDecimal(int64(len(reqBody)))+" written to disk")
 	return w.String()

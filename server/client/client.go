@@ -22,6 +22,7 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 	"github.com/struCoder/pidusage"
+	"github.com/elastic/hey-apm/target"
 )
 
 type Connection struct {
@@ -163,31 +164,29 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 				break
 			}
 
-			// parse optional arguments
-			var limit string
-			args1, limit = io.ParseCmdOption(args1, "--mem", "4g", true)
+			args1, limit := io.ParseCmdOption(args1, "--mem", "4g", true)
 			if !env.apm.isDockerized {
 				limit = "-1"
 			}
 
-			var throttle string
-			args1, throttle = io.ParseCmdOption(args1, "--throttle", "32767", true)
-
-			var errs string
-			args1, errs = io.ParseCmdOption(args1, "--errors", "0", true)
-
-			flags := apmFlags(*env.es, env.apm.Url(), strcoll.Rest(5, args1))
+			var target target.Target
+			var flags []string
+			target, flags, err = makeTarget(env.ApmServer().Url(), args1...)
+			if err != nil {
+				break
+			}
 
 			if !env.apm.isRemote {
 				// starts apm-server process
-				err, env.apm = apmStart(conn, *env.apm, conn.CancelSig.Broadcast, flags, limit)
+				apmFlags := apmFlags(*env.es, env.apm.Url(), flags)
+				err, env.apm = apmStart(conn, *env.apm, conn.CancelSig.Broadcast, apmFlags, limit)
 				if err != nil {
 					break
 				}
 			}
 
 			// load test and teardown
-			result := api.LoadTest(conn, env, conn.waitForCancel, throttle, errs, args1...)
+			result := api.LoadTest(conn, env, conn.waitForCancel, target)
 
 			var mem int64
 			if running := env.IsRunning(); running != nil && *running {
@@ -208,6 +207,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 				env.apm.revDate,
 				env.apm.unstaged,
 				env.apm.isRemote,
+				int64(len(target.Body)),
 				mem,
 				docker.ToBytes(limit),
 				removeSensitiveFlags(flags),
@@ -226,6 +226,32 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 		// blocks if cancel <cmdId> or status command is in progress
 		conn.LockCh.Wait()
 	}
+}
+
+// builds a target describing how to make requests to apm-server
+// test duration, number of transactions, spans and frames are unnamed required args
+// unknown arguments are interpreted to be flags for apm-server and returned separately
+// `args` might look like {"10s", "--stream", "1", "10", "20", "-E", "apm-server.rum.enabled=true", "--agents", "3"}
+func makeTarget(url string, args ...string) (target.Target, []string, error) {
+	duration := strcoll.Nth(0, args)
+	args, throttle := io.ParseCmdOption(args, "--throttle", "32767", true)
+	args, errorEvents := io.ParseCmdOption(args, "--errors", "0", true)
+	args, agents := io.ParseCmdOption(args, "--agents", "1", true)
+	args, stream := io.ParseCmdOption(args, "--stream", "not streaming", false)
+	args, reqTimeout := io.ParseCmdOption(args, "--timeout", "10s", true)
+	t, err := target.NewTargetFromOptions(
+		url,
+		target.RunTimeout(duration),
+		target.NumAgents(agents),
+		target.Throttle(throttle),
+		target.RequestTimeout(reqTimeout),
+		target.Stream(stream),
+		target.NumErrors(errorEvents),
+		target.NumTransactions(strcoll.Nth(1, args)),
+		target.NumSpans(strcoll.Nth(2, args)),
+		target.NumFrames(strcoll.Nth(3, args)),
+	)
+	return *t, strcoll.Rest(4, args), err
 }
 
 // performs git fetch, git checkout of given branch / revision, make and make update
