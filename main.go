@@ -19,6 +19,7 @@ import (
 	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/target"
 	"github.com/graphaelli/hey/requester"
+	"github.com/elastic/hey-apm/compose"
 )
 
 var (
@@ -85,13 +86,13 @@ func desc(t *target.Target) {
 	var gzBody bytes.Buffer
 	if len(t.Body) > 0 {
 		zw := gzip.NewWriter(&gzBody)
-		zw.Write(t.Body)
+		zw.Write(compose.Concat(t.Body))
 		zw.Close()
 	}
 	fmt.Printf("%s %s - %d (%d gz) bytes", t.Method, t.Url, len(t.Body), len(gzBody.Bytes()))
 
 	var j map[string]interface{}
-	if err := json.Unmarshal(t.Body, &j); err != nil {
+	if err := json.Unmarshal(compose.Concat(t.Body), &j); err != nil {
 		fmt.Println(err)
 		return
 	}

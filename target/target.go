@@ -1,8 +1,6 @@
 package target
 
 import (
-	"bytes"
-	"compress/gzip"
 	"io/ioutil"
 	"math"
 	"net/http"
@@ -37,7 +35,7 @@ type BodyConfig struct {
 type Target struct {
 	Url    string
 	Method string
-	Body   []byte
+	Body   [][]byte
 	Config *Config
 }
 
@@ -51,7 +49,7 @@ var (
 	}
 )
 
-func buildBody(b *BodyConfig) []byte {
+func buildBody(b *BodyConfig) [][]byte {
 	return compose.Compose(b.NumErrors, b.NumTransactions, b.NumSpans, b.NumFrames)
 }
 
@@ -170,18 +168,18 @@ func (t *Target) GetWork() *requester.Work {
 		t.Config.Header.Add("Content-Type", "application/x-ndjson")
 	}
 
-	if !t.Config.DisableCompression {
-		var b bytes.Buffer
-		gz := gzip.NewWriter(&b)
-		if _, err := gz.Write([]byte(t.Body)); err != nil {
-			panic(err)
-		}
-		if err := gz.Close(); err != nil {
-			panic(err)
-		}
-		t.Body = b.Bytes()
-		t.Config.Header.Add("Content-Encoding", "gzip")
-	}
+	//if !t.Config.DisableCompression {
+	//	var b bytes.Buffer
+	//	gz := gzip.NewWriter(&b)
+	//	if _, err := gz.Write([]byte(t.Body)); err != nil {
+	//		panic(err)
+	//	}
+	//	if err := gz.Close(); err != nil {
+	//		panic(err)
+	//	}
+	//	t.Body = b.Bytes()
+	//	t.Config.Header.Add("Content-Encoding", "gzip")
+	//}
 
 	var workReq requester.Req
 	if t.Config.Stream {
@@ -192,12 +190,13 @@ func (t *Target) GetWork() *requester.Work {
 			Timeout: time.Duration(t.Config.RequestTimeout),
 			RunTimeout: t.Config.RunTimeout,
 			EPS: t.Config.Throttle,
-			RequestBody: [][]byte{t.Body},
+			RequestBody: t.Body,
 		}
 	} else {
+		reqBody := compose.Concat(t.Body)
 		workReq = &requester.SimpleReq{
-			Request:     request(t.Method, t.Url, t.Config.Header, t.Body),
-			RequestBody: t.Body,
+			Request:     request(t.Method, t.Url, t.Config.Header, reqBody),
+			RequestBody: reqBody,
 			Timeout:     t.Config.RequestTimeout,
 			QPS:         t.Config.Throttle,
 		}

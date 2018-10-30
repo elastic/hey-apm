@@ -4,11 +4,11 @@ import (
 	"bytes"
 )
 
-func Compose(numErrors, numTransactions, numSpans, numFrames int) []byte {
-	var buf bytes.Buffer
+func Compose(numErrors, numTransactions, numSpans, numFrames int) [][]byte {
+	var ret [][]byte
 
-	buf.Write(Metadata)
-	buf.WriteByte('\n')
+	meta := append([]byte(nil), Metadata...)
+	ret = append(ret, append(meta, '\n'))
 
 	stacktrace := make([]byte, len(StacktraceFrame))
 	copy(stacktrace, StacktraceFrame)
@@ -22,8 +22,10 @@ func Compose(numErrors, numTransactions, numSpans, numFrames int) []byte {
 	span = ndjsonWrapObj("span", span)
 
 	for i := 0; i < numTransactions; i++ {
-		ndJsonRepeat(&buf, transaction, 1)
-		ndJsonRepeat(&buf, span, numSpans)
+		ret = append(ret, append([]byte(nil), transaction...))
+		for j := 0; j < numSpans; j++ {
+			ret = append(ret, append([]byte(nil), span...))
+		}
 	}
 
 	errEvent := make([]byte, len(SingleError))
@@ -31,22 +33,19 @@ func Compose(numErrors, numTransactions, numSpans, numFrames int) []byte {
 	errEvent = bytes.Replace(errEvent, []byte(`"stacktrace": [],`), frames, -1)
 
 	errEvent = ndjsonWrapObj("error", errEvent)
-	ndJsonRepeat(&buf, errEvent, numErrors)
-
-	return bytes.TrimSpace(buf.Bytes())
+	for i := 0; i < numErrors; i++ {
+		ret = append(ret, append([]byte(nil), errEvent...))
+	}
+	return ret
 }
 
-func ndJsonRepeat(buf *bytes.Buffer, value []byte, times int) {
-	for i := 0; i < times; i++ {
-		_, err := buf.Write(value)
-		if err != nil {
-			panic(err)
-		}
-		err = buf.WriteByte('\n')
-		if err != nil {
-			panic(err)
-		}
+func Concat(bs [][]byte) []byte {
+	var buf bytes.Buffer
+	for _, ba:= range bs {
+		buf.Write(ba)
+		buf.WriteByte('\n')
 	}
+	return bytes.TrimSpace(buf.Bytes())
 }
 
 func ndjsonWrapObj(key string, buf []byte) []byte {

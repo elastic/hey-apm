@@ -231,7 +231,7 @@ func Dump(fw io.FileWriter, fileName string, args ...string) string {
 		io.ReplyEitherNL(w, err)
 		return w.String()
 	}
-	var reqBody = compose.Compose(errors, transactions, spans, frames)
+	var reqBody = compose.Concat(compose.Compose(errors, transactions, spans, frames))
 	err = fw.WriteToFile(fileName, reqBody)
 	io.ReplyEitherNL(w, err, io.Grey+byteCountDecimal(int64(len(reqBody)))+" written to disk")
 	return w.String()
