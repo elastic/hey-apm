@@ -28,6 +28,7 @@ var report = TestReport{
 	RevDate:          "Fri, 20 Apr 2018 10:00:00 +0200",
 	ApmFlags:         "-E apm-server.host=http://localhost:8200 -E output.elasticsearch.hosts=[http://localhost:9200]",
 	MaxRss:           mb1,
+	ReqSize: 		  1,
 	TestResult: TestResult{
 		Duration:          time.Second * 30,
 		Elapsed:           time.Second * 30,
@@ -36,8 +37,8 @@ var report = TestReport{
 		Spans:             1,
 		Frames:            1,
 		Agents:            1,
-		Qps:               math.MaxInt16,
-		ReqSize:           1,
+		Throttle:          math.MaxInt16,
+		GzipReqSize:	   1,
 		ElasticUrl:        "http://localhost:9200",
 		ApmUrl:            "http://localhost:8200",
 		ApmHost:           "localhost",
@@ -157,13 +158,18 @@ func (b *builder) setId(s string) *builder {
 	return b
 }
 
+func (b *builder) setDocsPerRequest() *builder {
+	b.DocsPerRequest = int(b.Errors+ b.Transactions+ (b.Transactions * b.Spans))
+	return b
+}
+
 func (b *builder) addFlag(s string) *builder {
 	b.ApmFlags += " -E " + s
 	return b
 }
 
 func (b *builder) get() TestReport {
-	r := NewReport(b.TestResult, b.User, b.Revision, b.RevDate, false, false, b.MaxRss, b.Limit, b.apmFlags(), io.NewBufferWriter())
+	r := NewReport(b.TestResult, b.User, b.Revision, b.RevDate, false, false, int64(b.ReqSize), b.MaxRss, b.Limit, b.apmFlags(), io.NewBufferWriter())
 	r.ReportId = b.ReportId
 	r.ReportDate = b.ReportDate
 	return r
@@ -489,7 +495,7 @@ func TestFindVariants(t *testing.T) {
 func TestTop(t *testing.T) {
 	now := time.Now()
 	aWhileAgo := now.Add(-time.Minute * 10).Format(time.RFC1123Z)
-	a := newBuilder().setId("a").get()
+	a := newBuilder().setId("a").setDocsPerRequest().get()
 	b := copyBuilder(a).setId("b").setDate(aWhileAgo).get()
 	c := copyBuilder(a).setId("c").setRevDate(aWhileAgo).get()
 	d := copyBuilder(a).setId("d").setTotalRes(30000).get()
@@ -534,6 +540,7 @@ func TestCollate(t *testing.T) {
 		setTotalIndexed(6000).
 		setSpt(100).
 		setFpd(10).
+		setDocsPerRequest().
 		get()
 	// will be excluded from query filter
 	a := copyBuilder(template).setId("a").TestReport
