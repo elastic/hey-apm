@@ -11,44 +11,43 @@ import (
 	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/server/tests"
 	"github.com/stretchr/testify/assert"
+	"github.com/elastic/hey-apm/target"
 )
 
-func TestInvalidLoadCmds(t *testing.T) {
-	for _, invalidCmd := range [][]string{
-		{"1", "1", "1", "1", "1"},
-		{"1s", "-1", "1", "1", "1"},
-		{"1s", "1", "1", "1"},
-	} {
-		bw := io.NewBufferWriter()
-		ret := LoadTest(bw, MockState{}, nil, "32767", "0", invalidCmd...)
-		assert.Contains(t, bw.String(), io.Red)
-		assert.Equal(t, ret, TestResult{Cancelled: true})
+func basicTarget(t *testing.T, opts ...target.OptionFunc) *target.Target {
+	required := []target.OptionFunc {
+		target.RunTimeout("1s"),
+		target.NumTransactions("1"),
+		target.NumSpans("1"),
+		target.NumFrames("1"),
+		// set number of agents to 0 so the worker doesn't actually run
+		target.NumAgents("0"),
+		target.Throttle("1"),
 	}
+	target, err := target.NewTargetFromOptions("", append(required, opts...)...)
+	assert.NoError(t, err)
+	return target
 }
 
 func TestLoadNotReady(t *testing.T) {
 	bw := io.NewBufferWriter()
-	cmd := []string{"1s", "1", "0", "1", "1"}
-	ret := LoadTest(bw, MockState{Ok: errors.New("not ready")}, nil, "32767", "0", cmd...)
+	ret := LoadTest(bw, MockState{Ok: errors.New("not ready")}, nil, *basicTarget(t))
 	assert.Equal(t, "not ready", tests.WithoutColors(bw.String()))
 	assert.Equal(t, ret, TestResult{Cancelled: true})
 }
 
 func TestLoadCancelled(t *testing.T) {
 	bw := io.NewBufferWriter()
-	cmd := []string{"2s", "1", "0", "1", "1"}
 	cancel := func() {
 		time.Sleep(100 * time.Millisecond)
 	}
 	s := MockState{MockApm{url: "localhost:822222"}, MockEs{}, nil}
-	ret := LoadTest(bw, s, cancel, "32767", "", cmd...)
+	ret := LoadTest(bw, s, cancel, *basicTarget(t))
 	assert.Equal(t, ret, TestResult{Cancelled: true})
 }
 
 func TestLoadOk(t *testing.T) {
 	bw := io.NewBufferWriter()
-	// set number of agents to 0 so the worker doesn't actually run
-	cmd := []string{"1s", "1", "2", "1", "0"}
 	cancel := func() {
 		time.Sleep(time.Second * 2)
 	}
@@ -56,25 +55,25 @@ func TestLoadOk(t *testing.T) {
 		MockApm{url: "localhost:822222", branch: "master"},
 		MockEs{url: "localhost:922222", docs: 10},
 		nil}
-	ret := LoadTest(bw, s, cancel, "32767", "1", cmd...)
-	assert.Equal(t, `started new work, url localhost:822222/intake/v2/events, payload size 5.6kb (uncompressed), 1.6kb (compressed) ...
+	ret := LoadTest(bw, s, cancel, *basicTarget(t))
+	assert.Equal(t, `started new work, url /intake/v2/events, payload size 2.7kb (uncompressed), 1.3kb (compressed) ...
 >>> 
-cmd = [1s 1 2 1 0]
+sent 2 events per request with 0 agent(s) throttled at 1 requests per second
 
-  total	0 responses (0.00 rps)
+total 0 responses (0.00 rps)
 `,
 		tests.WithoutColors(bw.String()))
 
 	assert.Equal(t, time.Second, ret.Duration)
-	assert.Equal(t, 1, ret.Errors)
+	assert.Equal(t, 0, ret.Errors)
 	assert.Equal(t, 1, ret.Transactions)
-	assert.Equal(t, 2, ret.Spans)
+	assert.Equal(t, 1, ret.Spans)
 	assert.Equal(t, 1, ret.Frames)
-	assert.Equal(t, 1583, ret.ReqSize)
+	assert.Equal(t, 1309, ret.GzipReqSize)
 	assert.Equal(t, "localhost:922222", ret.ElasticUrl)
 	assert.Equal(t, "localhost:822222", ret.ApmUrl)
 	assert.Equal(t, 0, ret.Agents)
-	assert.Equal(t, 32767, ret.Qps)
+	assert.Equal(t, 1, ret.Throttle)
 	assert.Equal(t, "master", ret.Branch)
 	assert.Equal(t, 0, ret.AcceptedResponses)
 	assert.Equal(t, float64(0), ret.AcceptedRps)
@@ -162,8 +161,7 @@ func TestDump(t *testing.T) {
 	expected := `{"metadata": {"user": {"id": "123", "email": "s@test.com", "username": "john"}, "process": {"ppid": 6789, "pid": 1234,"argv": ["node", "server.js"], "title": "node"}, "system": {"platform": "darwin", "hostname": "prod1.example.com", "architecture": "x64"}, "service":{"name": "backendspans", "language": {"version": "8", "name": "ecmascript"}, "agent": {"version": "3.14.0", "name": "elastic-node"}, "environment": "staging", "framework": {"version": "1.2.3", "name": "Express"}, "version": "5.1.3", "runtime": {"version": "8.0.0", "name": "node"}}}}
 {"transaction": {"id": "4340a8e0df1906ecbfa9", "trace_id": "0acd456789abcdef0123456789abcdef", "name": "GET /api/types","type": "request","duration": 32.592981,"result": "success",  "sampled": true, "span_count": {"started": 17},"context":{"request": {"socket": {"remote_address": "12.53.12.1","encrypted": true},"http_version": "1.1","method": "POST","url": {"protocol": "https:","full": "https://www.example.com/p/a/t/h?query=string#hash","hostname": "www.example.com","port": "8080","pathname": "/p/a/t/h","search": "?query=string","hash": "#hash","raw": "/p/a/t/h?query=string#hash"},"headers": {"user-agent": "Mozilla Chrome Edge","content-type": "text/html","cookie": "c1=v1; c2=v2","some-other-header": "foo","array": ["foo","bar","baz"]},"cookies": {"c1": "v1","c2": "v2"},"env": {"SERVER_SOFTWARE": "nginx","GATEWAY_INTERFACE": "CGI/1.1"},"body": {"str": "hello world","additional": { "foo": {},"bar": 123,"req": "additional information"}}},"response":{"status_code": 200,"headers": {"content-type": "application/json"},"headers_sent": true,"finished": true}, "user": {"id": "99","username": "foo","email": "foo@example.com"},"tags": {"organization_uuid": "9f0e9d64-c185-4d21-a6f4-4673ed561ec8"},"custom": {"my_key": 1,"some_other_value": "foo bar","and_objects": {"foo": ["bar","baz"]}}}}}
 {"span": {"trace_id": "abcdef0123456789abcdef9876543210", "parent_id": "abcdef0123456789", "id": "1234567890aaaade", "transaction_id": "aff4567890aaaade", "name": "SELECT FROM product_types", "type": "db.postgresql.query", "start": 2.83092, "duration": 3.781912, "stacktrace":[{"function": "onread", "abs_path": "net.js", "filename": "net.js", "lineno": 547, "library_frame": true, "vars": {"key": "value"}, "module": "some module", "colno": 4, "context_line": "line3", "pre_context": [ "  var trans = this.currentTransaction", "" ], "post_context": [ "    ins.currentTransaction = prev", "    return result"]}], "context":{"db":{"instance": "customers", "statement": "SELECT * FROM product_types WHERE user_id=?", "type": "sql", "user": "readonly_user" }, "http": {"url": "http://localhost:8000"}}}}
-{"error": {"id": "0123456789012345", "culprit": "my.module.function_name","log":{"message": "My service could not talk to the database named foobar", "param_message": "My service could not talk to the database named %s", "logger_name": "my.logger.name", "stacktrace":[{"function": "onread", "abs_path": "net.js", "filename": "net.js", "lineno": 547, "library_frame": true, "vars": {"key": "value"}, "module": "some module", "colno": 4, "context_line": "line3", "pre_context": [ "  var trans = this.currentTransaction", "" ], "post_context": [ "    ins.currentTransaction = prev", "    return result"]}], "level": "warning"},"exception":{"message": "The username root is unknown","type": "DbError","module": "__builtins__","code": 42,"attributes": {"foo": "bar" },"stacktrace":[{"function": "onread", "abs_path": "net.js", "filename": "net.js", "lineno": 547, "library_frame": true, "vars": {"key": "value"}, "module": "some module", "colno": 4, "context_line": "line3", "pre_context": [ "  var trans = this.currentTransaction", "" ], "post_context": [ "    ins.currentTransaction = prev", "    return result"]}], "handled": false},"context":{"request":{"socket": {"remote_address": "12.53.12.1","encrypted": true},"http_version": "1.1","method": "POST","url":{"protocol": "https:","full": "https://www.example.com/p/a/t/h?query=string#hash","hostname": "www.example.com","port": "8080","pathname": "/p/a/t/h","search": "?query=string", "hash": "#hash","raw": "/p/a/t/h?query=string#hash"},"headers": {"user-agent": "Mozilla Chrome Edge","content-type": "text/html","cookie": "c1=v1; c2=v2","some-other-header": "foo","array": ["foo","bar","baz"]}, "cookies": {"c1": "v1", "c2": "v2" },"env": {"SERVER_SOFTWARE": "nginx", "GATEWAY_INTERFACE": "CGI/1.1"},"body": "Hello World"},"response":{"status_code": 200, "headers": {"content-type": "application/json"},"headers_sent": true, "finished": true}, "user": {"id": 99, "username": "foo", "email": "foo@example.com"},"tags": {"organization_uuid": "9f0e9d64-c185-4d21-a6f4-4673ed561ec8"},"custom": {"my_key": 1,"some_other_value": "foo bar","and_objects": {"foo": ["bar","baz"]}}}}}
-`
+{"error": {"id": "0123456789012345", "culprit": "my.module.function_name","log":{"message": "My service could not talk to the database named foobar", "param_message": "My service could not talk to the database named %s", "logger_name": "my.logger.name", "stacktrace":[{"function": "onread", "abs_path": "net.js", "filename": "net.js", "lineno": 547, "library_frame": true, "vars": {"key": "value"}, "module": "some module", "colno": 4, "context_line": "line3", "pre_context": [ "  var trans = this.currentTransaction", "" ], "post_context": [ "    ins.currentTransaction = prev", "    return result"]}], "level": "warning"},"exception":{"message": "The username root is unknown","type": "DbError","module": "__builtins__","code": 42,"attributes": {"foo": "bar" },"stacktrace":[{"function": "onread", "abs_path": "net.js", "filename": "net.js", "lineno": 547, "library_frame": true, "vars": {"key": "value"}, "module": "some module", "colno": 4, "context_line": "line3", "pre_context": [ "  var trans = this.currentTransaction", "" ], "post_context": [ "    ins.currentTransaction = prev", "    return result"]}], "handled": false},"context":{"request":{"socket": {"remote_address": "12.53.12.1","encrypted": true},"http_version": "1.1","method": "POST","url":{"protocol": "https:","full": "https://www.example.com/p/a/t/h?query=string#hash","hostname": "www.example.com","port": "8080","pathname": "/p/a/t/h","search": "?query=string", "hash": "#hash","raw": "/p/a/t/h?query=string#hash"},"headers": {"user-agent": "Mozilla Chrome Edge","content-type": "text/html","cookie": "c1=v1; c2=v2","some-other-header": "foo","array": ["foo","bar","baz"]}, "cookies": {"c1": "v1", "c2": "v2" },"env": {"SERVER_SOFTWARE": "nginx", "GATEWAY_INTERFACE": "CGI/1.1"},"body": "Hello World"},"response":{"status_code": 200, "headers": {"content-type": "application/json"},"headers_sent": true, "finished": true}, "user": {"id": 99, "username": "foo", "email": "foo@example.com"},"tags": {"organization_uuid": "9f0e9d64-c185-4d21-a6f4-4673ed561ec8"},"custom": {"my_key": 1,"some_other_value": "foo bar","and_objects": {"foo": ["bar","baz"]}}}}}`
 	assert.Equal(t, expected, mfw.Data)
 
 	out = Dump(mfw, "json", "a")

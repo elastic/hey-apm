@@ -25,6 +25,8 @@ type TestReport struct {
 	User string `json:"user"`
 	// generated programmatically, useful to eg search all fields in elasticsearch
 	ReportId string `json:"report_id"`
+	// APM Server intake API version
+	APIVersion string `json:"api_version"`
 	// io.GITRFC
 	ReportDate string `json:"report_date"`
 	// host in which hey was running when generated this report, empty if `os.Hostname()` failed
@@ -48,7 +50,8 @@ type TestReport struct {
 	MaxRss int64 `json:"max_rss"`
 	// memory limit in bytes passed to docker, -1 if not applicable
 	Limit int64 `json:"limit"`
-
+	// size in bytes of a single request body, uncompressed
+	ReqSize int `json:"request_size"`
 	// holds all information available just after a test run
 	TestResult
 }
@@ -61,20 +64,26 @@ type TestResult struct {
 	*/
 	// specified by the user, used for querying
 	Duration time.Duration `json:"duration"`
-	// actual Elapsed time, used for X-per-second kind of metrics
+	// actual elapsed time, used for X-per-second kind of metrics
 	Elapsed      time.Duration `json:"elapsed"`
+	// errors per request
 	Errors       int           `json:"errors"`
+	// transactions per request
 	Transactions int           `json:"transactions"`
 	// spans per transaction
 	Spans int `json:"spans"`
-	// frames per doc
+	// frames per error and/or transaction
 	Frames int `json:"frames"`
 	// Number of concurrent agents sending requests.
 	Agents int `json:"agents"`
 	// queries per second cap, fixed to a very high number
-	Qps int `json:"qps"`
-	// size in bytes of a single request payload
-	ReqSize int `json:"request_size"`
+	Throttle int `json:"throttle"`
+	// size in bytes of a single request body, compressed
+	GzipReqSize int `json:"gzip_request_size"`
+	// request timeout in the agent
+	ReqTimeout time.Duration `json:"request_timeout"`
+	// whether it streams events or not
+	Stream bool `json:"stream"`
 	// includes protocol, hostname and port
 	ElasticUrl string `json:"elastic_url"`
 	// includes protocol, hostname and port
@@ -118,9 +127,10 @@ type TestResult struct {
 }
 
 // creates and validates a report out of a test result
-func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote bool, mem, memLimit int64, flags []string, w stdio.Writer) TestReport {
+func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote bool, reqSize, mem, memLimit int64, flags []string, w stdio.Writer) TestReport {
 	r := TestReport{
 		Lang:       "python",
+		APIVersion: "v2",
 		ReportId:   randId(time.Now().Unix()),
 		ReportDate: time.Now().Format(io.GITRFC),
 		Timestamp:  time.Now(),
@@ -130,9 +140,9 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 		MaxRss:     mem,
 		Limit:      memLimit,
 		ApmFlags:   s.Join(flags, " "),
+		ReqSize:	int(reqSize),
 		TestResult: result,
 	}
-	r.DocsPerRequest = int(r.Errors + r.Transactions + (r.Transactions * r.Spans))
 	for _, check := range []struct {
 		isOk     func() bool
 		errMsg   string
@@ -154,7 +164,7 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 			isOk:   func() bool { return r.Branch != "" },
 			errMsg: "unknown branch",
 			doEffect: func() {
-				io.ReplyNL(w, fmt.Sprintf("on branch %s", r.Branch))
+				io.ReplyNL(w, fmt.Sprintf("\non branch %s", r.Branch))
 			},
 		},
 		{
@@ -277,6 +287,9 @@ func independentVars(r TestReport) map[string]string {
 		"spans":        strconv.Itoa(r.Spans),
 		"frames":       strconv.Itoa(r.Frames),
 		"agents":       strconv.Itoa(r.Agents),
+		"throttle":		strconv.Itoa(r.Throttle),
+		"stream":		strconv.FormatBool(r.Stream),
+		"request_timeout": r.ReqTimeout.String(),
 		"revision":     r.Revision,
 		"branch":       r.Branch,
 		"apm_host":     r.ApmHost,

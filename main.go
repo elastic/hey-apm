@@ -159,7 +159,7 @@ func main() {
 
 	cfg := &target.Config{
 		NumAgents:      *numAgents,
-		Qps:            *qps,
+		Throttle:       *qps,
 		MaxRequests:    *maxRequests,
 		RequestTimeout: *requestTimeout,
 		Header:         header,
@@ -175,7 +175,7 @@ func main() {
 		DisableRedirects:   *disableRedirects,
 	}
 
-	t := target.NewTarget(*baseUrl, *method, cfg)
+	t := target.NewTargetFromConfig(*baseUrl, *method, cfg)
 	work := t.GetWork()
 
 	if *describe {
