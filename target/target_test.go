@@ -1,9 +1,10 @@
 package target
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTargets(t *testing.T) {
@@ -16,7 +17,7 @@ func TestTargets(t *testing.T) {
 
 	target, err = NewTargetFromOptions("", RunTimeout("2s"))
 	assert.NoError(t, err)
-	assert.Equal(t, time.Second * 2, target.Config.RunTimeout)
+	assert.Equal(t, time.Second*2, target.Config.RunTimeout)
 
 	target, err = NewTargetFromOptions("", NumTransactions("a"), RunTimeout("3s"))
 	assert.Error(t, err)
@@ -25,5 +26,5 @@ func TestTargets(t *testing.T) {
 
 	target, err = NewTargetFromOptions("", RequestTimeout("1s"))
 	assert.NoError(t, err)
-	assert.Equal(t, 1000000000, target.Config.RequestTimeout)
+	assert.Equal(t, time.Duration(1)*time.Second, target.Config.RequestTimeout)
 }
