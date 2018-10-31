@@ -8,10 +8,10 @@
   version = "v1.1.1"
 
 [[projects]]
-  branch = "expose-report"
+  branch = "master"
   name = "github.com/elastic/hey"
   packages = ["requester"]
-  revision = "490e7dab53cacee5af59c841100e93d7366497b9"
+  revision = "8d680a8d6c37116aaebf31647c2438a16b41ad1a"
   source = "github.com/elastic/hey"
 
 [[projects]]
@@ -94,6 +94,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "bb8bbcb79d93e027304f8acfd9f35d8075b3cf37b945835f4e228a5476edb558"
+  inputs-digest = "b0c60d655a1446665aa204b9aece35e6a23189691a3b61bcb22142f1876e5b50"
   solver-name = "gps-cdcl"
   solver-version = 1
