@@ -21,9 +21,5 @@
 
 
 [[constraint]]
-  name = "github.com/elastic/hey"
-  source = "github.com/elastic/hey"
-  branch = "master"
-[[constraint]]
   name = "github.com/olivere/elastic"
   version = "6.0.0"
