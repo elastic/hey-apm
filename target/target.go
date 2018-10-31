@@ -6,25 +6,25 @@ import (
 	"io/ioutil"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/elastic/hey-apm/compose"
 	"github.com/elastic/hey/requester"
-	"strconv"
 )
 
 const defaultUserAgent = "hey-apm/1.0"
 
-
 type Config struct {
-	NumAgents                                               int
-	Throttle                                                float64
-	MaxRequests                                             int
-	RequestTimeout                                          int
-	RunTimeout                                              time.Duration
-	Endpoint                                                string
-	Stream                                                  bool
+	NumAgents      int
+	Throttle       float64
+	Pause          time.Duration
+	MaxRequests    int
+	RequestTimeout time.Duration
+	RunTimeout     time.Duration
+	Endpoint       string
+	Stream         bool
 	*BodyConfig
 	DisableCompression, DisableKeepAlives, DisableRedirects bool
 	http.Header
@@ -44,10 +44,10 @@ type Target struct {
 var (
 	defaultCfg = Config{
 		MaxRequests:    math.MaxInt32,
-		RequestTimeout: 10,
+		RequestTimeout: 10 * time.Second,
 		Endpoint:       "/intake/v2/events",
-		BodyConfig: 	&BodyConfig{},
-		Header: 		make(http.Header),
+		BodyConfig:     &BodyConfig{},
+		Header:         make(http.Header),
 	}
 )
 
@@ -96,8 +96,8 @@ func RunTimeout(s string) OptionFunc {
 
 func RequestTimeout(s string) OptionFunc {
 	return func(c *Config) error {
-		timeout, err := time.ParseDuration(s)
-		c.RequestTimeout = int(timeout.Nanoseconds())
+		var err error
+		c.RequestTimeout, err = time.ParseDuration(s)
 		return err
 	}
 }
@@ -114,6 +114,14 @@ func Throttle(s string) OptionFunc {
 	return func(c *Config) error {
 		throttle, err := strconv.Atoi(s)
 		c.Throttle = float64(throttle)
+		return err
+	}
+}
+
+func Pause(s string) OptionFunc {
+	return func(c *Config) error {
+		p, err := strconv.Atoi(s)
+		c.Pause = time.Duration(p)
 		return err
 	}
 }
@@ -186,19 +194,20 @@ func (t *Target) GetWork() *requester.Work {
 	var workReq requester.Req
 	if t.Config.Stream {
 		workReq = &requester.StreamReq{
-			Method:     t.Method,
-			Url: t.Url,
-			Header: t.Config.Header,
-			Timeout: time.Duration(t.Config.RequestTimeout),
-			RunTimeout: t.Config.RunTimeout,
-			EPS: t.Config.Throttle,
-			RequestBody: t.Body,
+			Method:        t.Method,
+			Url:           t.Url,
+			Header:        t.Config.Header,
+			Timeout:       t.Config.RequestTimeout,
+			RunTimeout:    t.Config.RunTimeout,
+			EPS:           t.Config.Throttle,
+			PauseDuration: t.Config.Pause,
+			RequestBody:   t.Body,
 		}
 	} else {
 		workReq = &requester.SimpleReq{
 			Request:     request(t.Method, t.Url, t.Config.Header, t.Body),
 			RequestBody: t.Body,
-			Timeout:     t.Config.RequestTimeout,
+			Timeout:     int(t.Config.RequestTimeout.Seconds()),
 			QPS:         t.Config.Throttle,
 		}
 	}

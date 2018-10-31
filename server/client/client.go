@@ -19,10 +19,10 @@ import (
 	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/server/docker"
 	"github.com/elastic/hey-apm/server/strcoll"
+	"github.com/elastic/hey-apm/target"
 	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 	"github.com/struCoder/pidusage"
-	"github.com/elastic/hey-apm/target"
 )
 
 type Connection struct {
@@ -235,6 +235,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 func makeTarget(url string, args ...string) (target.Target, []string, error) {
 	duration := strcoll.Nth(0, args)
 	args, throttle := io.ParseCmdOption(args, "--throttle", "32767", true)
+	args, pause := io.ParseCmdOption(args, "--pause", "1ms", true)
 	args, errorEvents := io.ParseCmdOption(args, "--errors", "0", true)
 	args, agents := io.ParseCmdOption(args, "--agents", "1", true)
 	args, stream := io.ParseCmdOption(args, "--stream", "not streaming", false)
@@ -244,6 +245,7 @@ func makeTarget(url string, args ...string) (target.Target, []string, error) {
 		target.RunTimeout(duration),
 		target.NumAgents(agents),
 		target.Throttle(throttle),
+		target.Pause(pause),
 		target.RequestTimeout(reqTimeout),
 		target.Stream(stream),
 		target.NumErrors(errorEvents),
