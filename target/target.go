@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/elastic/hey-apm/compose"
-	"github.com/elastic/hey/requester"
+	"github.com/elastic/hey-apm/requester"
 )
 
 const defaultUserAgent = "hey-apm/1.0"
