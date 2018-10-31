@@ -29,6 +29,7 @@ var (
 	// payload options
 	numAgents       = flag.Int("c", 1, "number of agents sending data concurrently")
 	qps             = flag.Float64("q", 0, "queries per second")
+	pause           = flag.Duration("p", 0*time.Millisecond, "Only used if `qps` is not set. Defines the pause between sending events over the same http request.")
 	numErrors       = flag.Int("e", 1, "number of errors")
 	numFrames       = flag.Int("f", 1, "number of stacktrace frames per span")
 	numSpans        = flag.Int("s", 2, "number of spans")
@@ -39,7 +40,7 @@ var (
 	endpoint           = flag.String("endpoint", "/intake/v2/events", "")
 	method             = flag.String("method", "POST", "method type")
 	headers            = newStringsOpt("header", []string{}, "header(s) added to all requests")
-	requestTimeout     = flag.Int("request-timeout", 30, "request timeout in seconds")
+	requestTimeout     = flag.Duration("request-timeout", 10*time.Second, "request timeout in seconds")
 	idleTimeout        = flag.Duration("idle-timeout", 3*time.Minute, "idle timeout")
 	disableCompression = flag.Bool("disable-compression", false, "")
 	disableKeepAlives  = flag.Bool("disable-keepalive", false, "")
@@ -48,6 +49,7 @@ var (
 	describe    = flag.Bool("describe", false, "describe payloads and exit")
 	dump        = flag.Bool("dump", false, "dump payloads in loadbeat config format and exit")
 	interactive = flag.Bool("interactive", false, "run hey-apm in interactive mode listening on 8234")
+	stream      = flag.Bool("stream", false, "send data in a streaming way via http")
 )
 
 type stringsOpt struct {
@@ -158,10 +160,13 @@ func main() {
 	}
 
 	cfg := &target.Config{
+		Stream:         *stream,
 		NumAgents:      *numAgents,
 		Throttle:       *qps,
+		Pause:          *pause,
 		MaxRequests:    *maxRequests,
 		RequestTimeout: *requestTimeout,
+		RunTimeout:     *runTimeout,
 		Header:         header,
 		Endpoint:       *endpoint,
 		BodyConfig: &target.BodyConfig{
