@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/elastic/hey/requester"
+	"github.com/elastic/hey-apm/requester"
 )
 
 func PrintResults(w *requester.Work, dur float64, writer io.Writer) {

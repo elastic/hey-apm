@@ -9,13 +9,6 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/elastic/hey"
-  packages = ["requester"]
-  revision = "124a9ea256e4446ea73706c3dc454e60bbffe4e9"
-  source = "github.com/elastic/hey"
-
-[[projects]]
-  branch = "master"
   name = "github.com/mailru/easyjson"
   packages = [
     ".",
