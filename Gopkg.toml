@@ -21,8 +21,8 @@
 
 
 [[constraint]]
-  name = "github.com/graphaelli/hey"
-  source = "github.com/graphaelli/hey"
+  name = "github.com/elastic/hey"
+  source = "github.com/elastic/hey"
   branch = "expose-report"
 [[constraint]]
   name = "github.com/olivere/elastic"

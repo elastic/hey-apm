@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/elastic/hey-apm/compose"
-	"github.com/graphaelli/hey/requester"
+	"github.com/elastic/hey/requester"
 	"strconv"
 )
 
@@ -192,7 +192,7 @@ func (t *Target) GetWork() *requester.Work {
 			Timeout: time.Duration(t.Config.RequestTimeout),
 			RunTimeout: t.Config.RunTimeout,
 			EPS: t.Config.Throttle,
-			RequestBody: [][]byte{t.Body},
+			RequestBody: t.Body,
 		}
 	} else {
 		workReq = &requester.SimpleReq{
