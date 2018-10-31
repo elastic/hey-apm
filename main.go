@@ -18,7 +18,7 @@ import (
 	"github.com/elastic/hey-apm/server"
 	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/target"
-	"github.com/graphaelli/hey/requester"
+	"github.com/elastic/hey/requester"
 )
 
 var (

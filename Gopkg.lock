@@ -9,10 +9,10 @@
 
 [[projects]]
   branch = "expose-report"
-  name = "github.com/graphaelli/hey"
+  name = "github.com/elastic/hey"
   packages = ["requester"]
-  revision = "970056b80a5dc3738032d7d674635eb69176013d"
-  source = "github.com/graphaelli/hey"
+  revision = "490e7dab53cacee5af59c841100e93d7366497b9"
+  source = "github.com/elastic/hey"
 
 [[projects]]
   branch = "master"
@@ -94,6 +94,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ffb026274a422f1abc14beefe8bdd3993790e23fc3244d551cbcb3faf40a7d64"
+  inputs-digest = "bb8bbcb79d93e027304f8acfd9f35d8075b3cf37b945835f4e228a5476edb558"
   solver-name = "gps-cdcl"
   solver-version = 1
