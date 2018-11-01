@@ -50,8 +50,6 @@ type TestReport struct {
 	MaxRss int64 `json:"max_rss"`
 	// memory limit in bytes passed to docker, -1 if not applicable
 	Limit int64 `json:"limit"`
-	// size in bytes of a single request body, uncompressed
-	ReqSize int `json:"request_size"`
 	// holds all information available just after a test run
 	TestResult
 }
@@ -66,9 +64,9 @@ type TestResult struct {
 	Duration time.Duration `json:"duration"`
 	// actual elapsed time, used for X-per-second kind of metrics
 	Elapsed time.Duration `json:"elapsed"`
-	// errors per request
+	// errors per request body
 	Errors int `json:"errors"`
-	// transactions per request
+	// transactions per request body
 	Transactions int `json:"transactions"`
 	// spans per transaction
 	Spans int `json:"spans"`
@@ -79,7 +77,11 @@ type TestResult struct {
 	// queries per second cap, fixed to a very high number
 	Throttle int `json:"throttle"`
 	// size in bytes of a single request body, compressed
-	GzipReqSize int `json:"gzip_request_size"`
+	GzipBodySize int64 `json:"gzip_body_size"`
+	// size in bytes of a single request body, uncompressed
+	BodySize int64 `json:"body_size"`
+	// total number of times that the request body has been flushed
+	Flushes int64 `json:"request_flushes"`
 	// request timeout in the agent
 	ReqTimeout time.Duration `json:"request_timeout"`
 	// whether it streams events or not
@@ -99,35 +101,39 @@ type TestResult struct {
 	// total number of responses
 	TotalResponses int `json:"total_responses"`
 	// total number of accepted requests
-	AcceptedResponses int `json:"accepted_responses"`
+	// AcceptedResponses int `json:"accepted_responses"`
 	// total number of elasticsearch docs indexed
 	ActualDocs int64 `json:"actual_indexed_docs"`
 	// number of elasticsearch docs encoded in the JSON body of the request
-	DocsPerRequest int `json:"docs_per_request"`
+	DocsPerRequest int64 `json:"docs_per_request"`
 	// milliseconds per accepted request
-	Latency float64 `json:"latency_ms"`
+	// Latency float64 `json:"latency_ms"`
 	// number of requests per second
 	PushedRps float64 `json:"pushed_rps"`
 	// number of accepted requests per second
-	AcceptedRps float64 `json:"accepted_rps"`
-	// pushed volume per second, in bytes
+	// AcceptedRps float64 `json:"accepted_rps"`
+	// total pushed volume, uncompressed, in bytes
+	Pushed int64 `json:"pushed"`
+	// pushed volume per second, uncompressed, in bytes
 	PushedBps float64 `json:"pushed_bps"`
+	// total pushed volume, compressed, in bytes
+	GzipPushed int64 `json:"gzip_pushed"`
 	// accepted volume per second, in bytes
-	AcceptedBps float64 `json:"accepted_bps"`
+	// AcceptedBps float64 `json:"accepted_bps"`
 	// number of docs indexed per second
 	Throughput float64 `json:"throughput"`
 	// number of expected docs indexed after a run
-	ExpectedDocs float64 `json:"expected_indexed_docs"`
+	// ExpectedDocs float64 `json:"expected_indexed_docs"`
 	// ratio between indexed and expected docs
 	// can be more than 1 if unexpected errors were returned (r/w timeouts, broken pipe, etc)
-	ActualExpectRatio float64 `json:"actual_expected_ratio"`
+	// ActualExpectRatio float64 `json:"actual_expected_ratio"`
 	// how much memory takes to process some amount of data during 1 minute
-	// eg: if memory used is 10mb and accepted volume in 1 minute is 2mb, this returns 0.2
+	// eg: if memory used is X and throughput is Y docs/minute, this returns X/Y
 	Efficiency float64 `json:"efficiency"`
 }
 
 // creates and validates a report out of a test result
-func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote bool, reqSize, mem, memLimit int64, flags []string, w stdio.Writer) TestReport {
+func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote bool, mem, memLimit int64, flags []string, w stdio.Writer) TestReport {
 	r := TestReport{
 		Lang:       "python",
 		APIVersion: "v2",
@@ -140,7 +146,6 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 		MaxRss:     mem,
 		Limit:      memLimit,
 		ApmFlags:   s.Join(flags, " "),
-		ReqSize:    int(reqSize),
 		TestResult: result,
 	}
 	for _, check := range []struct {
@@ -183,38 +188,31 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 			isOk: func() bool { return r.Elapsed.Seconds() > 0 },
 			doEffect: func() {
 				r.PushedRps = float64(r.TotalResponses) / r.Elapsed.Seconds()
-				r.AcceptedRps = float64(r.AcceptedResponses) / r.Elapsed.Seconds()
-				r.PushedBps = float64(r.ReqSize) * r.PushedRps
-				r.AcceptedBps = float64(r.ReqSize) * r.AcceptedRps
+				r.PushedBps = float64(r.Pushed) / r.Elapsed.Seconds()
 				r.Throughput = float64(r.ActualDocs) / r.Elapsed.Seconds()
-
-				io.ReplyNL(w, fmt.Sprintf("%spushed %s / sec , accepted %s / sec", io.Grey,
-					byteCountDecimal(int64(r.PushedBps)),
-					byteCountDecimal(int64(r.AcceptedBps))))
+				io.ReplyNL(w, fmt.Sprintf("%spushed %s / sec (uncompressed)", io.Grey, byteCountDecimal(int64(r.PushedBps))))
 				io.ReplyNL(w, fmt.Sprintf("\n%s%d docs indexed (%.2f / sec)", io.Green,
 					r.ActualDocs, r.Throughput))
 			},
 		},
-		{
-			isOk:   func() bool { return (r.Transactions+r.Errors) > 0 && r.AcceptedResponses > 0 },
-			errMsg: "no accepted requests",
-			doEffect: func() {
-				r.Latency = 1000 / r.AcceptedRps
-				r.ExpectedDocs = float64(r.AcceptedResponses) * float64(r.DocsPerRequest)
-				r.ActualExpectRatio = float64(r.ActualDocs) / r.ExpectedDocs
-
-				io.ReplyNL(w, fmt.Sprintf("%.2f%% of expected", 100*r.ActualExpectRatio))
-				io.ReplyNL(w, fmt.Sprintf("%s%.2f ms / request", io.Green, r.Latency))
-			},
-		},
+		//{
+		//isOk:   func() bool { return (r.Transactions+r.Errors) > 0 && r.AcceptedResponses > 0 },
+		//errMsg: "no accepted requests",
+		//doEffect: func() {
+		//	r.ExpectedDocs = float64(r.AcceptedResponses) * float64(r.DocsPerRequest)
+		//	r.ActualExpectRatio = float64(r.ActualDocs) / r.ExpectedDocs
+		//
+		//	io.ReplyNL(w, fmt.Sprintf("%.2f%% of expected", 100*r.ActualExpectRatio))
+		//},
+		//},
 		{
 			isOk:   func() bool { return r.MaxRss > 0 },
 			errMsg: "memory usage not available",
 			doEffect: func() {
-				r.Efficiency = 60 * float64(r.AcceptedBps) / float64(r.MaxRss)
+				r.Efficiency = float64(r.Throughput) / float64(r.MaxRss/1000/1000)
 
 				io.ReplyNL(w, io.Green+byteCountDecimal(r.MaxRss)+" (max RSS)")
-				io.ReplyNL(w, fmt.Sprintf("%s%.3f memory efficiency (accepted data volume per minute / memory used)",
+				io.ReplyNL(w, fmt.Sprintf("%s%.3f memory efficiency (docs indexed / second / memory mb used)",
 					io.Green, r.Efficiency))
 
 			},
@@ -281,19 +279,19 @@ func independentVars(r TestReport) map[string]string {
 	return map[string]string{
 		// r.esHost() is an independent variable, but not queryable by the user
 		// esHost() is always an implicit filter for each query
-		"duration":        r.Duration.String(),
-		"errors":          strconv.Itoa(r.Errors),
-		"transactions":    strconv.Itoa(r.Transactions),
-		"spans":           strconv.Itoa(r.Spans),
-		"frames":          strconv.Itoa(r.Frames),
-		"agents":          strconv.Itoa(r.Agents),
-		"throttle":        strconv.Itoa(r.Throttle),
-		"stream":          strconv.FormatBool(r.Stream),
-		"request_timeout": r.ReqTimeout.String(),
-		"revision":        r.Revision,
-		"branch":          r.Branch,
-		"apm_host":        r.ApmHost,
-		"limit":           strconv.Itoa(int(r.Limit)),
+		"duration":     r.Duration.String(),
+		"errors":       strconv.Itoa(r.Errors),
+		"transactions": strconv.Itoa(r.Transactions),
+		"spans":        strconv.Itoa(r.Spans),
+		"frames":       strconv.Itoa(r.Frames),
+		"agents":       strconv.Itoa(r.Agents),
+		"throttle":     strconv.Itoa(r.Throttle),
+		"stream":       strconv.FormatBool(r.Stream),
+		"timeout":      r.ReqTimeout.String(),
+		"revision":     r.Revision,
+		"branch":       r.Branch,
+		"apm_host":     r.ApmHost,
+		"limit":        strconv.Itoa(int(r.Limit)),
 	}
 }
 
@@ -323,7 +321,7 @@ func metadata(r TestReport) map[string]string {
 		"report_date":   r.ReportDate,
 		"revision_date": r.RevDate,
 		// not really metadata, but derived from independent variables
-		"request_size": strconv.Itoa(r.ReqSize),
+		// "request_size": strconv.Itoa(r.BodySize),
 	}
 }
 
@@ -565,10 +563,10 @@ func sortBy(criteria string, reports []TestReport) []TestReport {
 		sort.Sort(descByDuration{reports})
 	case "pushed_volume":
 		sort.Sort(descByPushedVolume{reports})
-	case "actual_expected_ratio":
-		sort.Sort(descByActualExpectedRatio{reports})
-	case "latency":
-		sort.Sort(ascByLatency{reports})
+	//case "actual_expected_ratio":
+	//	sort.Sort(descByActualExpectedRatio{reports})
+	//case "latency":
+	//	sort.Sort(ascByLatency{reports})
 	case "throughput":
 		sort.Sort(descByThroughput{reports})
 	case "efficiency":
@@ -672,7 +670,7 @@ func keysExcluding(exclude string, m map[string]string) []string {
 func digestMatrixHeader(variable string, m map[string]string) []string {
 	ret := make([]string, 0)
 	// always the same order
-	for _, attr := range []string{"duration", "errors", "transactions", "spans", "frames", "agents", "branch"} {
+	for _, attr := range []string{"duration", "errors", "transactions", "spans", "frames", "stream", "agents", "throttle", "branch"} {
 		if variable != attr {
 			ret = append(ret, io.Magenta+attr+" "+io.Grey+m[attr])
 		}
@@ -688,13 +686,11 @@ func digestMatrixHeader(variable string, m map[string]string) []string {
 // returns something printable
 func digest(r TestReport, variable string, align, isBest bool) ([]string, []string) {
 	header := []string{
-		io.Magenta + "report id",
-		io.Magenta + "revision date ",
 		io.Magenta + "pushed   ",
-		io.Magenta + "accepted  ",
+		// io.Magenta + "accepted  ",
 		io.Magenta + "throughput",
-		io.Magenta + "latency",
-		io.Magenta + "index",
+		// io.Magenta + "latency",
+		// io.Magenta + "index",
 		io.Magenta + "max rss",
 		io.Magenta + "effic",
 	}
@@ -702,24 +698,20 @@ func digest(r TestReport, variable string, align, isBest bool) ([]string, []stri
 	if isBest && align {
 		color = io.Green
 	}
-	indexColor := io.Grey
-
-	if r.ActualExpectRatio < 0.7 && align {
-		indexColor = io.Red
-	} else if r.ActualExpectRatio < 0.85 && align {
-		indexColor = io.Yellow
-	} else {
-		indexColor = color
-	}
+	//indexColor := io.Grey
+	//
+	//if r.ActualExpectRatio < 0.7 && align {
+	//	indexColor = io.Red
+	//} else if r.ActualExpectRatio < 0.85 && align {
+	//	indexColor = io.Yellow
+	//} else {
+	//	indexColor = color
+	//}
 
 	data := []string{
-		color + r.ReportId,
-		color + r.revisionDate().Format(io.SHORT),
 		color + byteCountDecimal(int64(r.PushedBps)) + "ps",
-		color + byteCountDecimal(int64(r.AcceptedBps)) + "ps",
 		color + fmt.Sprintf("%.1fdps", r.Throughput),
-		color + fmt.Sprintf("%.0fms", r.Latency),
-		fmt.Sprintf("%s%.1f%%", indexColor, r.ActualExpectRatio*100),
+		// fmt.Sprintf("%s%.1f%%", indexColor, r.ActualExpectRatio*100),
 		io.Grey + byteCountDecimal(r.MaxRss),
 		fmt.Sprintf("%s%.3f", color, r.Efficiency),
 	}

@@ -26,11 +26,11 @@ func (wrap descByRevDate) Less(i, j int) bool {
 	return wrap.reports[i].revisionDate().After(wrap.reports[j].revisionDate())
 }
 
-type ascByLatency template
-
-func (wrap ascByLatency) Less(i, j int) bool {
-	return wrap.reports[i].Latency < wrap.reports[j].Latency
-}
+//type ascByLatency template
+//
+//func (wrap ascByLatency) Less(i, j int) bool {
+//	return wrap.reports[i].Latency < wrap.reports[j].Latency
+//}
 
 type descByThroughput template
 
@@ -56,8 +56,8 @@ func (wrap descByDuration) Less(i, j int) bool {
 	return wrap.reports[i].Duration.Seconds() > wrap.reports[j].Duration.Seconds()
 }
 
-type descByActualExpectedRatio template
-
-func (wrap descByActualExpectedRatio) Less(i, j int) bool {
-	return wrap.reports[i].ActualExpectRatio > wrap.reports[j].ActualExpectRatio
-}
+//type descByActualExpectedRatio template
+//
+//func (wrap descByActualExpectedRatio) Less(i, j int) bool {
+//	return wrap.reports[i].ActualExpectRatio > wrap.reports[j].ActualExpectRatio
+//}

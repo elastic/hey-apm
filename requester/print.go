@@ -58,6 +58,9 @@ type report struct {
 	numRes         int64
 	output         string
 
+	flushesTotal int64
+	avgFlushes   float64
+
 	w io.Writer
 }
 
@@ -104,6 +107,7 @@ func runReporter(r *report) {
 			if res.contentLength > 0 {
 				r.sizeTotal += res.contentLength
 			}
+			r.flushesTotal += res.flushesPerReq
 		}
 	}
 	// Signal reporter is done.
@@ -119,6 +123,7 @@ func (r *report) finalize(total time.Duration) {
 	r.avgDNS = r.avgDNS / float64(len(r.lats))
 	r.avgReq = r.avgReq / float64(len(r.lats))
 	r.avgRes = r.avgRes / float64(len(r.lats))
+	r.avgFlushes = float64(r.flushesTotal) / float64(r.numRes)
 	r.print()
 }
 
@@ -146,6 +151,8 @@ func (r *report) print() {
 		r.printf("  Fastest:\t%4.4f secs\n", r.fastest)
 		r.printf("  Average:\t%4.4f secs\n", r.average)
 		r.printf("  Requests/sec:\t%4.4f\n", r.rps)
+		r.printf("  Flushes:\t%4.4f\n", r.flushesTotal)
+		r.printf("  Average flushes/request:\t%4.4f\n", r.avgFlushes)
 		if r.sizeTotal > 0 {
 			r.printf("  Total data:\t%d bytes\n", r.sizeTotal)
 			r.printf("  Size/request:\t%d bytes\n", r.sizeTotal/int64(len(r.lats)))

@@ -181,7 +181,7 @@ func main() {
 	}
 
 	t := target.NewTargetFromConfig(*baseUrl, *method, cfg)
-	work := t.GetWork()
+	work := t.GetWork(os.Stdout)
 
 	if *describe {
 		desc(t)

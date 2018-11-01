@@ -207,7 +207,6 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 				env.apm.revDate,
 				env.apm.unstaged,
 				env.apm.isRemote,
-				int64(len(target.Body)),
 				mem,
 				docker.ToBytes(limit),
 				removeSensitiveFlags(flags),

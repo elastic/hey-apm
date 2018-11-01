@@ -145,7 +145,6 @@ func doBenchmark(memLimit int64, flags []string, workload ...string) ([]api.Test
 		env.apm.revDate,
 		env.apm.unstaged,
 		env.apm.isRemote,
-		int64(len(target.Body)),
 		maxRssUsed(env.apm.cmd),
 		memLimit,
 		removeSensitiveFlags(flags),
