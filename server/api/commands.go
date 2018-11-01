@@ -12,18 +12,16 @@ import (
 	s "strings"
 	"time"
 
+	"github.com/elastic/hey-apm/compose"
 	"github.com/elastic/hey-apm/output"
 	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/server/strcoll"
 	"github.com/elastic/hey-apm/target"
-	"github.com/elastic/hey-apm/compose"
 )
 
 // creates a test workload for the apm-server and returns a string to be printed and a report to be saved
 // apm-server must be running
-// cmd format is `duration transactions/request spans/transaction frames/doc N`
-// it will send simultaneous requests from `N` agents repeatedly as fast as possible for the given `duration`
-// if --errors N is given, N errors will be added to every payload
+// target holds all the configuration for making requests: URL, request body, timeouts, etc.
 // blocks current goroutine for as long as `duration` or until waitForCancel returns
 func LoadTest(w stdio.Writer, state State, waitForCancel func(), t target.Target) TestResult {
 	result := TestResult{Cancelled: true}
@@ -67,9 +65,9 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), t target.Target
 			DocsPerRequest:    int(t.Config.NumErrors + t.Config.NumTransactions + (t.Config.NumTransactions * t.Config.NumSpans)),
 			Agents:            t.Config.NumAgents,
 			Throttle:          int(t.Config.Throttle),
-			Stream: 		   t.Config.Stream,
+			Stream:            t.Config.Stream,
 			GzipReqSize:       len(t.Body),
-			ReqTimeout:		   time.Duration(t.Config.RequestTimeout),
+			ReqTimeout:        time.Duration(t.Config.RequestTimeout),
 			ElasticUrl:        state.ElasticSearch().Url(),
 			ApmUrl:            state.ApmServer().Url(),
 			ApmHost:           apmHost(state.ApmServer().Url()),

@@ -120,8 +120,8 @@ func Throttle(s string) OptionFunc {
 
 func Pause(s string) OptionFunc {
 	return func(c *Config) error {
-		p, err := strconv.Atoi(s)
-		c.Pause = time.Duration(p)
+		var err error
+		c.Pause, err = time.ParseDuration(s)
 		return err
 	}
 }

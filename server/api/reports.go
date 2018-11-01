@@ -65,14 +65,14 @@ type TestResult struct {
 	// specified by the user, used for querying
 	Duration time.Duration `json:"duration"`
 	// actual elapsed time, used for X-per-second kind of metrics
-	Elapsed      time.Duration `json:"elapsed"`
+	Elapsed time.Duration `json:"elapsed"`
 	// errors per request
-	Errors       int           `json:"errors"`
+	Errors int `json:"errors"`
 	// transactions per request
-	Transactions int           `json:"transactions"`
+	Transactions int `json:"transactions"`
 	// spans per transaction
 	Spans int `json:"spans"`
-	// frames per error and/or transaction
+	// frames per error and/or span
 	Frames int `json:"frames"`
 	// Number of concurrent agents sending requests.
 	Agents int `json:"agents"`
@@ -140,7 +140,7 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 		MaxRss:     mem,
 		Limit:      memLimit,
 		ApmFlags:   s.Join(flags, " "),
-		ReqSize:	int(reqSize),
+		ReqSize:    int(reqSize),
 		TestResult: result,
 	}
 	for _, check := range []struct {
@@ -281,19 +281,19 @@ func independentVars(r TestReport) map[string]string {
 	return map[string]string{
 		// r.esHost() is an independent variable, but not queryable by the user
 		// esHost() is always an implicit filter for each query
-		"duration":     r.Duration.String(),
-		"errors":       strconv.Itoa(r.Errors),
-		"transactions": strconv.Itoa(r.Transactions),
-		"spans":        strconv.Itoa(r.Spans),
-		"frames":       strconv.Itoa(r.Frames),
-		"agents":       strconv.Itoa(r.Agents),
-		"throttle":		strconv.Itoa(r.Throttle),
-		"stream":		strconv.FormatBool(r.Stream),
+		"duration":        r.Duration.String(),
+		"errors":          strconv.Itoa(r.Errors),
+		"transactions":    strconv.Itoa(r.Transactions),
+		"spans":           strconv.Itoa(r.Spans),
+		"frames":          strconv.Itoa(r.Frames),
+		"agents":          strconv.Itoa(r.Agents),
+		"throttle":        strconv.Itoa(r.Throttle),
+		"stream":          strconv.FormatBool(r.Stream),
 		"request_timeout": r.ReqTimeout.String(),
-		"revision":     r.Revision,
-		"branch":       r.Branch,
-		"apm_host":     r.ApmHost,
-		"limit":        strconv.Itoa(int(r.Limit)),
+		"revision":        r.Revision,
+		"branch":          r.Branch,
+		"apm_host":        r.ApmHost,
+		"limit":           strconv.Itoa(int(r.Limit)),
 	}
 }
 

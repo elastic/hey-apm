@@ -10,12 +10,12 @@ import (
 
 	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/server/tests"
-	"github.com/stretchr/testify/assert"
 	"github.com/elastic/hey-apm/target"
+	"github.com/stretchr/testify/assert"
 )
 
 func basicTarget(t *testing.T, opts ...target.OptionFunc) *target.Target {
-	required := []target.OptionFunc {
+	required := []target.OptionFunc{
 		target.RunTimeout("1s"),
 		target.NumTransactions("1"),
 		target.NumSpans("1"),

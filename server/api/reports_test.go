@@ -28,7 +28,7 @@ var report = TestReport{
 	RevDate:          "Fri, 20 Apr 2018 10:00:00 +0200",
 	ApmFlags:         "-E apm-server.host=http://localhost:8200 -E output.elasticsearch.hosts=[http://localhost:9200]",
 	MaxRss:           mb1,
-	ReqSize: 		  1,
+	ReqSize:          1,
 	TestResult: TestResult{
 		Duration:          time.Second * 30,
 		Elapsed:           time.Second * 30,
@@ -38,7 +38,7 @@ var report = TestReport{
 		Frames:            1,
 		Agents:            1,
 		Throttle:          math.MaxInt16,
-		GzipReqSize:	   1,
+		GzipReqSize:       1,
 		ElasticUrl:        "http://localhost:9200",
 		ApmUrl:            "http://localhost:8200",
 		ApmHost:           "localhost",
@@ -159,7 +159,7 @@ func (b *builder) setId(s string) *builder {
 }
 
 func (b *builder) setDocsPerRequest() *builder {
-	b.DocsPerRequest = int(b.Errors+ b.Transactions+ (b.Transactions * b.Spans))
+	b.DocsPerRequest = int(b.Errors + b.Transactions + (b.Transactions * b.Spans))
 	return b
 }
 

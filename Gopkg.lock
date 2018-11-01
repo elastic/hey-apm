@@ -11,7 +11,7 @@
   branch = "master"
   name = "github.com/elastic/hey"
   packages = ["requester"]
-  revision = "8d680a8d6c37116aaebf31647c2438a16b41ad1a"
+  revision = "124a9ea256e4446ea73706c3dc454e60bbffe4e9"
   source = "github.com/elastic/hey"
 
 [[projects]]
@@ -68,7 +68,7 @@
     "http2/hpack",
     "idna"
   ]
-  revision = "04a2e542c03f1d053ab3e4d6e5abcd4b66e2be8e"
+  revision = "c44066c5c816ec500d459a2a324a753f78531ae0"
 
 [[projects]]
   name = "golang.org/x/text"

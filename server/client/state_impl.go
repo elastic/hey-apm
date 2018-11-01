@@ -2,11 +2,10 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"math"
 	"strings"
-
-	"encoding/json"
 
 	"github.com/elastic/hey-apm/server/api"
 	"github.com/elastic/hey-apm/server/api/io"
