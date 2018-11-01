@@ -11,7 +11,6 @@ import (
 	"os"
 	"strconv"
 	s "strings"
-
 	"time"
 
 	"github.com/elastic/hey-apm/server/api"

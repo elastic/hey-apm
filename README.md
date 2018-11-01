@@ -76,39 +76,38 @@ If you are not using Docker, you will likely want to pass `-fcm` options to fetc
 
 You can execute `status` again to verify that `apm switch` worked, and you should be ready to run some workload tests:
 
-`test 30s 1 2 3 4 -E apm-server.tracing.enabled=true` 
+`test 30s 1 2 3 -E apm-server.tracing.enabled=true` 
 
 That will start an apm-server process, run a test for 30 seconds, stop the apm-server, and save a report in elasticsearch. 
 There are 4 arguments describing the test, plus any optional flags passed to the apm-server:
 
 `1` - number of transactions per request
 
-`2` - number of spans per event
+`2` - number of spans per transaction
 
-`3` - size of the stacktrace, ie number of frames per span (or error)
+`3` - size of the stacktrace, ie number of frames per span
 
-`4` - number of workers sending requests in parallel. 
-
-Throttling is disabled, which means that as soon a response is returned a worker will fire a new request.  
-
-You can specify `--errors N` to also ingest error events.
+You can specify `--errors N` to also ingest error events, configure the number of agents sending request concurrently, 
+throttling, and more. 
 
 After 30 seconds you should see something like the following:
 
 ```
-on branch trace-apm-server , cmd = [30s 1 2 3 4]
+sent 3 events per request with 1 agent(s)
 
-pushed 1.6Mb / sec , accepted 1.6Mb / sec
-http://0.0.0.0:8200/v1/transactions 0
-  [202]	6477 responses (100.00%)
-  total	6477 responses (215.90 rps)
+[202] 9423 responses (100.00%)
+total 9423 responses (314.09 rps)
 
-15385 docs indexed (512.83 / sec)  (79.18% of expected)
-4.63 ms / request
-157.7Mb (max RSS)
-0.596 memory efficiency (accepted data volume per minute / memory used)
-saving report
-report indexed in elasticsearch
+on branch trace-apm-server
+pushed 1.5Mb / sec , accepted 1.5Mb / sec
+
+24671 docs indexed (822.33 / sec)
+87.27% of expected
+3.18 ms / request
+186.9Mb (max RSS)
+0.483 memory efficiency (accepted data volume per minute / memory used)
+
+saved report to Elasticsearch
 ```
  
 Since the number of documents per request and the number of accepted requests is known, hey-apm expects a specific count after a test is run. 

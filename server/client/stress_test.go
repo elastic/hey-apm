@@ -11,9 +11,9 @@ import (
 
 	"github.com/elastic/hey-apm/server/api"
 	"github.com/elastic/hey-apm/server/tests"
+	"github.com/elastic/hey-apm/target"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
-	"github.com/elastic/hey-apm/target"
 )
 
 var once sync.Once

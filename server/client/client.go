@@ -235,7 +235,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 func makeTarget(url string, args ...string) (target.Target, []string, error) {
 	duration := strcoll.Nth(0, args)
 	args, throttle := io.ParseCmdOption(args, "--throttle", "32767", true)
-	args, pause := io.ParseCmdOption(args, "--pause", "1ms", true)
+	args, pause := io.ParseCmdOption(args, "--pause", "100ms", true)
 	args, errorEvents := io.ParseCmdOption(args, "--errors", "0", true)
 	args, agents := io.ParseCmdOption(args, "--agents", "1", true)
 	args, stream := io.ParseCmdOption(args, "--stream", "not streaming", false)
