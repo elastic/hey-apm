@@ -1,0 +1,1 @@
+{"trace_id":"abcdef0123456789abcdef9876543210","parent_id":"abcdefabcdef7890","id":"0123456a89012345","transaction_id":"ab23456a89012345","name":"get/api/types","type":"request","start":1.845,"duration":3.5642981,"stacktrace":[],"context":{"tags":{"tag1":"value1"}}}
