@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	stdio "io"
+	"io/ioutil"
 	"math"
 	"math/rand"
 	"os"
@@ -34,7 +35,7 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), t target.Target
 	}
 
 	uncompressed := int64(len(t.Body))
-	work := t.GetWork()
+	work := t.GetWork(ioutil.Discard)
 
 	docsBefore := state.ElasticSearch().Count()
 	start := time.Now()
@@ -56,25 +57,29 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), t target.Target
 		codes := work.StatusCodes()
 		_, totalResponses := output.SortedTotal(codes)
 		result = TestResult{
-			Elapsed:           elapsedTime,
-			Duration:          t.Config.RunTimeout,
-			Errors:            t.Config.NumErrors,
-			Transactions:      t.Config.NumTransactions,
-			Spans:             t.Config.NumSpans,
-			Frames:            t.Config.NumFrames,
-			DocsPerRequest:    int(t.Config.NumErrors + t.Config.NumTransactions + (t.Config.NumTransactions * t.Config.NumSpans)),
-			Agents:            t.Config.NumAgents,
-			Throttle:          int(t.Config.Throttle),
-			Stream:            t.Config.Stream,
-			GzipReqSize:       len(t.Body),
-			ReqTimeout:        time.Duration(t.Config.RequestTimeout),
-			ElasticUrl:        state.ElasticSearch().Url(),
-			ApmUrl:            state.ApmServer().Url(),
-			ApmHost:           apmHost(state.ApmServer().Url()),
-			Branch:            state.ApmServer().Branch(),
-			AcceptedResponses: codes[202],
-			TotalResponses:    totalResponses,
-			ActualDocs:        state.ElasticSearch().Count() - docsBefore,
+			Elapsed:        elapsedTime,
+			Duration:       t.Config.RunTimeout,
+			Errors:         t.Config.NumErrors,
+			Transactions:   t.Config.NumTransactions,
+			Spans:          t.Config.NumSpans,
+			Frames:         t.Config.NumFrames,
+			DocsPerRequest: int64(t.Config.NumErrors+t.Config.NumTransactions+(t.Config.NumTransactions*t.Config.NumSpans)) * work.Flushes(),
+			Agents:         t.Config.NumAgents,
+			Throttle:       int(t.Config.Throttle),
+			Stream:         t.Config.Stream,
+			GzipBodySize:   int64(len(t.Body)),
+			BodySize:       uncompressed,
+			Pushed:         uncompressed * work.Flushes(),
+			GzipPushed:     int64(len(t.Body)) * work.Flushes(),
+			Flushes:        work.Flushes(),
+			ReqTimeout:     time.Duration(t.Config.RequestTimeout),
+			ElasticUrl:     state.ElasticSearch().Url(),
+			ApmUrl:         state.ApmServer().Url(),
+			ApmHost:        apmHost(state.ApmServer().Url()),
+			Branch:         state.ApmServer().Branch(),
+			// AcceptedResponses: codes[202],
+			TotalResponses: totalResponses,
+			ActualDocs:     state.ElasticSearch().Count() - docsBefore,
 		}
 
 		var format string
@@ -267,16 +272,22 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"test <duration> <transactions> <spans> <frames> <agents> [<apmserver-flags> <OPTIONS>...]")
 	io.ReplyNL(w, io.Grey+"    starts the apm-server and performs a workload test against it")
 	io.ReplyNL(w, io.Magenta+"        <duration>"+io.Grey+" duration of the load test (eg \"1m\")")
-	io.ReplyNL(w, io.Magenta+"        <transactions>"+io.Grey+" transactions per request")
+	io.ReplyNL(w, io.Magenta+"        <transactions>"+io.Grey+" transactions per request body")
 	io.ReplyNL(w, io.Magenta+"        <spans>"+io.Grey+" spans per transaction")
 	io.ReplyNL(w, io.Magenta+"        <frames>"+io.Grey+" frames per document (for spans and errors)")
-	io.ReplyNL(w, io.Magenta+"        <agents>"+io.Grey+" number of simultaneous agents sending queries")
 	io.ReplyNL(w, io.Magenta+"        <apmserver-flags>"+io.Grey+" any flags passed to apm-server (elasticsearch url/username/password and apm-server url are overwritten), it doesn't have doEffect if apm-server is not managed by hey-apm")
 	io.ReplyNL(w, io.Grey+"    OPTIONS:")
-	io.ReplyNL(w, io.Magenta+"        --mem <mem-limit>"+io.Grey+" memory limit passed to docker run, it doesn't have doEffect if apm-server is not dockerized")
-	io.ReplyNL(w, io.Grey+"        defaults to 4g")
+	io.ReplyNL(w, io.Magenta+"        --errors <errors>"+io.Grey+" number of errors per request body")
+	io.ReplyNL(w, io.Grey+"        defaults to 0")
+	io.ReplyNL(w, io.Magenta+"        --stream"+io.Grey+" use the streaming protocol")
+	io.ReplyNL(w, io.Magenta+"        --agents <agents>"+io.Grey+" number of simultaneous agents sending queries")
+	io.ReplyNL(w, io.Grey+"        defaults to 1")
 	io.ReplyNL(w, io.Magenta+"        --throttle <throttle>"+io.Grey+" upper limit of queries per second to send")
-	io.ReplyNL(w, io.Magenta+"        --errors <errors>"+io.Grey+" number of errors per request (sent in addition to other events)")
+	io.ReplyNL(w, io.Grey+"        defaults to 1")
+	io.ReplyNL(w, io.Magenta+"        --timeout <timeout>"+io.Grey+" client request timeout")
+	io.ReplyNL(w, io.Grey+"        defaults to 10s")
+	io.ReplyNL(w, io.Magenta+"        --mem <mem-limit>"+io.Grey+" memory limit passed to docker run, it doesn't have effect if apm-server is not dockerized")
+	io.ReplyNL(w, io.Grey+"        defaults to 4g")
 	io.ReplyNL(w, io.Magenta+"apm tail [-<n> <pattern>]")
 	io.ReplyNL(w, io.Grey+"    shows the last lines of the apm server log")
 	io.ReplyNL(w, io.Magenta+"        -<n>"+io.Grey+" shows the last <n> lines up to 1000, defaults to 10")
@@ -295,17 +306,21 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"                revision_date"+io.Grey+" date of the git commit, most recent first")
 	io.ReplyNL(w, io.Magenta+"                duration"+io.Grey+" duration of the workload test, higher first")
 	io.ReplyNL(w, io.Magenta+"                pushed_volume"+io.Grey+" bytes pushed per second, higher first")
-	io.ReplyNL(w, io.Magenta+"                actual_expected_ratio"+io.Grey+" ratio between actual and expected docs indexed, higher first")
-	io.ReplyNL(w, io.Magenta+"                latency"+io.Grey+" milliseconds per accepted request, lower first")
+	// io.ReplyNL(w, io.Magenta+"                actual_expected_ratio"+io.Grey+" ratio between actual and expected docs indexed, higher first")
+	// io.ReplyNL(w, io.Magenta+"                latency"+io.Grey+" milliseconds per accepted request, lower first")
 	io.ReplyNL(w, io.Magenta+"                throughput"+io.Grey+" indexed documents per second, higher first")
-	io.ReplyNL(w, io.Magenta+"                efficiency"+io.Grey+" bytes accepted per second per byte of used RAM, higher first")
+	io.ReplyNL(w, io.Magenta+"                efficiency"+io.Grey+" documents indexed per minute per megabyte of used RAM, higher first")
 	io.ReplyNL(w, io.Magenta+"        <VARIABLE>"+io.Grey+" shows together reports generated from workload tests with the same parameters except VARIABLE")
 	io.ReplyNL(w, io.Grey+"        VARIABLE:")
 	io.ReplyNL(w, io.Magenta+"                duration"+io.Grey+" duration of the test")
-	io.ReplyNL(w, io.Magenta+"                transactions"+io.Grey+" transactions per request")
+	io.ReplyNL(w, io.Magenta+"                transactions"+io.Grey+" transactions per request body")
+	io.ReplyNL(w, io.Magenta+"                errors"+io.Grey+" errors per request body")
 	io.ReplyNL(w, io.Magenta+"                spans"+io.Grey+" spans per transaction")
 	io.ReplyNL(w, io.Magenta+"                frames"+io.Grey+" frames per document")
-	io.ReplyNL(w, io.Magenta+"                agents"+io.Grey+" number of concurrent agents sending requests")
+	io.ReplyNL(w, io.Magenta+"        		   stream"+io.Grey+" whether a test used the streaming protocol or not")
+	io.ReplyNL(w, io.Magenta+"                agents"+io.Grey+" number of concurrent agents")
+	io.ReplyNL(w, io.Magenta+"        		   throttle"+io.Grey+" upper limit of queries per second sent")
+	io.ReplyNL(w, io.Magenta+"        		   timeout"+io.Grey+" request timeout")
 	io.ReplyNL(w, io.Magenta+"                branch"+io.Grey+" git branch and commit (if the branch is variable, the revision necessarily varies too)")
 	io.ReplyNL(w, io.Magenta+"                revision"+io.Grey+" git commit")
 	io.ReplyNL(w, io.Magenta+"                limit"+io.Grey+" memory limit passed to docker")
@@ -318,21 +333,21 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"                report_date"+io.Grey+" date of the generated report")
 	io.ReplyNL(w, io.Magenta+"                request_size"+io.Grey+" number of bytes in the request body")
 	io.ReplyNL(w, io.Magenta+"                revision_date"+io.Grey+" date of the git commit")
-	io.ReplyNL(w, io.Grey+"        command example: \"collate -24h revision branch=master revision_date>2018-28-02 agents=10 duration<5m --sort latency\"")
+	io.ReplyNL(w, io.Grey+"        command example: \"collate -24h revision branch=master revision_date>2018-28-02 agents=10 duration<5m --sort efficiency\"")
 	io.ReplyNL(w, io.Magenta+"verify -n <n> <FILTER>...")
 	io.ReplyNL(w, io.Grey+"    verifies that there is not a negative trend over time")
 	io.ReplyNL(w, io.Grey+"    (apm-server flags might skew results)")
 	io.ReplyNL(w, io.Magenta+"        -n <n>"+io.Grey+" verifies the up to last <n> reports if n is a number, or since n time ago if n is a duration")
 	io.ReplyNL(w, io.Grey+"    defaults to 168h (1 week)")
 	io.ReplyNL(w, io.Magenta+"    FILTERS"+io.Grey+" are specified like <FIELD>=|!=|<|><value>")
-	io.ReplyNL(w, io.Grey+"    all FIELDS are required: duration, errors, transactions, spans, frames, agents, branch, limit")
+	io.ReplyNL(w, io.Grey+"    all FIELDS are required: duration, errors, transactions, spans, frames, stream, agents, throttle, timeout, branch, limit")
 	io.ReplyNL(w, io.Magenta+"define [<pattern> | <name> <sequence> | rm <name>]")
 	io.ReplyNL(w, io.Grey+"    without arguments, shows the current saved name definitions")
 	io.ReplyNL(w, io.Magenta+"       <pattern>"+io.Grey+"  shows the current saved name definitions matching the pattern (no regex support)")
 	io.ReplyNL(w, io.Magenta+"       <name> <sequence>"+io.Grey+"   alias a sequence of strings to the given name")
 	io.ReplyNL(w, io.Grey+"       sequence can be any string(s) supporting $ placeholders for variable substitution, semicolons should be surrounded by spaces")
 	io.ReplyNL(w, io.Magenta+"       rm <name>"+io.Grey+"  removes given name")
-	io.ReplyNL(w, io.Magenta+"dump <file_name> <transactions> <spans> <frames>")
+	io.ReplyNL(w, io.Magenta+"dump <file_name> <errors> <transactions> <spans> <frames>")
 	io.ReplyNL(w, io.Grey+"    writes to <file_name> a payload with the given profile (described above)")
 	io.ReplyNL(w, io.Magenta+"help")
 	io.ReplyNL(w, io.Grey+"    shows this help")

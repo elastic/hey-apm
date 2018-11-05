@@ -3,7 +3,7 @@ package target
 import (
 	"bytes"
 	"compress/gzip"
-	"io/ioutil"
+	"io"
 	"math"
 	"net/http"
 	"strconv"
@@ -167,7 +167,7 @@ func NumFrames(s string) OptionFunc {
 
 // Returns a runnable that simulates APM agents sending requests to APM Server with the `target` configuration
 // Mutates t.Body (for compression) and t.Headers
-func (t *Target) GetWork() *requester.Work {
+func (t *Target) GetWork(w io.Writer) *requester.Work {
 
 	// Use the defaultUserAgent unless the Header contains one, which may be blank to not send the header.
 	if _, ok := t.Config.Header["User-Agent"]; !ok {
@@ -221,7 +221,7 @@ func (t *Target) GetWork() *requester.Work {
 		DisableRedirects:   t.Config.DisableRedirects,
 		H2:                 false,
 		ProxyAddr:          nil,
-		Writer:             ioutil.Discard,
+		Writer:             w,
 	}
 }
 
