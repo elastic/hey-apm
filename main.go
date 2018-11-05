@@ -29,7 +29,7 @@ var (
 	// payload options
 	numAgents       = flag.Int("c", 1, "number of agents sending data concurrently")
 	qps             = flag.Float64("q", 0, "queries per second")
-	pause           = flag.Duration("p", 0*time.Millisecond, "Only used if `qps` is not set. Defines the pause between sending events over the same http request.")
+	pause           = flag.Duration("p", 1*time.Millisecond, "Only used if `qps` is not set. Defines the pause between sending events over the same http request.")
 	numErrors       = flag.Int("e", 3, "number of errors")
 	numTransactions = flag.Int("t", 6, "number of transactions")
 	numFrames       = flag.Int("f", 20, "number of stacktrace frames per span")

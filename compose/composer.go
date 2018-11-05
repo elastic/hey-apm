@@ -4,13 +4,9 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"time"
 )
-
-const lenSpans = 7
 
 func Compose(numErrors, numTransactions, numSpans, numFrames int) []byte {
 	rand.Seed(time.Now().UnixNano())
@@ -19,12 +15,14 @@ func Compose(numErrors, numTransactions, numSpans, numFrames int) []byte {
 	buf.Write(Metadata)
 	buf.WriteByte('\n')
 
+	lenSpans := len(Spans)
+
 	for i := 0; i < numTransactions; i++ {
-		ev := randomized("transaction", 8)
+		ev := randomized(SingleTransaction, 8)
 		write(&buf, ndjsonWrapObj("transaction", ev))
 
 		for i := 0; i < numSpans; i++ {
-			ev := randomized(fmt.Sprintf("span%d", rand.Intn(lenSpans)+1), 8)
+			ev := randomized(Spans[rand.Intn(lenSpans)], 8)
 			span := make([]byte, len(ev))
 			copy(span, ev)
 			span = bytes.Replace(span, []byte(`"stacktrace":[],`), stacktrace(numFrames), -1)
@@ -33,7 +31,7 @@ func Compose(numErrors, numTransactions, numSpans, numFrames int) []byte {
 	}
 
 	for i := 0; i < numErrors; i++ {
-		ev := randomized("error", 16)
+		ev := randomized(SingleError, 16)
 		errEvent := make([]byte, len(ev))
 		copy(errEvent, ev)
 		errEvent = bytes.Replace(errEvent, []byte(`"stacktrace":[],`), stacktrace(numFrames), -1)
@@ -43,13 +41,12 @@ func Compose(numErrors, numTransactions, numSpans, numFrames int) []byte {
 	return bytes.TrimSpace(buf.Bytes())
 }
 
-func randomized(key string, idN int) []byte {
-	f, err := ioutil.ReadFile(fmt.Sprintf("./compose/%s.json", key))
+func randomized(event []byte, idN int) []byte {
+	var ev map[string]interface{}
+	err := json.Unmarshal(event, &ev)
 	if err != nil {
 		panic(err)
 	}
-	var ev map[string]interface{}
-	json.Unmarshal([]byte(f), &ev)
 	ev["id"] = randHexString(idN)
 	ev["transaction_id"] = randHexString(8)
 	ev["parent_id"] = randHexString(8)
@@ -63,10 +60,7 @@ func randomized(key string, idN int) []byte {
 
 func randHexString(n int) string {
 	buf := make([]byte, n)
-	_, err := rand.Read(buf)
-	if err != nil {
-		panic(err)
-	}
+	rand.Read(buf)
 	return hex.EncodeToString(buf)
 }
 
@@ -75,10 +69,7 @@ func write(buf *bytes.Buffer, value []byte) {
 	if err != nil {
 		panic(err)
 	}
-	err = buf.WriteByte('\n')
-	if err != nil {
-		panic(err)
-	}
+	buf.WriteByte('\n')
 }
 
 func ndjsonWrapObj(key string, buf []byte) []byte {
@@ -110,6 +101,5 @@ func stacktrace(n int) []byte {
 		buf.Write(fr)
 	}
 	buf.WriteString("],")
-	ioutil.WriteFile("/tmp/sf.json", buf.Bytes(), 0644)
 	return buf.Bytes()
 }
