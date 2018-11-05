@@ -2,51 +2,74 @@ package compose
 
 import (
 	"bytes"
+	"encoding/hex"
+	"encoding/json"
+	"math/rand"
+	"time"
 )
 
 func Compose(numErrors, numTransactions, numSpans, numFrames int) []byte {
+	rand.Seed(time.Now().UnixNano())
 	var buf bytes.Buffer
 
 	buf.Write(Metadata)
 	buf.WriteByte('\n')
 
-	stacktrace := make([]byte, len(StacktraceFrame))
-	copy(stacktrace, StacktraceFrame)
-	frames := multiply([]byte(`"stacktrace"`), stacktrace, numFrames)
-
-	span := make([]byte, len(SingleSpan))
-	copy(span, SingleSpan)
-	span = bytes.Replace(span, []byte(`"stacktrace": [],`), frames, -1)
-
-	transaction := ndjsonWrapObj("transaction", SingleTransaction)
-	span = ndjsonWrapObj("span", span)
+	lenSpans := len(Spans)
 
 	for i := 0; i < numTransactions; i++ {
-		ndJsonRepeat(&buf, transaction, 1)
-		ndJsonRepeat(&buf, span, numSpans)
+		ev := randomized(SingleTransaction, 8)
+		write(&buf, ndjsonWrapObj("transaction", ev))
+
+		for i := 0; i < numSpans; i++ {
+			ev := randomized(Spans[rand.Intn(lenSpans)], 8)
+			span := make([]byte, len(ev))
+			copy(span, ev)
+			span = bytes.Replace(span, []byte(`"stacktrace":[],`), stacktrace(numFrames), -1)
+			write(&buf, ndjsonWrapObj("span", span))
+		}
 	}
 
-	errEvent := make([]byte, len(SingleError))
-	copy(errEvent, SingleError)
-	errEvent = bytes.Replace(errEvent, []byte(`"stacktrace": [],`), frames, -1)
-
-	errEvent = ndjsonWrapObj("error", errEvent)
-	ndJsonRepeat(&buf, errEvent, numErrors)
+	for i := 0; i < numErrors; i++ {
+		ev := randomized(SingleError, 16)
+		errEvent := make([]byte, len(ev))
+		copy(errEvent, ev)
+		errEvent = bytes.Replace(errEvent, []byte(`"stacktrace":[],`), stacktrace(numFrames), -1)
+		write(&buf, ndjsonWrapObj("error", errEvent))
+	}
 
 	return bytes.TrimSpace(buf.Bytes())
 }
 
-func ndJsonRepeat(buf *bytes.Buffer, value []byte, times int) {
-	for i := 0; i < times; i++ {
-		_, err := buf.Write(value)
-		if err != nil {
-			panic(err)
-		}
-		err = buf.WriteByte('\n')
-		if err != nil {
-			panic(err)
-		}
+func randomized(event []byte, idN int) []byte {
+	var ev map[string]interface{}
+	err := json.Unmarshal(event, &ev)
+	if err != nil {
+		panic(err)
 	}
+	ev["id"] = randHexString(idN)
+	ev["transaction_id"] = randHexString(8)
+	ev["parent_id"] = randHexString(8)
+	ev["trace_id"] = randHexString(16)
+	b, err := json.Marshal(ev)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+func randHexString(n int) string {
+	buf := make([]byte, n)
+	rand.Read(buf)
+	return hex.EncodeToString(buf)
+}
+
+func write(buf *bytes.Buffer, value []byte) {
+	_, err := buf.Write(value)
+	if err != nil {
+		panic(err)
+	}
+	buf.WriteByte('\n')
 }
 
 func ndjsonWrapObj(key string, buf []byte) []byte {
@@ -63,17 +86,20 @@ func ndjsonWrapObj(key string, buf []byte) []byte {
 	return buff.Bytes()
 }
 
-func multiply(key []byte, value []byte, times int) []byte {
-	var ret bytes.Buffer
-	var c int
-	ret.Write(key)
-	ret.WriteString(":[")
-	ret.Write(value)
-	for c < times-1 {
-		ret.WriteByte(',')
-		ret.Write(value)
-		c++
+func stacktrace(n int) []byte {
+	l := len(StacktraceFrames)
+	var buf bytes.Buffer
+	buf.Write([]byte(`"stacktrace": [`))
+	for i := 0; i < n; i++ {
+		if i > 0 {
+			buf.WriteByte(',')
+
+		}
+		randFrame := StacktraceFrames[rand.Intn(l)]
+		fr := make([]byte, len(randFrame))
+		copy(fr, randFrame)
+		buf.Write(fr)
 	}
-	ret.WriteString("],")
-	return ret.Bytes()
+	buf.WriteString("],")
+	return buf.Bytes()
 }
