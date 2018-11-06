@@ -56,21 +56,13 @@ func TestLoadOk(t *testing.T) {
 		MockEs{url: "localhost:922222", docs: 10},
 		nil}
 	ret := LoadTest(bw, s, cancel, *basicTarget(t))
-	// sent 0 events because work.Flushes() is 0
-	assert.Equal(t, `started new work, url /intake/v2/events, payload size 2.7kb (uncompressed), 1.3kb (compressed) ...
->>> 
-sent 0 events per request with 0 agent(s) throttled at 1 requests per second
-
-total 0 responses (0.00 rps)
-`,
-		tests.WithoutColors(bw.String()))
+	assert.Contains(t, bw.String(), "started new work, url /intake/v2/events")
 
 	assert.Equal(t, time.Second, ret.Duration)
 	assert.Equal(t, 0, ret.Errors)
 	assert.Equal(t, 1, ret.Transactions)
 	assert.Equal(t, 1, ret.Spans)
 	assert.Equal(t, 1, ret.Frames)
-	assert.Equal(t, int64(1309), ret.GzipBodySize)
 	assert.Equal(t, "localhost:922222", ret.ElasticUrl)
 	assert.Equal(t, "localhost:822222", ret.ApmUrl)
 	assert.Equal(t, 0, ret.Agents)
@@ -158,12 +150,23 @@ func TestDefine(t *testing.T) {
 func TestDump(t *testing.T) {
 	mfw := &tests.MockFileWriter{}
 	out := Dump(mfw, "json", "1", "1", "1", "1")
-	assert.Equal(t, "4.8kb written to disk\n", tests.WithoutColors(out))
-	expected := `{"metadata": {"user": {"id": "123", "email": "s@test.com", "username": "john"}, "process": {"ppid": 6789, "pid": 1234,"argv": ["node", "server.js"], "title": "node"}, "system": {"platform": "darwin", "hostname": "prod1.example.com", "architecture": "x64"}, "service":{"name": "backendspans", "language": {"version": "8", "name": "ecmascript"}, "agent": {"version": "3.14.0", "name": "elastic-node"}, "environment": "staging", "framework": {"version": "1.2.3", "name": "Express"}, "version": "5.1.3", "runtime": {"version": "8.0.0", "name": "node"}}}}
-{"transaction": {"id": "4340a8e0df1906ecbfa9", "trace_id": "0acd456789abcdef0123456789abcdef", "name": "GET /api/types","type": "request","duration": 32.592981,"result": "success",  "sampled": true, "span_count": {"started": 17},"context":{"request": {"socket": {"remote_address": "12.53.12.1","encrypted": true},"http_version": "1.1","method": "POST","url": {"protocol": "https:","full": "https://www.example.com/p/a/t/h?query=string#hash","hostname": "www.example.com","port": "8080","pathname": "/p/a/t/h","search": "?query=string","hash": "#hash","raw": "/p/a/t/h?query=string#hash"},"headers": {"user-agent": "Mozilla Chrome Edge","content-type": "text/html","cookie": "c1=v1; c2=v2","some-other-header": "foo","array": ["foo","bar","baz"]},"cookies": {"c1": "v1","c2": "v2"},"env": {"SERVER_SOFTWARE": "nginx","GATEWAY_INTERFACE": "CGI/1.1"},"body": {"str": "hello world","additional": { "foo": {},"bar": 123,"req": "additional information"}}},"response":{"status_code": 200,"headers": {"content-type": "application/json"},"headers_sent": true,"finished": true}, "user": {"id": "99","username": "foo","email": "foo@example.com"},"tags": {"organization_uuid": "9f0e9d64-c185-4d21-a6f4-4673ed561ec8"},"custom": {"my_key": 1,"some_other_value": "foo bar","and_objects": {"foo": ["bar","baz"]}}}}}
-{"span": {"trace_id": "abcdef0123456789abcdef9876543210", "parent_id": "abcdef0123456789", "id": "1234567890aaaade", "transaction_id": "aff4567890aaaade", "name": "SELECT FROM product_types", "type": "db.postgresql.query", "start": 2.83092, "duration": 3.781912, "stacktrace":[{"function": "onread", "abs_path": "net.js", "filename": "net.js", "lineno": 547, "library_frame": true, "vars": {"key": "value"}, "module": "some module", "colno": 4, "context_line": "line3", "pre_context": [ "  var trans = this.currentTransaction", "" ], "post_context": [ "    ins.currentTransaction = prev", "    return result"]}], "context":{"db":{"instance": "customers", "statement": "SELECT * FROM product_types WHERE user_id=?", "type": "sql", "user": "readonly_user" }, "http": {"url": "http://localhost:8000"}}}}
-{"error": {"id": "0123456789012345", "culprit": "my.module.function_name","log":{"message": "My service could not talk to the database named foobar", "param_message": "My service could not talk to the database named %s", "logger_name": "my.logger.name", "stacktrace":[{"function": "onread", "abs_path": "net.js", "filename": "net.js", "lineno": 547, "library_frame": true, "vars": {"key": "value"}, "module": "some module", "colno": 4, "context_line": "line3", "pre_context": [ "  var trans = this.currentTransaction", "" ], "post_context": [ "    ins.currentTransaction = prev", "    return result"]}], "level": "warning"},"exception":{"message": "The username root is unknown","type": "DbError","module": "__builtins__","code": 42,"attributes": {"foo": "bar" },"stacktrace":[{"function": "onread", "abs_path": "net.js", "filename": "net.js", "lineno": 547, "library_frame": true, "vars": {"key": "value"}, "module": "some module", "colno": 4, "context_line": "line3", "pre_context": [ "  var trans = this.currentTransaction", "" ], "post_context": [ "    ins.currentTransaction = prev", "    return result"]}], "handled": false},"context":{"request":{"socket": {"remote_address": "12.53.12.1","encrypted": true},"http_version": "1.1","method": "POST","url":{"protocol": "https:","full": "https://www.example.com/p/a/t/h?query=string#hash","hostname": "www.example.com","port": "8080","pathname": "/p/a/t/h","search": "?query=string", "hash": "#hash","raw": "/p/a/t/h?query=string#hash"},"headers": {"user-agent": "Mozilla Chrome Edge","content-type": "text/html","cookie": "c1=v1; c2=v2","some-other-header": "foo","array": ["foo","bar","baz"]}, "cookies": {"c1": "v1", "c2": "v2" },"env": {"SERVER_SOFTWARE": "nginx", "GATEWAY_INTERFACE": "CGI/1.1"},"body": "Hello World"},"response":{"status_code": 200, "headers": {"content-type": "application/json"},"headers_sent": true, "finished": true}, "user": {"id": 99, "username": "foo", "email": "foo@example.com"},"tags": {"organization_uuid": "9f0e9d64-c185-4d21-a6f4-4673ed561ec8"},"custom": {"my_key": 1,"some_other_value": "foo bar","and_objects": {"foo": ["bar","baz"]}}}}}`
-	assert.Equal(t, expected, mfw.Data)
+	assert.Contains(t, out, "written to disk", tests.WithoutColors(out))
+	for _, jsonKey := range []string{"\"metadata\"", "\"user\"", "\"process\"", "\"system\"",
+	"\"service\"", "\"transaction\"", "\"error\"", "\"span\"", "\"abs_path\""} {
+		assert.Contains(t, mfw.Data, jsonKey)
+	}
+
+	out = Dump(mfw, "json", "0", "1", "1", "1")
+	assert.NotContains(t, mfw.Data, "\"error\"")
+
+	out = Dump(mfw, "json", "1", "0", "1", "1")
+	assert.NotContains(t, mfw.Data, "\"transaction\"")
+
+	out = Dump(mfw, "json", "1", "1", "0", "1")
+	assert.NotContains(t, mfw.Data, "\"span\"")
+
+	out = Dump(mfw, "json", "1", "1", "1", "0")
+	assert.NotContains(t, mfw.Data, "\"abs_path\"")
 
 	out = Dump(mfw, "json", "a")
 	assert.Contains(t, out, "invalid syntax")
