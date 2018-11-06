@@ -164,7 +164,7 @@ func (b *builder) addFlag(s string) *builder {
 }
 
 func (b *builder) get() TestReport {
-	r := NewReport(b.TestResult, b.User, b.Revision, b.RevDate, false, false, b.MaxRss, b.Limit, b.apmFlags(), io.NewBufferWriter())
+	r := NewReport(b.TestResult, b.User, b.Revision, b.RevDate, false, b.MaxRss, b.Limit, b.apmFlags(), io.NewBufferWriter())
 	r.ReportId = b.ReportId
 	r.ReportDate = b.ReportDate
 	return r
@@ -176,10 +176,8 @@ func TestValidateResult(t *testing.T) {
 		msg string
 	}{
 		{newBuilder().setDur(time.Second * 10).get(), "duration too short"},
-		{newBuilder().setMaxRss(0).get(), "memory usage not available"},
 		{newBuilder().setBranch("").get(), "unknown branch"},
 		{newBuilder().setRev("").get(), "unknown revision"},
-		{newBuilder().setRevDate("").get(), "unknown revision date"},
 	} {
 		assert.Contains(t, test.tr.Error.Error(), test.msg)
 	}

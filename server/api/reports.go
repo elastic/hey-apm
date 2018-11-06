@@ -44,9 +44,10 @@ type TestReport struct {
 	ApmFlags string `json:"apm_flags"`
 	// git revision hash
 	Revision string `json:"revision"`
-	// git revision date as io.GITRFC
+	// git revision date as io.GITRFC, might be "unknown"
 	RevDate string `json:"rev_date"`
 	// either maximum resident set size from a locally running process or from the containerized process
+	// 0 if unknown
 	MaxRss int64 `json:"max_rss"`
 	// memory limit in bytes passed to docker, -1 if not applicable
 	Limit int64 `json:"limit"`
@@ -129,11 +130,12 @@ type TestResult struct {
 	// ActualExpectRatio float64 `json:"actual_expected_ratio"`
 	// how much memory takes to process some amount of data during 1 minute
 	// eg: if memory used is X and throughput is Y docs/minute, this returns X/Y
+	// 0 if unknown (memory usage not available)
 	Efficiency float64 `json:"efficiency"`
 }
 
 // creates and validates a report out of a test result
-func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote bool, mem, memLimit int64, flags []string, w stdio.Writer) TestReport {
+func NewReport(result TestResult, usr, rev, revDate string, unstaged bool, mem, memLimit int64, flags []string, w stdio.Writer) TestReport {
 	r := TestReport{
 		Lang:       "python",
 		APIVersion: "v2",
@@ -158,10 +160,6 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 			errMsg: "test cancelled",
 		},
 		{
-			isOk:   func() bool { return !isRemote },
-			errMsg: "apm-server is not managed by hey-apm (an URL was provided in `apm use`)",
-		},
-		{
 			isOk:   func() bool { return !unstaged },
 			errMsg: "git reported unstaged changes",
 		},
@@ -175,10 +173,6 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 		{
 			isOk:   func() bool { return r.Revision != "" },
 			errMsg: "unknown revision",
-		},
-		{
-			isOk:   func() bool { return !r.revisionDate().IsZero() },
-			errMsg: "unknown revision date",
 		},
 		{
 			isOk:   func() bool { return r.Duration.Seconds() >= 30 },
@@ -205,18 +199,6 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 		//	io.ReplyNL(w, fmt.Sprintf("%.2f%% of expected", 100*r.ActualExpectRatio))
 		//},
 		//},
-		{
-			isOk:   func() bool { return r.MaxRss > 0 },
-			errMsg: "memory usage not available",
-			doEffect: func() {
-				r.Efficiency = float64(r.Throughput) / float64(r.MaxRss/1000/1000)
-
-				io.ReplyNL(w, io.Green+byteCountDecimal(r.MaxRss)+" (max RSS)")
-				io.ReplyNL(w, fmt.Sprintf("%s%.3f memory efficiency (docs indexed / second / memory mb used)",
-					io.Green, r.Efficiency))
-
-			},
-		},
 	} {
 		if ok := check.isOk(); ok && check.doEffect != nil {
 			check.doEffect()
@@ -224,6 +206,14 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 			r.Error = errors.New(check.errMsg)
 		}
 	}
+	color := io.Yellow
+	if r.MaxRss > 0 {
+		color = io.Green
+		r.Efficiency = float64(r.Throughput) / float64(r.MaxRss/1000/1000)
+	}
+	io.ReplyNL(w, color+r.maxRss()+" max RSS")
+	io.ReplyNL(w, fmt.Sprintf("%s%s memory efficiency (docs indexed / second / memory mb used)",
+		color, r.efficiency()))
 
 	r.ReporterHost, _ = os.Hostname()
 	selfDir := path.Join(os.Getenv("GOPATH"), "/src/github.com/elastic/hey-apm")
@@ -265,8 +255,23 @@ func (r TestReport) date() time.Time {
 }
 
 func (r TestReport) revisionDate() time.Time {
+	// parsing error might occur, in which case zero time is returned
 	t, _ := time.Parse(io.GITRFC, r.RevDate)
 	return t
+}
+
+func (r TestReport) maxRss() string {
+	if r.MaxRss == 0 {
+		return "unknown"
+	}
+	return byteCountDecimal(r.MaxRss)
+}
+
+func (r TestReport) efficiency() string {
+	if r.Efficiency == 0 {
+		return "unknown"
+	}
+	return fmt.Sprintf("%.3f", r.Efficiency)
 }
 
 // functions of this type map a subset of attribute names to their (stringified) values
@@ -397,11 +402,11 @@ func verify(since string, filtersExpr []string, all []TestReport) (bool, string,
 	} else {
 		last := reports[0]
 		challenger := reports[best]
-		return true, fmt.Sprintf("revision %s (%s) outperforms %s (%s): %.3f < %.3f\n"+
+		return true, fmt.Sprintf("revision %s (%s) outperforms %s (%s): %s < %s\n"+
 			"report ids: %s, %s (elasticsearch host = %s)",
 			challenger.Revision, challenger.RevDate,
 			last.Revision, last.RevDate,
-			challenger.Efficiency, last.Efficiency,
+			challenger.efficiency(), last.efficiency(),
 			challenger.ReportId, last.ReportId,
 			challenger.esHost()), err
 	}
@@ -712,8 +717,8 @@ func digest(r TestReport, variable string, align, isBest bool) ([]string, []stri
 		color + byteCountDecimal(int64(r.PushedBps)) + "ps",
 		color + fmt.Sprintf("%.1fdps", r.Throughput),
 		// fmt.Sprintf("%s%.1f%%", indexColor, r.ActualExpectRatio*100),
-		io.Grey + byteCountDecimal(r.MaxRss),
-		fmt.Sprintf("%s%.3f", color, r.Efficiency),
+		io.Grey + r.maxRss(),
+		fmt.Sprintf("%s%s", color, r.efficiency()),
 	}
 
 	if val, ok := combine(independentVars, apmFlags)(r)[variable]; ok {
@@ -805,7 +810,7 @@ func best(reports []TestReport) int {
 	sorted := make([]TestReport, len(reports))
 	copy(sorted, reports)
 	sorted = sortBy("efficiency", sorted)
-	if e := sorted[0].Efficiency; e > sorted[1].Efficiency*MARGIN {
+	if e := sorted[0].Efficiency; e > sorted[1].Efficiency*MARGIN && sorted[1].Efficiency > 0 {
 		for idx, report := range reports {
 			if report.Efficiency == e {
 				return idx

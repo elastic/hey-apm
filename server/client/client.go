@@ -143,14 +143,20 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			if env.apm.useErr != nil {
 				// `apm switch` depends on `apm use` having succeeded
 				err = env.apm.useErr
-			} else if env.apm.isRemote {
-				out = io.Grey + "apm-server is not managed by hey-apm, nothing to do"
 			} else {
 				args, opts := io.ParseCmdOptions(args2)
 				branch := strcoll.Nth(0, args)
 				rev := strcoll.Nth(1, args)
-				// apmSwitch writes to the connection right away, out and err must have zero value to not duplicate the message
-				out, env.apm = apmSwitch(conn, env.apm.Dir(), branch, rev, opts)
+				if env.apm.isRemote {
+					env.apm.branch = branch
+					env.apm.revision = rev
+					env.apm.revDate = "unknown"
+					env.apm.unstaged = false
+					out = io.Grey + "ok"
+				} else {
+					// apmSwitch writes to the connection right away, out and err must have zero value to not duplicate the message
+					out, env.apm = apmSwitch(conn, env.apm.Dir(), branch, rev, opts)
+				}
 			}
 
 		case fn == "test":
@@ -159,7 +165,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 				err = env.apm.useErr
 				break
 			}
-			if !env.apm.isRemote && (env.apm.branch == "" || env.apm.revision == "") {
+			if env.apm.branch == "" || env.apm.revision == "" {
 				err = errors.New("unknown branch/revision")
 				break
 			}
@@ -206,7 +212,6 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 				env.apm.revision,
 				env.apm.revDate,
 				env.apm.unstaged,
-				env.apm.isRemote,
 				mem,
 				docker.ToBytes(limit),
 				removeSensitiveFlags(flags),
@@ -472,9 +477,11 @@ func apmUse(usr, loc string) (string, *apm) {
 
 	msg := loc
 	if isRemote {
-		msg = msg + "\n\nNote: hey-apm won't try to start/stop apm-server and won't save test reports. \n" +
-			"Some commands won't take effect (eg: `apm switch`, `apm tail`). \n" +
-			"Be sure to `elasticsearch use` the same instance than apm-server is hooked to. \n"
+		msg = msg + "\n\nNote: hey-apm won't try to start/stop apm-server. \n" +
+			"Some commands won't take effect (eg: `apm tail`). Be sure to:\n" +
+			" - `elasticsearch use` the same instance than apm-server is hooked to \n" +
+			" - `apm switch` to the same branch *and* revision of the running apm-server \n" +
+			" - pass the same apm flags to the `test` command as the running apm-server \n"
 	}
 	io.ReplyEither(w, err, io.Grey+"using "+msg)
 
