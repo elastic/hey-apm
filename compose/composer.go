@@ -2,8 +2,6 @@ package compose
 
 import (
 	"bytes"
-	"encoding/hex"
-	"encoding/json"
 	"math/rand"
 	"time"
 )
@@ -12,17 +10,16 @@ func Compose(numErrors, numTransactions, numSpans, numFrames int) []byte {
 	rand.Seed(time.Now().UnixNano())
 	var buf bytes.Buffer
 
-	buf.Write(Metadata)
+	buf.Write(metadata)
 	buf.WriteByte('\n')
 
-	lenSpans := len(Spans)
+	lenSpans := len(spans)
 
 	for i := 0; i < numTransactions; i++ {
-		ev := randomized(SingleTransaction, 8)
-		write(&buf, ndjsonWrapObj("transaction", ev))
+		write(&buf, ndjsonWrapObj("transaction", singleTransaction))
 
 		for i := 0; i < numSpans; i++ {
-			ev := randomized(Spans[rand.Intn(lenSpans)], 8)
+			ev := spans[rand.Intn(lenSpans)]
 			span := make([]byte, len(ev))
 			copy(span, ev)
 			span = bytes.Replace(span, []byte(`"stacktrace":[],`), stacktrace(numFrames), -1)
@@ -31,37 +28,13 @@ func Compose(numErrors, numTransactions, numSpans, numFrames int) []byte {
 	}
 
 	for i := 0; i < numErrors; i++ {
-		ev := randomized(SingleError, 16)
-		errEvent := make([]byte, len(ev))
-		copy(errEvent, ev)
+		errEvent := make([]byte, len(singleError))
+		copy(errEvent, singleError)
 		errEvent = bytes.Replace(errEvent, []byte(`"stacktrace":[],`), stacktrace(numFrames), -1)
 		write(&buf, ndjsonWrapObj("error", errEvent))
 	}
 
 	return bytes.TrimSpace(buf.Bytes())
-}
-
-func randomized(event []byte, idN int) []byte {
-	var ev map[string]interface{}
-	err := json.Unmarshal(event, &ev)
-	if err != nil {
-		panic(err)
-	}
-	ev["id"] = randHexString(idN)
-	ev["transaction_id"] = randHexString(8)
-	ev["parent_id"] = randHexString(8)
-	ev["trace_id"] = randHexString(16)
-	b, err := json.Marshal(ev)
-	if err != nil {
-		panic(err)
-	}
-	return b
-}
-
-func randHexString(n int) string {
-	buf := make([]byte, n)
-	rand.Read(buf)
-	return hex.EncodeToString(buf)
 }
 
 func write(buf *bytes.Buffer, value []byte) {
@@ -87,7 +60,7 @@ func ndjsonWrapObj(key string, buf []byte) []byte {
 }
 
 func stacktrace(n int) []byte {
-	l := len(StacktraceFrames)
+	l := len(stacktraceFrames)
 	var buf bytes.Buffer
 	buf.Write([]byte(`"stacktrace": [`))
 	for i := 0; i < n; i++ {
@@ -95,7 +68,7 @@ func stacktrace(n int) []byte {
 			buf.WriteByte(',')
 
 		}
-		randFrame := StacktraceFrames[rand.Intn(l)]
+		randFrame := stacktraceFrames[rand.Intn(l)]
 		fr := make([]byte, len(randFrame))
 		copy(fr, randFrame)
 		buf.Write(fr)

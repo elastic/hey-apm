@@ -1,8 +1,6 @@
 package target
 
 import (
-	"bytes"
-	"compress/gzip"
 	"io"
 	"math"
 	"net/http"
@@ -26,7 +24,7 @@ type Config struct {
 	Endpoint       string
 	Stream         bool
 	*BodyConfig
-	DisableCompression, DisableKeepAlives, DisableRedirects bool
+	DisableKeepAlives, DisableRedirects bool
 	http.Header
 }
 
@@ -176,18 +174,6 @@ func (t *Target) GetWork(w io.Writer) *requester.Work {
 
 	if len(t.Body) > 0 {
 		t.Config.Header.Add("Content-Type", "application/x-ndjson")
-	}
-
-	if !t.Config.DisableCompression {
-		var b bytes.Buffer
-		gz := gzip.NewWriter(&b)
-		if _, err := gz.Write([]byte(t.Body)); err != nil {
-			panic(err)
-		}
-		if err := gz.Close(); err != nil {
-			panic(err)
-		}
-		t.Body = b.Bytes()
 		t.Config.Header.Add("Content-Encoding", "gzip")
 	}
 
@@ -216,7 +202,6 @@ func (t *Target) GetWork(w io.Writer) *requester.Work {
 		Req:                workReq,
 		N:                  t.Config.MaxRequests,
 		C:                  t.Config.NumAgents,
-		DisableCompression: t.Config.DisableCompression,
 		DisableKeepAlives:  t.Config.DisableKeepAlives,
 		DisableRedirects:   t.Config.DisableRedirects,
 		H2:                 false,

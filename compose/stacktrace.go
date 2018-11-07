@@ -1,6 +1,6 @@
 package compose
 
-var StacktraceFrames = [][]byte{
+var stacktraceFrames = [][]byte{
 	[]byte(`{"function":"onread","abs_path":"net.js","filename":"net.js","lineno":547,"library_frame":true,"vars":{"key":"value"},"module":"somemodule","colno":4,"context_line":"line3","pre_context":["vartrans=this.currentTransaction",""],"post_context":["ins.currentTransaction=prev","returnresult"]}`),
 	[]byte(`{"abs_path":"/real/file/name.py","filename":"file/name.py","function":"foo","vars":{"key":"value"},"pre_context":["line1","line2"],"context_line":"line3","library_frame":true,"lineno":3,"module":"App::MyModule","colno":4,"post_context":["line4","line5"]}`),
 	[]byte(`{"filename":"lib/instrumentation/index.js","lineno":102,"function":"instrumented","abs_path":"/Users/watson/code/node_modules/elastic/lib/instrumentation/index.js","vars":{"key":"value"},"pre_context":["vartrans=this.currentTransaction","","returninstrumented","","functioninstrumented(){","varprev=ins.currentTransaction","ins.currentTransaction=trans"],"context_line":"varresult=original.apply(this,arguments)","post_context":["ins.currentTransaction=prev","returnresult","}","}","","Instrumentation.prototype._recoverTransaction=function(trans){","if(this.currentTransaction===trans)return"]}`),

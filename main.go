@@ -42,7 +42,6 @@ var (
 	headers            = newStringsOpt("header", []string{}, "header(s) added to all requests")
 	requestTimeout     = flag.Duration("request-timeout", 10*time.Second, "request timeout in seconds")
 	idleTimeout        = flag.Duration("idle-timeout", 3*time.Minute, "idle timeout")
-	disableCompression = flag.Bool("disable-compression", false, "")
 	disableKeepAlives  = flag.Bool("disable-keepalive", false, "")
 	disableRedirects   = flag.Bool("disable-redirects", false, "")
 
@@ -175,7 +174,6 @@ func main() {
 			NumSpans:        *numSpans,
 			NumFrames:       *numFrames,
 		},
-		DisableCompression: *disableCompression,
 		DisableKeepAlives:  *disableKeepAlives,
 		DisableRedirects:   *disableRedirects,
 	}

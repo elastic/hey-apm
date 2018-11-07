@@ -30,6 +30,12 @@ import (
 	"time"
 
 	"golang.org/x/net/http2"
+	"compress/gzip"
+	"encoding/hex"
+	"math/rand"
+	"encoding/json"
+	"container/ring"
+	"bufio"
 )
 
 // Max size of the buffer of result channel.
@@ -69,7 +75,12 @@ type StreamReq struct {
 	EPS float64
 }
 
-func (r *StreamReq) makeRequest(ctx context.Context, throttle <-chan time.Time, flushC chan int64) *http.Request {
+// use same values as agents
+const gzipBufferSize = 16000
+const maxRequestWrite = 768000
+const flushTimeout = time.Duration(3 * time.Second)
+
+func (r *StreamReq) makeRequest(ctx context.Context, throttle <-chan time.Time, flushC chan int64, i int) *http.Request {
 	pReader, pWriter := io.Pipe()
 	req, err := http.NewRequest(r.Method, r.Url, pReader)
 	if err != nil {
@@ -86,26 +97,113 @@ func (r *StreamReq) makeRequest(ctx context.Context, throttle <-chan time.Time, 
 		req.Header[k] = append([]string(nil), s...)
 	}
 
-	ctx, _ = context.WithTimeout(ctx, r.Timeout)
+	ctxT, _ := context.WithTimeout(ctx, r.Timeout)
+	ctx, cancel := context.WithCancel(ctx)
 	req.WithContext(ctx)
 
+	wrote := 0
+	flushTimeout := time.Tick(flushTimeout)
 	go func(w io.WriteCloser) {
 		defer w.Close()
-		var pW = w
 		var flushes int64
+		var buf bytes.Buffer
+		gz := gzip.NewWriter(&buf)
+		// used to cycle indefinitely through events in the request body
+		ring := makeRing(r.RequestBody)
+
+		// returns true if the request was cancelled and the caller should return
+		var doFlush = func(w io.WriteCloser) bool {
+			var pW = w
+			// avoid last line break??
+			// repeat := ring.Value.(map[string]interface{})
+			// line, _ := json.Marshal(repeat)
+			// gz.Write(line)
+			// need this?
+			gz.Flush()
+			bs := buf.Bytes()
+			if n, err := pW.Write(bs); err != nil {
+				fmt.Println("[debug] error writing to pipe")
+				flushC <- flushes
+				cancel()
+				return true
+			} else {
+				wrote += n
+				flushes += 1
+				if wrote > maxRequestWrite {
+					cancel()
+					return true
+				}
+			}
+			return false
+		}
+
+		var lastId, lastTransactionId string
+		var sentMeta bool
 		for {
 			select {
-			case <-ctx.Done():
+			case <-ctxT.Done():
+				doFlush(w)
+				cancel()
 				flushC <- flushes
 				return
-			default:
-				if _, err := pW.Write(r.RequestBody); err != nil {
-					fmt.Println("[debug] error writing to pipe")
-					flushC <- flushes
+			case <-flushTimeout:
+				if doFlush(w) {
 					return
-				} else {
-					flushes += 1
 				}
+			default:
+				wrapped := ring.Value.(map[string]interface{})
+				ring = ring.Next()
+				var reWrapped map[string]interface{}
+				// randomize events so that there are no duplicated ids it creates a cascade of transactions and spans linked together
+				if event, ok := wrapped["transaction"]; ok {
+					transaction := event.(map[string]interface{})
+					id := randHexString(8)
+					transaction["id"] = id
+					lastId = id
+					lastTransactionId = id
+					transaction["trace_id"] = randHexString(16)
+					transaction["name"] = fmt.Sprintf("%s-%d", transaction["name"].(string), i)
+					reWrapped = map[string]interface{}{"transaction": transaction}
+				} else if event, ok := wrapped["span"]; ok {
+					span := event.(map[string]interface{})
+					span["parent_id"] = lastId
+					span["transaction_id"] = lastTransactionId
+					id := randHexString(8)
+					span["id"] = id
+					lastId = id
+					span["trace_id"] = randHexString(16)
+					span["name"] = fmt.Sprintf("%s-%d", span["name"], i)
+					reWrapped = map[string]interface{}{"span": span}
+				} else if event, ok := wrapped["error"]; ok {
+					errEvent := event.(map[string]interface{})
+					errEvent["id"] = randHexString(16)
+					errEvent["trace_id"] = randHexString(16)
+					errEvent["transaction_id"] = randHexString(8)
+					reWrapped = map[string]interface{}{"error": errEvent}
+				} else if _, ok := wrapped["metadata"]; ok {
+					if sentMeta {
+						// only
+						continue
+					} else {
+						sentMeta = true
+						reWrapped = wrapped
+					}
+				}
+
+				line, _ := json.Marshal(reWrapped)
+				// is this right?
+				line = append(line, '\n')
+				_, err := gz.Write(line)
+				if err != nil {
+					panic(err)
+				}
+
+				if buf.Len() > gzipBufferSize {
+					if doFlush(w) {
+						return
+					}
+				}
+
 				if r.qps() > 0 {
 					<-throttle
 				} else {
@@ -117,6 +215,32 @@ func (r *StreamReq) makeRequest(ctx context.Context, throttle <-chan time.Time, 
 	}(pWriter)
 
 	return req
+}
+
+func randHexString(n int) string {
+	// seed needs to be initialized elsewhere
+	buf := make([]byte, n)
+	rand.Read(buf)
+	return hex.EncodeToString(buf)
+}
+
+func makeRing(b []byte) *ring.Ring {
+	data := make([]map[string]interface{}, 0)
+	scanner := bufio.NewScanner(bytes.NewReader(b))
+	for scanner.Scan() {
+		var line map[string]interface{}
+		bytes := scanner.Bytes()
+		if err := json.Unmarshal(bytes, &line); err != nil {
+			panic(err)
+		}
+		data = append(data, line)
+	}
+	r := ring.New(len(data))
+	for _, line := range data {
+		r.Value = line
+		r = r.Next()
+	}
+	return r
 }
 
 func (r *StreamReq) clientTimeout() time.Duration {
@@ -138,7 +262,7 @@ type SimpleReq struct {
 	QPS float64
 }
 
-func (r *SimpleReq) makeRequest(ctx context.Context, throttle <-chan time.Time, flushC chan int64) *http.Request {
+func (r *SimpleReq) makeRequest(ctx context.Context, throttle <-chan time.Time, flushC chan int64, _ int) *http.Request {
 	if r.QPS > 0 {
 		<-throttle
 	}
@@ -155,7 +279,7 @@ func (r *SimpleReq) qps() float64 {
 }
 
 type Req interface {
-	makeRequest(context.Context, <-chan time.Time, chan int64) *http.Request
+	makeRequest(context.Context, <-chan time.Time, chan int64, int) *http.Request
 	clientTimeout() time.Duration
 	qps() float64
 }
@@ -209,6 +333,7 @@ func (b *Work) writer() io.Writer {
 // Run makes all the requests, prints the summary. It blocks until
 // all work is done.
 func (b *Work) Run() {
+	rand.Seed(time.Now().UnixNano())
 	b.results = make(chan *result, min(b.C*1000, maxResult))
 	b.stopCh = make(chan struct{}, b.C)
 	b.start = time.Now()
@@ -237,14 +362,14 @@ func (b *Work) Finish() {
 	b.report.finalize(total)
 }
 
-func (b *Work) sendReq(ctx context.Context, client *http.Client, throttle <-chan time.Time) {
+func (b *Work) sendReq(ctx context.Context, client *http.Client, throttle <-chan time.Time, i int) {
 	var size int64
 	var code int
 	var dnsStart, connStart, resStart, reqStart, delayStart time.Time
 	var dnsDuration, connDuration, reqDuration, delayDuration, resDuration time.Duration
 
 	flushC := make(chan int64, 1)
-	req := b.Req.makeRequest(ctx, throttle, flushC)
+	req := b.Req.makeRequest(ctx, throttle, flushC, i)
 
 	trace := &httptrace.ClientTrace{
 		DNSStart: func(info httptrace.DNSStartInfo) {
@@ -317,7 +442,7 @@ func (b *Work) runWorker(client *http.Client, n int) {
 			cancel()
 			return
 		default:
-			b.sendReq(ctx, client, throttle)
+			b.sendReq(ctx, client, throttle, i)
 		}
 	}
 }
