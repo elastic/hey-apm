@@ -90,7 +90,7 @@ func desc(t *target.Target) {
 		zw.Write(t.Body)
 		zw.Close()
 	}
-	fmt.Printf("%s %s - %d (%d gz) bytes", t.Method, t.Url, len(t.Body), len(gzBody.Bytes()))
+	fmt.Printf("%s %s - %d (%d gz) bytes", t.Method, t.Config.Endpoint, len(t.Body), len(gzBody.Bytes()))
 
 	var j map[string]interface{}
 	if err := json.Unmarshal(t.Body, &j); err != nil {
@@ -125,7 +125,7 @@ func dumpLoadbeat(t *target.Target) {
 	fmt.Fprintf(f, "    - number of agents: %d\n", *numAgents)
 	fmt.Fprintf(f, "      qps: %.5f\n", *qps)
 	fmt.Fprintf(f, "      method: %s\n", t.Method)
-	fmt.Fprintf(f, "      url: %s\n", t.Url)
+	fmt.Fprintf(f, "      url: %s\n", t.Config.Endpoint)
 	if len(t.Body) > 0 {
 		fmt.Fprintln(f, "      headers:")
 		fmt.Fprintln(f, "        - Content-Type:application/json")
@@ -195,15 +195,15 @@ func main() {
 	start := time.Now()
 	done := make(chan struct{})
 	go func(w *requester.Work) {
-		logger.Println("[info] starting worker for", t.Url)
+		logger.Println("[info] starting worker for", t.Config.Endpoint)
 		w.Run()
-		logger.Println("[info] worker done for", t.Url)
+		logger.Println("[info] worker done for", t.Config.Endpoint)
 		close(done)
 	}(work)
 
 	stopWorking := func() {
 		go func(w *requester.Work) {
-			logger.Println("[info] stopping worker for", t.Url)
+			logger.Println("[info] stopping worker for", t.Config.Endpoint)
 			w.Stop()
 		}(work)
 	}

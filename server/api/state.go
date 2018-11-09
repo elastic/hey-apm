@@ -1,7 +1,7 @@
 package api
 
 type ApmServer interface {
-	Url() string
+	Urls() []string
 	Dir() string
 	Branch() string
 	PrettyRevision() string

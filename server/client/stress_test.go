@@ -32,14 +32,14 @@ func setupEnv(flags []string) (*evalEnvironment, []string, error) {
 		_, environment.apm = apmSwitch(console, apmDir, "master", "", []string{"c", "m", "u", "v"})
 	})
 
-	flags = apmFlags(*environment.es, environment.apm.Url(), append(flags, "-E", "apm-server.shutdown_timeout=1s"))
+	flags = apmFlags(*environment.es, environment.apm.Urls()[0], append(flags, "-E", "apm-server.shutdown_timeout=1s"))
 	err := apmStop(environment.apm)
 	if err == nil {
 		time.Sleep(time.Second * 5)
 		err, environment.apm = apmStart(console, *environment.apm, func() {}, flags, "-1")
 	}
 	if err == nil {
-		err = waitForServer(environment.apm.Url())
+		err = waitForServer(environment.apm.Urls()[0])
 	}
 	return environment, flags, err
 }
@@ -126,7 +126,7 @@ func doBenchmark(memLimit int64, flags []string, workload ...string) ([]api.Test
 		return nil, err
 	}
 	block := func() { select {} }
-	target, err := target.NewTargetFromOptions("",
+	target, err := target.NewTargetFromOptions([]string{},
 		target.NumErrors(workload[0]),
 		target.NumTransactions(workload[1]),
 		target.NumSpans(workload[2]),
@@ -144,7 +144,6 @@ func doBenchmark(memLimit int64, flags []string, workload ...string) ([]api.Test
 		env.apm.revision,
 		env.apm.revDate,
 		env.apm.unstaged,
-		env.apm.isRemote,
 		maxRssUsed(env.apm.cmd),
 		memLimit,
 		removeSensitiveFlags(flags),

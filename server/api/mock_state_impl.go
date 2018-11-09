@@ -6,8 +6,8 @@ type MockApm struct {
 	L                []string
 }
 
-func (a MockApm) Url() string {
-	return a.url
+func (a MockApm) Urls() []string {
+	return []string{a.url}
 }
 
 func (a MockApm) Dir() string {

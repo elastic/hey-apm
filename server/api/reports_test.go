@@ -40,8 +40,8 @@ var report = TestReport{
 		GzipBodySize:   1,
 		BodySize:       1,
 		ElasticUrl:     "http://localhost:9200",
-		ApmUrl:         "http://localhost:8200",
-		ApmHost:        "localhost",
+		ApmUrls:        "http://localhost:8200",
+		ApmHosts:       "localhost",
 		Branch:         "master",
 		TotalResponses: 1,
 		// AcceptedResponses: 1,
@@ -139,7 +139,7 @@ func (b *builder) setSize(x int64) *builder {
 //}
 
 func (b *builder) setApm(s string) *builder {
-	b.ApmUrl = s
+	b.ApmUrls = s
 	return b
 }
 
