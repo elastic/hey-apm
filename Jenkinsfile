@@ -55,6 +55,19 @@ pipeline {
     booleanParam(name: 'hey_apm_ci', defaultValue: true, description: 'Enable run integration test')
   }
   stages {
+    stage('get Master info'){
+      agent { label 'master' }
+      steps {
+        sh """
+        id
+        free
+        ps aux|grep java
+        ls -la /service/jenkins/log/main/
+        cd /service/jenkins/log/main/
+        cat $(ls -t | tail -n 5)
+        """
+      }
+    }
     /**
      Checkout the code and stash it, to use it on other stages.
     */
@@ -115,6 +128,10 @@ pipeline {
         beforeAgent true
         environment name: 'hey_apm_ci', value: 'true' 
       }
+      environment {
+        PATH = "${env.PATH}:${env.HUDSON_HOME}/go/bin/:${env.WORKSPACE}/bin"
+        GOPATH = "${env.WORKSPACE}"
+      }
       steps {
         withEnvWrapper() {
           unstash 'source'
@@ -139,6 +156,8 @@ pipeline {
             environment name: 'hey_apm_ci', value: 'true' 
           }
           environment {
+            PATH = "${env.PATH}:${env.HUDSON_HOME}/go/bin/:${env.WORKSPACE}/bin"
+            GOPATH = "${env.WORKSPACE}"
             APM_SERVER_DIR = "${env.GOPATH}/${env.APM_SERVER_BASE_DIR}"
           }
           steps {
