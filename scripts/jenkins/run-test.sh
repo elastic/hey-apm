@@ -20,7 +20,7 @@ go get -v -u github.com/stretchr/testify/assert
 echo "Fetching apm-server and installing latest go-licenser and mage..."
 go get -v -u github.com/elastic/go-licenser
 go get -v -u github.com/magefile/mage
-(cd $GOPATH/src/github.com/magefile/mage && go run bootstrap.go)
+(cd "$GOPATH/src/github.com/magefile/mage" && go run bootstrap.go)
 echo "Running apm-server stress tests..."
 set +x
 ELASTICSEARCH_URL=$CLOUD_ADDR ELASTICSEARCH_USR=$CLOUD_USERNAME ELASTICSEARCH_PWD=$CLOUD_PASSWORD go test -timeout 2h  -v github.com/elastic/hey-apm/server/client
