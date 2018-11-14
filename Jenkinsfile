@@ -64,7 +64,7 @@ pipeline {
         ps aux|grep java
         ls -la /service/jenkins/log/main/
         cd /service/jenkins/log/main/
-        cat $(ls -t | tail -n 5)
+        cat \$(ls -t | tail -n 5)
         """
       }
     }
