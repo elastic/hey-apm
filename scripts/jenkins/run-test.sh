@@ -3,6 +3,12 @@ set -exuo pipefail
 
 export GOPATH=$WORKSPACE
 export PATH=$PATH:$GOPATH/bin
+
+if [ ! -d "$APM_SERVER_DIR" ] ; then
+  echo "you need to define APM_SERVER_DIR environment variable pointing to the APM server source code"
+  exit 1
+fi
+
 eval "$(gvm 1.10.3)"
 echo "Installing hey-apm dependencies and running unit tests..."
 go get -v -u github.com/golang/dep/cmd/dep
@@ -11,15 +17,7 @@ go get -v -u github.com/olivere/elastic
 go get -v -u github.com/pkg/errors
 go get -v -u github.com/struCoder/pidusage
 go get -v -u github.com/stretchr/testify/assert
-dep ensure -v
-SKIP_EXTERNAL=1 SKIP_STRESS=1 go test -v ./...
 echo "Fetching apm-server and installing latest go-licenser and mage..."
-APM_SERVER_DIR=$GOPATH/src/github.com/elastic/apm-server
-if [ ! -d "$APM_SERVER_DIR" ] ; then
-    git clone git@github.com:elastic/apm-server.git "$APM_SERVER_DIR"
-else
-    (cd "$APM_SERVER_DIR" && git pull git@github.com:elastic/apm-server.git)
-fi
 go get -v -u github.com/elastic/go-licenser
 go get -v -u github.com/magefile/mage
 (cd $GOPATH/src/github.com/magefile/mage && go run bootstrap.go)
