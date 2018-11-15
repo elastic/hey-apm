@@ -9,7 +9,7 @@ if [ ! -d "$APM_SERVER_DIR" ] ; then
   exit 1
 fi
 
-eval "$(gvm 1.10.3)"
+eval "$(gvm ${GO_VERSION})"
 echo "Installing hey-apm dependencies and running unit tests..."
 go get -v -u github.com/golang/dep/cmd/dep
 go get -v -u github.com/graphaelli/hey/requester
@@ -23,4 +23,18 @@ go get -v -u github.com/magefile/mage
 (cd "$GOPATH/src/github.com/magefile/mage" && go run bootstrap.go)
 echo "Running apm-server stress tests..."
 set +x
-ELASTICSEARCH_URL=$CLOUD_ADDR ELASTICSEARCH_USR=$CLOUD_USERNAME ELASTICSEARCH_PWD=$CLOUD_PASSWORD go test -timeout 2h  -v github.com/elastic/hey-apm/server/client
+
+export COV_DIR="build/coverage"
+export COV_FILE="${COV_DIR}/hey-apm-stress-test.cov"
+export OUT_FILE="build/stress-test.out"
+mkdir -p "${COV_DIR}"
+
+(ELASTICSEARCH_URL=$CLOUD_ADDR \
+  ELASTICSEARCH_USR=$CLOUD_USERNAME \
+  ELASTICSEARCH_PWD=$CLOUD_PASSWORD \
+  go test -timeout 2h  -v github.com/elastic/hey-apm/server/client \
+  -coverprofile="${COV_FILE}" 2>&1 | tee ${OUT_FILE}) || echo -e "\033[31;49mTests FAILED\033[0m"
+
+go-junit-report < ${OUT_FILE} > build/junit-hey-apm-report.xml
+go tool cover -html="${COV_FILE}" -o "${COV_DIR}/coverage-hey-apm-report.html"
+gocover-cobertura < "${COV_FILE}" > "${COV_DIR}/coverage-hey-apm-report.xml"

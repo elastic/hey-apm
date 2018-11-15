@@ -31,7 +31,7 @@ pipeline {
   parameters {
     string(name: 'branch_specifier', defaultValue: "", description: "the Git branch specifier to build (branchName, tagName, commitId, etc.)")
     string(name: 'GO_VERSION', defaultValue: "1.10.3", description: "Go version to use.")
-    string(name: 'ELASTIC_STACK_VERSION', defaultValue: "6.4", description: "Elastic Stack Git branch/tag to use")
+    // string(name: 'ELASTIC_STACK_VERSION', defaultValue: "6.4", description: "Elastic Stack Git branch/tag to use")
     string(name: 'APM_SERVER_VERSION', defaultValue: "6.4", description: "APM Server Git branch/tag to use")
     
     /*
@@ -127,54 +127,57 @@ pipeline {
             ./scripts/jenkins/unit-test.sh
             """
           }
-        }  
+        }
+      }
+      post {
+        always {
+          coverageReport("${BASE_DIR}/build/coverage")
+          junit(allowEmptyResults: true, 
+            keepLongStdio: true, 
+            testResults: "${BASE_DIR}/build/junit-report.xml,${BASE_DIR}/build/TEST-*.xml")
+        }
       }
     }
-    stage('Integration Tests') {
-      failFast true
-      parallel {
-        /**
-          Unit tests and apm-server stress testing.
-        */
-        stage('Hey APM test') { 
-          agent { label 'linux && immutable' }
-          when { 
-            beforeAgent true
-            environment name: 'hey_apm_ci', value: 'true' 
+    /**
+      APM server stress tests.
+    */
+    stage('Hey APM test') { 
+      agent { label 'linux && immutable' }
+      when { 
+        beforeAgent true
+        environment name: 'hey_apm_ci', value: 'true' 
+      }
+      environment {
+        PATH = "${env.PATH}:${env.HUDSON_HOME}/go/bin/:${env.WORKSPACE}/bin"
+        GOPATH = "${env.WORKSPACE}"
+        APM_SERVER_DIR = "${env.GOPATH}/${env.APM_SERVER_BASE_DIR}"
+      }
+      steps {
+        withEnvWrapper() {
+          unstash 'source'
+          dir("${APM_SERVER_BASE_DIR}"){
+            checkout([$class: 'GitSCM', branches: [[name: "${APM_SERVER_VERSION}"]], 
+              doGenerateSubmoduleConfigurations: false, 
+              extensions: [], 
+              submoduleCfg: [], 
+              userRemoteConfigs: [[credentialsId: "${JOB_GIT_CREDENTIALS}", 
+              url: "https://github.com/elastic/apm-server.git"]]])
           }
-          environment {
-            PATH = "${env.PATH}:${env.HUDSON_HOME}/go/bin/:${env.WORKSPACE}/bin"
-            GOPATH = "${env.WORKSPACE}"
-            APM_SERVER_DIR = "${env.GOPATH}/${env.APM_SERVER_BASE_DIR}"
-          }
-          steps {
-            withEnvWrapper() {
-              unstash 'source'
-              dir("${APM_SERVER_BASE_DIR}"){
-                checkout([$class: 'GitSCM', branches: [[name: "${APM_SERVER_VERSION}"]], 
-                  doGenerateSubmoduleConfigurations: false, 
-                  extensions: [], 
-                  submoduleCfg: [], 
-                  userRemoteConfigs: [[credentialsId: "${JOB_GIT_CREDENTIALS}", 
-                  url: "https://github.com/elastic/apm-server.git"]]])
-              }
-              dir("${BASE_DIR}"){
-                withEsEnv(secret: 'apm-server-benchmark-cloud'){
-                  sh """#!/bin/bash
-                  ./scripts/jenkins/run-test.sh
-                  """
-                }
-              }
-            }  
-          }
-          post {
-            always {
-              coverageReport("${BASE_DIR}/build/coverage")
-              junit(allowEmptyResults: true,
-                keepLongStdio: true,
-                testResults: "${BASE_DIR}/build/junit-*.xml,${BASE_DIR}/build/TEST-*.xml")
+          dir("${BASE_DIR}"){
+            withEsEnv(secret: 'apm-server-benchmark-cloud'){
+              sh """#!/bin/bash
+              ./scripts/jenkins/run-test.sh
+              """
             }
           }
+        }  
+      }
+      post {
+        always {
+          coverageReport("${BASE_DIR}/build/coverage")
+          junit(allowEmptyResults: true,
+            keepLongStdio: true,
+            testResults: "${BASE_DIR}/build/junit-*.xml,${BASE_DIR}/build/TEST-*.xml")
         }
       }
     }
