@@ -1,3 +1,5 @@
+[![Build Status](https://apm-ci.elastic.co/buildStatus/icon?job=apm-server/apm-hey-test-mbp/master)](https://apm-ci.elastic.co/job/apm-server/job/apm-hey-test-mbp/job/master)
+
 Basic load generation for apm-server built on [hey](https://github.com/rakyll/hey).
 
 # Install
