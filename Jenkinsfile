@@ -179,22 +179,19 @@ pipeline {
       }
     }
   }
-  post { 
-    always { 
-      echo 'Post Actions'
+  post {
+    success {
+      echoColor(text: '[SUCCESS]', colorfg: 'green', colorbg: 'default')
     }
-    success { 
-      echo 'Success Post Actions'
-    }
-    aborted { 
-      echo 'Aborted Post Actions'
+    aborted {
+      echoColor(text: '[ABORTED]', colorfg: 'magenta', colorbg: 'default')
     }
     failure { 
-      echo 'Failure Post Actions'
+      echoColor(text: '[FAILURE]', colorfg: 'red', colorbg: 'default')
       //step([$class: 'Mailer', notifyEveryUnstableBuild: true, recipients: "${NOTIFY_TO}", sendToIndividuals: false])
     }
     unstable { 
-      echo 'Unstable Post Actions'
+      echoColor(text: '[UNSTABLE]', colorfg: 'yellow', colorbg: 'default')
     }
   }
 }
