@@ -17,6 +17,10 @@ go get -v -u github.com/olivere/elastic
 go get -v -u github.com/pkg/errors
 go get -v -u github.com/struCoder/pidusage
 go get -v -u github.com/stretchr/testify/assert
+
+go get -v -u github.com/t-yuki/gocover-cobertura
+go get -v -u github.com/jstemmer/go-junit-report
+
 echo "Fetching apm-server and installing latest go-licenser and mage..."
 go get -v -u github.com/elastic/go-licenser
 go get -v -u github.com/magefile/mage
