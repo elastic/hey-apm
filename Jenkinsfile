@@ -174,7 +174,6 @@ pipeline {
       }
       post {
         always {
-          coverageReport("${BASE_DIR}/build/coverage")
           junit(allowEmptyResults: true,
             keepLongStdio: true,
             testResults: "${BASE_DIR}/build/junit-*.xml,${BASE_DIR}/build/TEST-*.xml")

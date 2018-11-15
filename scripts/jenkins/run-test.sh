@@ -18,7 +18,6 @@ go get -v -u github.com/pkg/errors
 go get -v -u github.com/struCoder/pidusage
 go get -v -u github.com/stretchr/testify/assert
 
-go get -v -u github.com/t-yuki/gocover-cobertura
 go get -v -u github.com/jstemmer/go-junit-report
 
 echo "Fetching apm-server and installing latest go-licenser and mage..."
@@ -36,9 +35,6 @@ mkdir -p "${COV_DIR}"
 (ELASTICSEARCH_URL=$CLOUD_ADDR \
   ELASTICSEARCH_USR=$CLOUD_USERNAME \
   ELASTICSEARCH_PWD=$CLOUD_PASSWORD \
-  go test -timeout 2h  -v github.com/elastic/hey-apm/server/client \
-  -coverprofile="${COV_FILE}" 2>&1 | tee ${OUT_FILE}) || echo -e "\033[31;49mTests FAILED\033[0m"
+  go test -timeout 2h  -v github.com/elastic/hey-apm/server/client 2>&1 | tee ${OUT_FILE}) || echo -e "\033[31;49mTests FAILED\033[0m"
 
-go-junit-report < ${OUT_FILE} > build/junit-hey-apm-report.xml
-go tool cover -html="${COV_FILE}" -o "${COV_DIR}/coverage-hey-apm-report.html"
-gocover-cobertura < "${COV_FILE}" > "${COV_DIR}/coverage-hey-apm-report.xml"
+go-junit-report < ${OUT_FILE} > build/junit-hey-apm-stress-test-report.xml
