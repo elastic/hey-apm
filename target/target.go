@@ -3,6 +3,7 @@ package target
 import (
 	"bytes"
 	"compress/gzip"
+	"container/ring"
 	"io"
 	"math"
 	"net/http"
@@ -35,7 +36,7 @@ type BodyConfig struct {
 }
 
 type Target struct {
-	Url    string
+	URLs   *ring.Ring
 	Method string
 	Body   []byte
 	Config *Config
@@ -55,17 +56,18 @@ func buildBody(b *BodyConfig) []byte {
 	return compose.Compose(b.NumErrors, b.NumTransactions, b.NumSpans, b.NumFrames)
 }
 
-func NewTargetFromConfig(baseUrl, method string, cfg *Config) *Target {
+func NewTargetFromConfig(url, method string, cfg *Config) *Target {
 	if cfg == nil {
 		copyCfg := defaultCfg
 		cfg = &copyCfg
 	}
 	body := buildBody(cfg.BodyConfig)
-	url := strings.TrimSuffix(baseUrl, "/") + cfg.Endpoint
-	return &Target{Config: cfg, Body: body, Url: url, Method: method}
+	ring := ring.New(1)
+	ring.Value = strings.TrimSuffix(url, "/") + cfg.Endpoint
+	return &Target{Config: cfg, Body: body, URLs: ring, Method: method}
 }
 
-func NewTargetFromOptions(baseUrl string, opts ...OptionFunc) (*Target, error) {
+func NewTargetFromOptions(urls []string, opts ...OptionFunc) (*Target, error) {
 	copyCfg := defaultCfg
 	cfg := &copyCfg
 	var err error
@@ -73,8 +75,12 @@ func NewTargetFromOptions(baseUrl string, opts ...OptionFunc) (*Target, error) {
 		err = with(cfg, opt, err)
 	}
 	body := buildBody(cfg.BodyConfig)
-	url := strings.TrimSuffix(baseUrl, "/") + cfg.Endpoint
-	return &Target{Config: cfg, Body: body, Url: url, Method: "POST"}, err
+	ring := ring.New(len(urls))
+	for _, url := range urls {
+		ring.Value = strings.TrimSuffix(url, "/") + cfg.Endpoint
+		ring = ring.Next()
+	}
+	return &Target{Config: cfg, Body: body, URLs: ring, Method: "POST"}, err
 }
 
 type OptionFunc func(*Config) error
@@ -195,7 +201,7 @@ func (t *Target) GetWork(w io.Writer) *requester.Work {
 	if t.Config.Stream {
 		workReq = &requester.StreamReq{
 			Method:        t.Method,
-			Url:           t.Url,
+			URLs:          t.URLs,
 			Header:        t.Config.Header,
 			Timeout:       t.Config.RequestTimeout,
 			RunTimeout:    t.Config.RunTimeout,
@@ -205,8 +211,9 @@ func (t *Target) GetWork(w io.Writer) *requester.Work {
 		}
 	} else {
 		workReq = &requester.SimpleReq{
-			Request:     request(t.Method, t.Url, t.Config.Header, t.Body),
+			Request:     request(t.Method, t.URLs.Value.(string), t.Config.Header, t.Body),
 			RequestBody: t.Body,
+			URLs:        t.URLs,
 			Timeout:     int(t.Config.RequestTimeout.Seconds()),
 			QPS:         t.Config.Throttle,
 		}

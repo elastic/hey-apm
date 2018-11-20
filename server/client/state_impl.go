@@ -86,15 +86,11 @@ func (apm apm) PrettyRevision() string {
 	return apm.prettyRev
 }
 
-func (apm apm) Url() string {
-	if apm.isDockerized {
-		return "http://0.0.0.0:8200"
-	} else if apm.isRemote {
-		return apm.loc
-	} else {
-		return "http://localhost:8200"
-
+func (apm apm) Urls() []string {
+	if len(apm.urls) == 0 {
+		return []string{apmUrl(apm)}
 	}
+	return apm.urls
 }
 
 func (apm apm) Dir() string {

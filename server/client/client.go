@@ -98,6 +98,9 @@ type apm struct {
 	unstaged bool
 	// if true, the cli won't attempt to manage apm-server
 	isRemote bool
+	// used only when testing multiple apm-server (horizontal scalability)
+	// if set, `isRemote` is always `true`
+	urls []string
 	// if true, tests will accept a memory limit flag
 	isDockerized bool
 	// either the apm-server process itself when running it locally or a docker client, not the containerized process
@@ -137,7 +140,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			err = reset(env.es)
 			out = fmt.Sprintf("%s %d indexed docs", io.Grey, env.es.Count())
 		case fn == "apm" && arg1 == "use":
-			out, env.apm = apmUse(usr, strcoll.Nth(2, cmd))
+			out, env.apm = apmUse(usr, args2...)
 			err = env.apm.useErr
 		case fn == "apm" && arg1 == "switch":
 			if env.apm.useErr != nil {
@@ -177,14 +180,14 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 
 			var target target.Target
 			var flags []string
-			target, flags, err = makeTarget(env.ApmServer().Url(), args1...)
+			target, flags, err = makeTarget(env.ApmServer().Urls(), args1...)
 			if err != nil {
 				break
 			}
 
 			if !env.apm.isRemote {
 				// starts apm-server process
-				apmFlags := apmFlags(*env.es, env.apm.Url(), flags)
+				apmFlags := apmFlags(*env.es, apmUrl(*env.apm), flags)
 				err, env.apm = apmStart(conn, *env.apm, conn.CancelSig.Broadcast, apmFlags, limit)
 				if err != nil {
 					break
@@ -236,7 +239,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 // test duration, number of transactions, spans and frames are unnamed required args
 // unknown arguments are interpreted to be flags for apm-server and returned separately
 // `args` might look like {"10s", "--stream", "1", "10", "20", "-E", "apm-server.rum.enabled=true", "--agents", "3"}
-func makeTarget(url string, args ...string) (target.Target, []string, error) {
+func makeTarget(urls []string, args ...string) (target.Target, []string, error) {
 	duration := strcoll.Nth(0, args)
 	args, throttle := io.ParseCmdOption(args, "--throttle", "32767", true)
 	args, pause := io.ParseCmdOption(args, "--pause", "100ms", true)
@@ -245,7 +248,7 @@ func makeTarget(url string, args ...string) (target.Target, []string, error) {
 	args, stream := io.ParseCmdOption(args, "--stream", "not streaming", false)
 	args, reqTimeout := io.ParseCmdOption(args, "--timeout", "10s", true)
 	t, err := target.NewTargetFromOptions(
-		url,
+		urls,
 		target.RunTimeout(duration),
 		target.NumAgents(agents),
 		target.Throttle(throttle),
@@ -374,7 +377,7 @@ func apmSwitch(w stdio.Writer, apmDir, branch, revision string, opts []string) (
 // starts apm with the given arguments
 // injects output.elasticsearch and apm-server.host configuration from the current state
 func apmStart(w stdio.Writer, apm apm, cancel func(), flags []string, limit string) (error, *apm) {
-	newApm := newApm(apm.loc)
+	newApm := newApm(apm.urls...)
 	newApm.branch = apm.branch
 	newApm.revision = apm.revision
 	newApm.revDate = apm.revDate
@@ -447,12 +450,14 @@ func apmStop(apm *apm) error {
 // "last" loads from disk the last working directory
 // "local" is the short for the expected location (GOPATH/src/...)
 // "docker" will cause `apmSwitch` to build an image and `test` to run it
-// a valid URL will cause hey-apm to not try to manage apm-server
+// valid URL(s) will cause hey-apm to not try to manage apm-server
 // writes to disk
-func apmUse(usr, loc string) (string, *apm) {
+func apmUse(usr string, urls ...string) (string, *apm) {
 	w := io.NewBufferWriter()
+	loc := strcoll.Nth(0, urls)
 	if loc == "last" && usr != "" {
-		loc = strcoll.Nth(0, io.LoadApmcfg(usr))
+		urls = io.LoadApmcfg(usr)
+		loc = strcoll.Nth(0, urls)
 	}
 	if loc == "local" {
 		loc = filepath.Join(os.Getenv("GOPATH"), "/src/github.com/elastic/apm-server")
@@ -462,7 +467,14 @@ func apmUse(usr, loc string) (string, *apm) {
 	var err error
 	var netUrl *url.URL
 
-	if netUrl, err = url.ParseRequestURI(loc); err == nil && netUrl.Host != "" {
+	if len(urls) > 1 {
+		isRemote = true
+		for _, arg := range urls {
+			if err == nil {
+				_, err = url.ParseRequestURI(arg)
+			}
+		}
+	} else if netUrl, err = url.ParseRequestURI(loc); err == nil && netUrl.Host != "" {
 		isRemote = true
 	} else {
 		err = nil
@@ -472,27 +484,34 @@ func apmUse(usr, loc string) (string, *apm) {
 	}
 
 	if err == nil && usr != "" {
-		err = io.StoreApmcfg(usr, fileWriter, loc)
+		err = io.StoreApmcfg(usr, fileWriter, urls...)
 	}
-
-	msg := loc
+	var apm *apm
+	var msg string
+	if len(urls) > 0 {
+		apm = newApm(urls...)
+		msg = s.Join(urls, ",")
+	} else {
+		apm = newApm(loc)
+		msg = loc
+	}
 	if isRemote {
 		msg = msg + "\n\nNote: hey-apm won't try to start/stop apm-server. \n" +
 			"Some commands won't take effect (eg: `apm tail`). Be sure to:\n" +
-			" - `elasticsearch use` the same instance than apm-server is hooked to \n" +
-			" - `apm switch` to the same branch *and* revision of the running apm-server \n" +
-			" - pass the same apm flags to the `test` command as the running apm-server \n"
+			" - `elasticsearch use` the same instance(s) than apm-server is hooked to \n" +
+			" - `apm switch` to the same branch *and* revision of the running apm-server(s) \n" +
+			" - pass the same apm flags to the `test` command as the running apm-server(s) \n"
 	}
 	io.ReplyEither(w, err, io.Grey+"using "+msg)
 
-	apm := newApm(loc)
 	apm.isRemote = isRemote
 	apm.useErr = err
 	return w.String(), apm
 }
 
-func newApm(loc string) *apm {
-	return &apm{loc: loc, useErr: nil, unstaged: true, log: make([]string, 0), mu: sync.RWMutex{}}
+func newApm(remotes ...string) *apm {
+	first := strcoll.Nth(0, remotes)
+	return &apm{loc: first, urls: remotes, useErr: nil, unstaged: true, log: make([]string, 0), mu: sync.RWMutex{}}
 }
 
 func apmFlags(es es, apmUrl string, userFlags []string) []string {
@@ -514,6 +533,17 @@ func apmFlags(es es, apmUrl string, userFlags []string) []string {
 		"output.elasticsearch.password=%s": es.password,
 	})
 	return append(userFlags, append(flags, "-e")...)
+}
+
+func apmUrl(apm apm) string {
+	if apm.isDockerized {
+		return "http://0.0.0.0:8200"
+	} else if apm.isRemote {
+		return apm.loc
+	} else {
+		return "http://localhost:8200"
+
+	}
 }
 
 // returns a client connected to an Elastic Search node with given `params`

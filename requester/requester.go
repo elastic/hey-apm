@@ -17,6 +17,7 @@ package requester
 
 import (
 	"bytes"
+	"container/ring"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -50,7 +51,8 @@ type result struct {
 }
 
 type StreamReq struct {
-	Method, Url string
+	Method      string
+	URLs        *ring.Ring
 	RequestBody []byte
 	Header      http.Header
 	Username    string
@@ -71,7 +73,10 @@ type StreamReq struct {
 
 func (r *StreamReq) makeRequest(ctx context.Context, throttle <-chan time.Time, flushC chan int64) *http.Request {
 	pReader, pWriter := io.Pipe()
-	req, err := http.NewRequest(r.Method, r.Url, pReader)
+	// round robin requests
+	url := r.URLs.Value.(string)
+	r.URLs = r.URLs.Next()
+	req, err := http.NewRequest(r.Method, url, pReader)
 	if err != nil {
 		panic(err)
 	}
@@ -130,6 +135,7 @@ type SimpleReq struct {
 	// Request is the request to be made.
 	Request     *http.Request
 	RequestBody []byte
+	URLs        *ring.Ring
 
 	// Request Timeout in seconds.
 	Timeout int
@@ -143,7 +149,9 @@ func (r *SimpleReq) makeRequest(ctx context.Context, throttle <-chan time.Time, 
 		<-throttle
 	}
 	flushC <- 1
-	return cloneRequest(r.Request, r.RequestBody)
+	url := r.URLs.Value.(string)
+	r.URLs = r.URLs.Next()
+	return cloneRequest(r.Request, r.RequestBody, url)
 }
 
 func (r *SimpleReq) clientTimeout() time.Duration {
@@ -354,7 +362,7 @@ func (b *Work) runWorkers() {
 
 // cloneRequest returns a clone of the provided *http.Request.
 // The clone is a shallow copy of the struct and its Header map.
-func cloneRequest(r *http.Request, body []byte) *http.Request {
+func cloneRequest(r *http.Request, body []byte, urlStr string) *http.Request {
 	// shallow copy of the struct
 	r2 := new(http.Request)
 	*r2 = *r
@@ -366,6 +374,11 @@ func cloneRequest(r *http.Request, body []byte) *http.Request {
 	if len(body) > 0 {
 		r2.Body = ioutil.NopCloser(bytes.NewReader(body))
 	}
+	url, err := url.Parse(urlStr)
+	if err != nil {
+		panic(err)
+	}
+	r2.URL = url
 	return r2
 }
 

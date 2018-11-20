@@ -40,8 +40,8 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), t target.Target
 	docsBefore := state.ElasticSearch().Count()
 	start := time.Now()
 	go work.Run()
-	io.ReplyNL(w, io.Grey+fmt.Sprintf("started new work, url %s, payload size %s (uncompressed), %s (compressed) ...",
-		t.Url, byteCountDecimal(uncompressed), byteCountDecimal(int64(len(t.Body)))))
+	io.ReplyNL(w, io.Grey+fmt.Sprintf("started new work, payload size %s (uncompressed), %s (compressed) ...",
+		byteCountDecimal(uncompressed), byteCountDecimal(int64(len(t.Body)))))
 	io.Prompt(w)
 
 	cancelled := make(chan struct{}, 1)
@@ -74,8 +74,9 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), t target.Target
 			Flushes:        work.Flushes(),
 			ReqTimeout:     time.Duration(t.Config.RequestTimeout),
 			ElasticUrl:     state.ElasticSearch().Url(),
-			ApmUrl:         state.ApmServer().Url(),
-			ApmHost:        apmHost(state.ApmServer().Url()),
+			ApmUrls:        s.Join(state.ApmServer().Urls(), ","),
+			ApmHosts:       s.Join(hosts(state.ApmServer().Urls()), ","),
+			NumApm:         len(state.ApmServer().Urls()),
 			Branch:         state.ApmServer().Branch(),
 			// AcceptedResponses: codes[202],
 			TotalResponses: totalResponses,
@@ -205,7 +206,7 @@ func Status(state State) *io.BufferWriter {
 	} else if running != nil && !*running {
 		apmStatus = io.Green + "not running"
 	}
-	io.ReplyNL(w, io.Grey+fmt.Sprintf("ApmServer [%s]: %s", apmServer.Url(), apmStatus))
+	io.ReplyNL(w, io.Grey+fmt.Sprintf("ApmServer %s: %s", apmServer.Urls(), apmStatus))
 
 	// apm-server repo status
 	// todo it would be better to expose useErr and print that instead
@@ -251,12 +252,12 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"        local"+io.Grey+" short for http://localhost:9200")
 	io.ReplyNL(w, io.Magenta+"elasticsearch reset")
 	io.ReplyNL(w, io.Grey+"    deletes all the apm-* indices")
-	io.ReplyNL(w, io.Magenta+"apm use [<dir> | <url> | last | docker | local]")
+	io.ReplyNL(w, io.Magenta+"apm use [<dir> | <urls> | last | docker | local]")
 	io.ReplyNL(w, io.Grey+"    informs the location of the apm-server repo")
 	io.ReplyNL(w, io.Magenta+"        last"+io.Grey+" uses the last working directory")
 	io.ReplyNL(w, io.Magenta+"        docker"+io.Grey+" builds and runs apm-server inside a docker container")
 	io.ReplyNL(w, io.Magenta+"        local"+io.Grey+" short for GOPATH/src/github.com/elastic/apm-server")
-	io.ReplyNL(w, io.Magenta+"        <url>"+io.Grey+" this will cause hey-apm to not manage apm-server, test reports won't be saved")
+	io.ReplyNL(w, io.Magenta+"        <urls>"+io.Grey+" several urls can be passed - this will cause hey-apm to not manage apm-server")
 	io.ReplyNL(w, io.Magenta+"        <dir>"+io.Grey+" if the location is not a valid URL, it will be considered a local directory")
 	io.ReplyNL(w, io.Magenta+"apm list")
 	io.ReplyNL(w, io.Grey+"    shows the docker images created by apm-server")
@@ -323,6 +324,8 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"        		   timeout"+io.Grey+" request timeout")
 	io.ReplyNL(w, io.Magenta+"                branch"+io.Grey+" git branch and commit (if the branch is variable, the revision necessarily varies too)")
 	io.ReplyNL(w, io.Magenta+"                revision"+io.Grey+" git commit")
+	io.ReplyNL(w, io.Magenta+"                apm_host"+io.Grey+" apm hostname(s) separated by ',' ordered alphabetically")
+	io.ReplyNL(w, io.Magenta+"                apms"+io.Grey+" number of apm servers running")
 	io.ReplyNL(w, io.Magenta+"                limit"+io.Grey+" memory limit passed to docker")
 	io.ReplyNL(w, io.Magenta+"                <flag>"+io.Grey+" flag passed to the apm-server with -E")
 	io.ReplyNL(w, io.Magenta+"        <FILTER>"+io.Grey+" returns only reports matching all given filters, specified like <FIELD>=|!=|<|><value>")

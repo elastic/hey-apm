@@ -91,9 +91,11 @@ type TestResult struct {
 	ElasticUrl string `json:"elastic_url"`
 	// includes protocol, hostname and port
 	// for now used to tell docker from from local process
-	ApmUrl string `json:"apm_url"`
+	ApmUrls string `json:"apm_url"`
 	// derived from apm_url
-	ApmHost string `json:"apm_host"`
+	ApmHosts string `json:"apm_host"`
+	// number of apm-servers tested
+	NumApm int `json:"num_apm"`
 	// git branch
 	Branch string `json:"branch"`
 	/*
@@ -234,12 +236,16 @@ func (r TestReport) esHost() string {
 	return url.Hostname()
 }
 
-func apmHost(apmUrl string) string {
-	url, err := url.Parse(apmUrl)
-	if err != nil {
-		return apmUrl
+func hosts(urls []string) []string {
+	ret := make([]string, len(urls))
+	for idx, u := range urls {
+		url, err := url.Parse(u)
+		if err == nil {
+			ret[idx] = url.Hostname()
+		}
 	}
-	return url.Hostname()
+	sort.Strings(ret)
+	return ret
 }
 
 func (r TestReport) apmFlags() []string {
@@ -295,7 +301,8 @@ func independentVars(r TestReport) map[string]string {
 		"timeout":      r.ReqTimeout.String(),
 		"revision":     r.Revision,
 		"branch":       r.Branch,
-		"apm_host":     r.ApmHost,
+		"apm_host":     r.ApmHosts,
+		"apms":         strconv.Itoa(r.NumApm),
 		"limit":        strconv.Itoa(int(r.Limit)),
 	}
 }
@@ -372,7 +379,7 @@ func queryFilters(expressions []string) ([]queryFilter, error) {
 }
 
 // returns true if the report from the most recent revision shows no less efficient than reports from older revisions
-// `filtersExpr` must include all the independent variables except revision and apm_host
+// `filtersExpr` must include all the independent variables except revision, apm_host and apms
 // `all` must not be empty
 func verify(since string, filtersExpr []string, all []TestReport) (bool, string, error) {
 	if len(all) == 0 {
@@ -384,7 +391,7 @@ func verify(since string, filtersExpr []string, all []TestReport) (bool, string,
 		filterKeys = append(filterKeys, filter.k)
 	}
 	for k, _ := range independentVars(all[0]) {
-		if k != "revision" && k != "apm_host" && !strcoll.Contains(k, filterKeys) {
+		if k != "revision" && k != "apm_host" && k != "apms" && !strcoll.Contains(k, filterKeys) {
 			if k == "limit" {
 				return false, "", errors.New("limit is a required filter:\n " +
 					"for localhost tests is -1, default for dockerized tests is 4000000000 (in bytes)")
@@ -455,12 +462,12 @@ func top(ND, criteria string, filters []queryFilter, reports []TestReport, err e
 	return head(ND, ret), err
 }
 
-// returns a subset of `bs` with the same independentVars as `a` except for `variable`, which must be different
+// returns a subset of `bs` with the same independentVars values as `a` except for `variable`, which must be different
 // returned reports are keyed by their index in the original `bs` slice
 func findVariants(variable string, a TestReport, bs []TestReport, err error) (map[int]TestReport, error) {
 	filters := make([]queryFilter, 0)
 	var data data
-	if strcoll.Contains(variable, keysExcluding("revision", independentVars(a))) {
+	if strcoll.Contains(variable, keysExcluding([]string{"revision", "apm_host"}, independentVars(a))) {
 		data = independentVars
 	} else {
 		// consider apm server apmFlags only when comparing the same revision or a unknown attribute (eg flag)
@@ -468,8 +475,10 @@ func findVariants(variable string, a TestReport, bs []TestReport, err error) (ma
 		data = combine(independentVars, apmFlags)
 	}
 	for k, v := range data(a) {
-		// special case: if variable branch, variable revision as well
-		if k == variable || (variable == "branch" && k == "revision") {
+		// special cases: branch and apms
+		// ie. 2 results with different number of apms can't have the same apm_host value,
+		// and 2 results with different branch can't have the same Git revision
+		if k == variable || (variable == "branch" && k == "revision") || (variable == "apms" && k == "apm_host") {
 			filters = append(filters, queryFilter{k, v, "!="})
 		} else {
 			filters = append(filters, queryFilter{k, v, "="})
@@ -582,6 +591,7 @@ func sortBy(criteria string, reports []TestReport) []TestReport {
 
 // if 2 reports have the same independent variables, return the one that showed better performance
 // reports are sorted by their date, most recent first
+// performance is given by the efficiency variable, if that is unknown, then throughput is used instead
 func unique(reports []TestReport) []TestReport {
 	return uniq(sortBy("report_date", reports))
 }
@@ -595,10 +605,18 @@ func uniq(reports []TestReport) []TestReport {
 	variant, _ := findVariants("", first, rest, nil)
 	isUnique := true
 	for _, k := range keys(variant, true) {
-		if first.Efficiency > variant[k].Efficiency {
-			rest = append(rest[:k], rest[k+1:]...)
+		if variant[k].Efficiency > 0 {
+			if first.Efficiency > variant[k].Efficiency {
+				rest = append(rest[:k], rest[k+1:]...)
+			} else {
+				isUnique = false
+			}
 		} else {
-			isUnique = false
+			if first.Throughput > variant[k].Throughput {
+				rest = append(rest[:k], rest[k+1:]...)
+			} else {
+				isUnique = false
+			}
 		}
 	}
 	if isUnique {
@@ -662,10 +680,10 @@ func seen(reports []TestReport, ids []string) ([]TestReport, []string) {
 }
 
 // returns all the keys in the map except `exclude`
-func keysExcluding(exclude string, m map[string]string) []string {
+func keysExcluding(exclude []string, m map[string]string) []string {
 	ret := make([]string, 0)
 	for k, _ := range m {
-		if k != exclude {
+		if !strcoll.Contains(k, exclude) {
 			ret = append(ret, k)
 		}
 	}
@@ -683,6 +701,10 @@ func digestMatrixHeader(variable string, m map[string]string) []string {
 	// special case due to that a different branch entails a different revision
 	if variable != "branch" && variable != "revision" {
 		ret = append(ret, io.Magenta+"revision "+io.Grey+m["revision"])
+	}
+	// special case due to that a different number of apms entails a different apm_host string
+	if variable != "apms" && variable != "apm_host" {
+		ret = append(ret, io.Magenta+"apm_host "+io.Grey+m["apm_host"])
 	}
 	return ret
 }
