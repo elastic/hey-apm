@@ -175,7 +175,7 @@ func doTest(t *testing.T, flags []string, numEvents, numSpans, numFrames, concur
 		ok, msg := api.Verify(
 			"768h",
 			[]string{
-				"branch=master",
+				"branch=v1",
 				filter("duration", duration),
 				filter("events", numEvents),
 				filter("spans", numSpans),
