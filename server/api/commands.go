@@ -24,7 +24,7 @@ import (
 // apm-server must be running
 // target holds all the configuration for making requests: URL, request body, timeouts, etc.
 // blocks current goroutine for as long as `duration` or until waitForCancel returns
-func LoadTest(w stdio.Writer, state State, waitForCancel func(), t target.Target) TestResult {
+func LoadTest(w stdio.Writer, state State, waitForCancel func(), coolDown time.Duration, t target.Target) TestResult {
 	result := TestResult{Cancelled: true}
 
 	// apm-server warm up
@@ -53,6 +53,7 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), t target.Target
 	select {
 	case <-time.After(t.Config.RunTimeout):
 		work.Stop()
+		time.Sleep(coolDown)
 		elapsedTime := time.Now().Sub(start)
 		codes := work.StatusCodes()
 		_, totalResponses := output.SortedTotal(codes)
@@ -289,6 +290,8 @@ func Help() string {
 	io.ReplyNL(w, io.Grey+"        defaults to 10s")
 	io.ReplyNL(w, io.Magenta+"        --mem <mem-limit>"+io.Grey+" memory limit passed to docker run, it doesn't have effect if apm-server is not dockerized")
 	io.ReplyNL(w, io.Grey+"        defaults to 4g")
+	io.ReplyNL(w, io.Magenta+"        --cooldown <cooldown>"+io.Grey+" time to wait after sending requests and before stopping the apm-server")
+	io.ReplyNL(w, io.Grey+"        defaults to 1s")
 	io.ReplyNL(w, io.Magenta+"        --label <label>"+io.Grey+" any string to optionally filter results by")
 	io.ReplyNL(w, io.Magenta+"apm tail [-<n> <pattern>]")
 	io.ReplyNL(w, io.Grey+"    shows the last lines of the apm server log")
@@ -314,7 +317,7 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"                efficiency"+io.Grey+" documents indexed per minute per megabyte of used RAM, higher first")
 	io.ReplyNL(w, io.Magenta+"        <VARIABLE>"+io.Grey+" shows together reports generated from workload tests with the same parameters except VARIABLE")
 	io.ReplyNL(w, io.Grey+"        VARIABLE:")
-	io.ReplyNL(w, io.Magenta+"                limit"+io.Grey+" any arbitrary string")
+	io.ReplyNL(w, io.Magenta+"                label"+io.Grey+" any arbitrary string")
 	io.ReplyNL(w, io.Magenta+"                duration"+io.Grey+" duration of the test")
 	io.ReplyNL(w, io.Magenta+"                transactions"+io.Grey+" transactions per request body")
 	io.ReplyNL(w, io.Magenta+"                errors"+io.Grey+" errors per request body")

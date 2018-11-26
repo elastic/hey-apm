@@ -180,6 +180,9 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 
 			args1, label := io.ParseCmdOption(args1, "--label", "", true)
 
+			args1, coolDownStr := io.ParseCmdOption(args1, "--cooldown", "1s", true)
+			coolDown, _ := time.ParseDuration(coolDownStr)
+
 			var target target.Target
 			var flags []string
 			target, flags, err = makeTarget(env.ApmServer().Urls(), args1...)
@@ -197,7 +200,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			}
 
 			// load test and teardown
-			result := api.LoadTest(conn, env, conn.waitForCancel, target)
+			result := api.LoadTest(conn, env, conn.waitForCancel, coolDown, target)
 
 			var mem int64
 			if running := env.IsRunning(); running != nil && *running {
