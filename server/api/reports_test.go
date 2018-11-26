@@ -164,7 +164,7 @@ func (b *builder) addFlag(s string) *builder {
 }
 
 func (b *builder) get() TestReport {
-	r := NewReport(b.TestResult, b.User, b.Revision, b.RevDate, false, b.MaxRss, b.Limit, b.apmFlags(), io.NewBufferWriter())
+	r := NewReport(b.TestResult, b.User, "", b.Revision, b.RevDate, false, b.MaxRss, b.Limit, b.apmFlags(), io.NewBufferWriter())
 	r.ReportId = b.ReportId
 	r.ReportDate = b.ReportDate
 	return r
