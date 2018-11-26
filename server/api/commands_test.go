@@ -31,7 +31,7 @@ func basicTarget(t *testing.T, opts ...target.OptionFunc) *target.Target {
 
 func TestLoadNotReady(t *testing.T) {
 	bw := io.NewBufferWriter()
-	ret := LoadTest(bw, MockState{Ok: errors.New("not ready")}, nil, *basicTarget(t))
+	ret := LoadTest(bw, MockState{Ok: errors.New("not ready")}, nil, time.Duration(0), *basicTarget(t))
 	assert.Equal(t, "not ready", tests.WithoutColors(bw.String()))
 	assert.Equal(t, ret, TestResult{Cancelled: true})
 }
@@ -42,7 +42,7 @@ func TestLoadCancelled(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	s := MockState{MockApm{url: "localhost:822222"}, MockEs{}, nil}
-	ret := LoadTest(bw, s, cancel, *basicTarget(t))
+	ret := LoadTest(bw, s, cancel, time.Duration(0), *basicTarget(t))
 	assert.Equal(t, ret, TestResult{Cancelled: true})
 }
 
@@ -55,7 +55,7 @@ func TestLoadOk(t *testing.T) {
 		MockApm{url: "localhost:822222", branch: "master"},
 		MockEs{url: "localhost:922222", docs: 10},
 		nil}
-	ret := LoadTest(bw, s, cancel, *basicTarget(t))
+	ret := LoadTest(bw, s, cancel, time.Duration(0), *basicTarget(t))
 	assert.Contains(t, bw.String(), "started new work")
 
 	assert.Equal(t, time.Second, ret.Duration)

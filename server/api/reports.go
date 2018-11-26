@@ -336,7 +336,6 @@ func metadata(r TestReport) map[string]string {
 		"report_id":     r.ReportId,
 		"report_date":   r.ReportDate,
 		"revision_date": r.RevDate,
-		//"label": r.Label,
 		// not really metadata, but derived from independent variables
 		// "request_size": strconv.Itoa(r.BodySize),
 	}

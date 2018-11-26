@@ -137,7 +137,7 @@ func doBenchmark(memLimit int64, flags []string, workload ...string) ([]api.Test
 	if err != nil {
 		return nil, err
 	}
-	result := api.LoadTest(console, env, block, *target)
+	result := api.LoadTest(console, env, block, time.Duration(0), *target)
 	report := api.NewReport(
 		result,
 		"hey-apm-tester",
