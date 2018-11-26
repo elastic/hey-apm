@@ -178,6 +178,8 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 				limit = "-1"
 			}
 
+			args1, label := io.ParseCmdOption(args1, "--label", "", true)
+
 			var target target.Target
 			var flags []string
 			target, flags, err = makeTarget(env.ApmServer().Urls(), args1...)
@@ -212,6 +214,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			report := api.NewReport(
 				result,
 				usr,
+				label,
 				env.apm.revision,
 				env.apm.revDate,
 				env.apm.unstaged,

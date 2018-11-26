@@ -141,6 +141,7 @@ func doBenchmark(memLimit int64, flags []string, workload ...string) ([]api.Test
 	report := api.NewReport(
 		result,
 		"hey-apm-tester",
+		"random label",
 		env.apm.revision,
 		env.apm.revDate,
 		env.apm.unstaged,

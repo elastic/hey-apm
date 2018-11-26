@@ -40,7 +40,9 @@ type TestReport struct {
 	// any error (eg missing data) for which this report shouldn't be saved and considered for data analysis
 	Error error
 
-	// apmFlags passed to apm-server at startup
+	// any arbitrary string set by the user, meant to filter results
+	Label string `json:"label"`
+	// flags passed to apm-server at startup
 	ApmFlags string `json:"apm_flags"`
 	// git revision hash
 	Revision string `json:"revision"`
@@ -137,7 +139,7 @@ type TestResult struct {
 }
 
 // creates and validates a report out of a test result
-func NewReport(result TestResult, usr, rev, revDate string, unstaged bool, mem, memLimit int64, flags []string, w stdio.Writer) TestReport {
+func NewReport(result TestResult, usr, label, rev, revDate string, unstaged bool, mem, memLimit int64, flags []string, w stdio.Writer) TestReport {
 	r := TestReport{
 		Lang:       "python",
 		APIVersion: "v2",
@@ -145,6 +147,7 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged bool, mem, 
 		ReportDate: time.Now().Format(io.GITRFC),
 		Timestamp:  time.Now(),
 		User:       usr,
+		Label:      label,
 		Revision:   rev,
 		RevDate:    revDate,
 		MaxRss:     mem,
@@ -290,6 +293,7 @@ func independentVars(r TestReport) map[string]string {
 	return map[string]string{
 		// r.esHost() is an independent variable, but not queryable by the user
 		// esHost() is always an implicit filter for each query
+		"label":        r.Label,
 		"duration":     r.Duration.String(),
 		"errors":       strconv.Itoa(r.Errors),
 		"transactions": strconv.Itoa(r.Transactions),
@@ -326,12 +330,13 @@ func apmFlags(r TestReport) map[string]string {
 	return ret
 }
 
-// attributes not set by the user that still makes sense to filter by
+// attributes that makes sense to filter by, but not breakdown by
 func metadata(r TestReport) map[string]string {
 	return map[string]string{
 		"report_id":     r.ReportId,
 		"report_date":   r.ReportDate,
 		"revision_date": r.RevDate,
+		//"label": r.Label,
 		// not really metadata, but derived from independent variables
 		// "request_size": strconv.Itoa(r.BodySize),
 	}
@@ -693,7 +698,7 @@ func keysExcluding(exclude []string, m map[string]string) []string {
 func digestMatrixHeader(variable string, m map[string]string) []string {
 	ret := make([]string, 0)
 	// always the same order
-	for _, attr := range []string{"duration", "errors", "transactions", "spans", "frames", "stream", "agents", "throttle", "branch"} {
+	for _, attr := range []string{"label", "duration", "errors", "transactions", "spans", "frames", "stream", "agents", "throttle", "branch"} {
 		if variable != attr {
 			ret = append(ret, io.Magenta+attr+" "+io.Grey+m[attr])
 		}
