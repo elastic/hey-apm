@@ -29,7 +29,7 @@ func setupEnv(flags []string) (*evalEnvironment, []string, error) {
 		environment = NewEvalEnvironment("")
 		_, environment.es = elasticSearchUse("", url, usr, pwd)
 		apmDir := filepath.Join(os.Getenv("GOPATH"), "/src/github.com/elastic/apm-server")
-		_, environment.apm = apmSwitch(console, apmDir, "master", "", []string{"c", "m", "u", "v"})
+		_, environment.apm = apmSwitch(console, apmDir, []string{}, "master", "", []string{"c", "m", "u", "v"})
 	})
 
 	flags = apmFlags(*environment.es, environment.apm.Urls()[0], append(flags, "-E", "apm-server.shutdown_timeout=1s"))

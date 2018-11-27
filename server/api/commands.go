@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"math"
 	"math/rand"
-	"os"
 	"sort"
 	"strconv"
 	s "strings"
@@ -209,11 +208,8 @@ func Status(state State) *io.BufferWriter {
 	}
 	io.ReplyNL(w, io.Grey+fmt.Sprintf("ApmServer %s: %s", apmServer.Urls(), apmStatus))
 
-	// apm-server repo status
-	// todo it would be better to expose useErr and print that instead
-	if err := os.Chdir(apmServer.Dir()); apmServer.Dir() != "" && err != nil {
-		io.ReplyNL(w, io.Red+fmt.Sprintf("Can't ch to directory %s", apmServer.Dir())+io.Grey+" (hint: apm use <dir>)")
-		return w
+	if apmServer.Dir() != "" {
+		io.ReplyNL(w, io.Grey, "Using "+apmServer.Dir())
 	}
 	var branch string
 	if apmServer.Branch() == "" {
@@ -221,7 +217,7 @@ func Status(state State) *io.BufferWriter {
 	} else {
 		branch = io.Green + apmServer.Branch() + io.Grey + ", " + apmServer.PrettyRevision()
 	}
-	io.ReplyNL(w, io.Grey+fmt.Sprintf("Using %s: %s", apmServer.Dir(), branch))
+	io.ReplyNL(w, io.Grey+fmt.Sprintf("Git Info: %s", branch))
 	return w
 }
 
@@ -253,13 +249,12 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"        local"+io.Grey+" short for http://localhost:9200")
 	io.ReplyNL(w, io.Magenta+"elasticsearch reset")
 	io.ReplyNL(w, io.Grey+"    deletes all the apm-* indices")
-	io.ReplyNL(w, io.Magenta+"apm use [<dir> | <urls> | last | docker | local]")
+	io.ReplyNL(w, io.Magenta+"apm use [<urls> | last | docker | local]")
 	io.ReplyNL(w, io.Grey+"    informs the location of the apm-server repo")
-	io.ReplyNL(w, io.Magenta+"        last"+io.Grey+" uses the last working directory")
+	io.ReplyNL(w, io.Magenta+"        last"+io.Grey+" uses the last working config")
 	io.ReplyNL(w, io.Magenta+"        docker"+io.Grey+" builds and runs apm-server inside a docker container")
-	io.ReplyNL(w, io.Magenta+"        local"+io.Grey+" short for GOPATH/src/github.com/elastic/apm-server")
+	io.ReplyNL(w, io.Magenta+"        local"+io.Grey+" expects an apm-server at GOPATH/src/github.com/elastic/apm-server")
 	io.ReplyNL(w, io.Magenta+"        <urls>"+io.Grey+" several urls can be passed - this will cause hey-apm to not manage apm-server")
-	io.ReplyNL(w, io.Magenta+"        <dir>"+io.Grey+" if the location is not a valid URL, it will be considered a local directory")
 	io.ReplyNL(w, io.Magenta+"apm list")
 	io.ReplyNL(w, io.Grey+"    shows the docker images created by apm-server")
 	io.ReplyNL(w, io.Magenta+"apm switch <branch> [<revision> <OPTIONS>...]")
