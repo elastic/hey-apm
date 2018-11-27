@@ -51,8 +51,6 @@ type TestReport struct {
 	// either maximum resident set size from a locally running process or from the containerized process
 	// 0 if unknown
 	MaxRss int64 `json:"max_rss"`
-	// memory limit in bytes passed to docker, -1 if not applicable
-	Limit int64 `json:"limit"`
 	// holds all information available just after a test run
 	TestResult
 }
@@ -139,7 +137,7 @@ type TestResult struct {
 }
 
 // creates and validates a report out of a test result
-func NewReport(result TestResult, usr, label, rev, revDate string, unstaged bool, mem, memLimit int64, flags []string, w stdio.Writer) TestReport {
+func NewReport(result TestResult, usr, label, rev, revDate string, unstaged bool, mem int64, flags []string, w stdio.Writer) TestReport {
 	r := TestReport{
 		Lang:       "python",
 		APIVersion: "v2",
@@ -151,7 +149,6 @@ func NewReport(result TestResult, usr, label, rev, revDate string, unstaged bool
 		Revision:   rev,
 		RevDate:    revDate,
 		MaxRss:     mem,
-		Limit:      memLimit,
 		ApmFlags:   s.Join(flags, " "),
 		TestResult: result,
 	}
@@ -307,7 +304,6 @@ func independentVars(r TestReport) map[string]string {
 		"branch":       r.Branch,
 		"apm_host":     r.ApmHosts,
 		"apms":         strconv.Itoa(r.NumApm),
-		"limit":        strconv.Itoa(int(r.Limit)),
 	}
 }
 
