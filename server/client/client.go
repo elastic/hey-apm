@@ -179,10 +179,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			}
 
 			args1, limit := io.ParseCmdOption(args1, "--mem", "4g", true)
-			if !env.apm.isDockerized() {
-				limit = "-1"
-			}
-
+			args1, cpu := io.ParseCmdOption(args1, "--cpu", "100000", true)
 			args1, label := io.ParseCmdOption(args1, "--label", "", true)
 
 			args1, coolDownStr := io.ParseCmdOption(args1, "--cooldown", "1s", true)
@@ -198,7 +195,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			if !env.apm.isRemote {
 				// starts apm-server process
 				apmFlags := apmFlags(*env.es, strcoll.Nth(0, env.apm.Urls()), flags)
-				err, env.apm = apmStart(conn, *env.apm, conn.CancelSig.Broadcast, apmFlags, limit)
+				err, env.apm = apmStart(conn, *env.apm, conn.CancelSig.Broadcast, apmFlags, limit, cpu)
 				if err != nil {
 					break
 				}
@@ -227,7 +224,6 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 				env.apm.revDate,
 				env.apm.unstaged,
 				mem,
-				docker.ToBytes(limit),
 				removeSensitiveFlags(flags),
 				bw,
 			)
@@ -387,7 +383,7 @@ func apmSwitch(w stdio.Writer, apmLoc string, apmUrls []string, branch, revision
 
 // starts apm with the given arguments
 // injects output.elasticsearch and apm-server.host configuration from the current state
-func apmStart(w stdio.Writer, apm apm, cancel func(), flags []string, limit string) (error, *apm) {
+func apmStart(w stdio.Writer, apm apm, cancel func(), flags []string, limit, cpu string) (error, *apm) {
 	newApm := newApm(apm.loc, apm.urls)
 	newApm.branch = apm.branch
 	newApm.revision = apm.revision
@@ -401,6 +397,8 @@ func apmStart(w stdio.Writer, apm apm, cancel func(), flags []string, limit stri
 			"--memory=" + limit,
 			// disallow swapping
 			"--memory-swap=" + limit,
+			"--cpu-quota=" + cpu,
+			"--cpu-period=100000",
 			docker.Image(newApm.branch, newApm.revision),
 			"./apm-server"}
 		args = append(args, flags...)
