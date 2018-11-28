@@ -177,6 +177,8 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			var throttle string
 			args1, throttle = io.ParseCmdOption(args1, "--throttle", "32767", true)
 
+			args1, label := io.ParseCmdOption(args1, "--label", "", true)
+
 			flags := apmFlags(*env.es, env.apm.Url(), strcoll.Rest(5, args1))
 
 			if !env.apm.isRemote {
@@ -205,6 +207,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			report := api.NewReport(
 				result,
 				usr,
+				label,
 				env.apm.revision,
 				env.apm.revDate,
 				env.apm.unstaged,

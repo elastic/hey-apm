@@ -41,7 +41,9 @@ type TestReport struct {
 	// any error (eg missing data) for which this report shouldn't be saved and considered for data analysis
 	Error error
 
-	// apmFlags passed to apm-server at startup
+	// any arbitrary string set by the user, meant to filter results
+	Label string `json:"label"`
+	// apm flags passed to apm-server at startup
 	ApmFlags string `json:"apm_flags"`
 	// git revision hash
 	Revision string `json:"revision"`
@@ -121,7 +123,7 @@ type TestResult struct {
 }
 
 // creates and validates a report out of a test result
-func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote bool, mem, memLimit int64, flags []string, w stdio.Writer) TestReport {
+func NewReport(result TestResult, usr, label, rev, revDate string, unstaged, isRemote bool, mem, memLimit int64, flags []string, w stdio.Writer) TestReport {
 	r := TestReport{
 		Lang:       "python",
 		ReportId:   randId(time.Now().Unix()),
@@ -132,6 +134,7 @@ func NewReport(result TestResult, usr, rev, revDate string, unstaged, isRemote b
 		RevDate:    revDate,
 		MaxRss:     mem,
 		Limit:      memLimit,
+		Label:      label,
 		ApmFlags:   s.Join(flags, " "),
 		TestResult: result,
 	}
@@ -282,6 +285,7 @@ func independentVars(r TestReport) map[string]string {
 		"revision":    r.Revision,
 		"branch":      r.Branch,
 		"apm_host":    r.ApmHost,
+		"label":       r.Label,
 		"limit":       strconv.Itoa(int(r.Limit)),
 	}
 }
@@ -661,7 +665,7 @@ func keysExcluding(exclude string, m map[string]string) []string {
 func digestMatrixHeader(variable string, m map[string]string) []string {
 	ret := make([]string, 0)
 	// always the same order
-	for _, attr := range []string{"duration", "events", "spans", "frames", "concurrency", "branch"} {
+	for _, attr := range []string{"label", "duration", "events", "spans", "frames", "concurrency", "branch"} {
 		if variable != attr {
 			ret = append(ret, io.Magenta+attr+" "+io.Grey+m[attr])
 		}
