@@ -3,7 +3,6 @@ package docker
 import (
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/elastic/hey-apm/server/api/io"
 )
@@ -33,29 +32,4 @@ func Dir() string {
 
 func Container() string {
 	return "heyapmserver"
-}
-
-// s has the format used by docker --memory flag
-func ToBytes(s string) int64 {
-	if len(s) < 2 {
-		return parseInt(s, 1)
-	}
-	val, unit := s[:len(s)-1], s[len(s)-1:]
-	switch unit {
-	case "b":
-		return parseInt(val, 1)
-	case "k":
-		return parseInt(val, 1000)
-	case "m":
-		return parseInt(val, 1000*1000)
-	case "g":
-		return parseInt(val, 1000*1000*1000)
-	default:
-		return parseInt(s, 1)
-	}
-}
-
-func parseInt(s string, mult int64) int64 {
-	i, _ := strconv.ParseInt(s, 10, 0)
-	return i * mult
 }

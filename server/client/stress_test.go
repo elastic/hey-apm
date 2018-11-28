@@ -37,7 +37,7 @@ func setupEnv(flags []string) (*evalEnvironment, []string, error) {
 	err := apmStop(environment.apm)
 	if err == nil {
 		time.Sleep(time.Second * 5)
-		err, environment.apm = apmStart(console, *environment.apm, func() {}, flags, "-1")
+		err, environment.apm = apmStart(console, *environment.apm, func() {}, flags, "0", "0")
 	}
 	if err == nil {
 		err = waitForServer(environment.apm.Url())
@@ -120,23 +120,23 @@ func TestMain(m *testing.M) {
 // returns all saved results (reports), including the just indexed; and an error, if occurred
 // the error might be related to failing pre-conditions (eg. no apm-server running) or post-conditions
 // (eg. no data captured, failed to save the report...)
-func doBenchmark(memLimit int64, flags []string, workload ...string) ([]api.TestReport, error) {
+func doBenchmark(flags []string, workload ...string) ([]api.TestReport, error) {
 	env, flags, err := setupEnv(flags)
 	defer reset(env.es)
 	if err != nil {
 		return nil, err
 	}
 	block := func() { select {} }
-	result := api.LoadTest(console, env, block, "1000", workload...)
+	result := api.LoadTest(console, env, block, "1000", time.Duration(0), workload...)
 	report := api.NewReport(
 		result,
 		"hey-apm-tester",
+		"",
 		env.apm.revision,
 		env.apm.revDate,
 		env.apm.unstaged,
 		env.apm.isRemote,
 		maxRssUsed(env.apm.cmd),
-		memLimit,
 		removeSensitiveFlags(flags),
 		console,
 	)
@@ -161,8 +161,7 @@ func doTest(t *testing.T, flags []string, numEvents, numSpans, numFrames, concur
 	t.Log("executing apm-server stress test, this will take long. Use SKIP_STRESS=1 to skip it. " +
 		"Use -timeout if you want to execute it and need to override the default 10 minutes timeout.")
 	duration := "3m"
-	memLimit := int64(-1)
-	reports, err := doBenchmark(memLimit, flags, duration, numEvents, numSpans, numFrames, concurrency)
+	reports, err := doBenchmark(flags, duration, numEvents, numSpans, numFrames, concurrency)
 
 	filter := func(k, v string) string {
 		return fmt.Sprintf("%s=%s", k, v)
@@ -180,8 +179,7 @@ func doTest(t *testing.T, flags []string, numEvents, numSpans, numFrames, concur
 				filter("events", numEvents),
 				filter("spans", numSpans),
 				filter("frames", numFrames),
-				filter("concurrency", concurrency),
-				fmt.Sprintf("limit=%d", memLimit)},
+				filter("concurrency", concurrency)},
 			reports)
 		assert.True(t, ok, msg)
 	}

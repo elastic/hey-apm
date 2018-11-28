@@ -153,7 +153,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 				branch := strcoll.Nth(0, args)
 				rev := strcoll.Nth(1, args)
 				// apmSwitch writes to the connection right away, out and err must have zero value to not duplicate the message
-				out, env.apm = apmSwitch(conn, env.apm.Dir(), branch, rev, opts)
+				out, env.apm = apmSwitch(conn, env.apm.loc, branch, rev, opts)
 			}
 
 		case fn == "test":
@@ -168,27 +168,25 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			}
 
 			// parse optional arguments
-			var limit string
-			args1, limit = io.ParseCmdOption(args1, "--mem", "4g", true)
-			if !env.apm.isDockerized {
-				limit = "-1"
-			}
-
-			var throttle string
-			args1, throttle = io.ParseCmdOption(args1, "--throttle", "32767", true)
+			args1, limit := io.ParseCmdOption(args1, "--mem", "4g", true)
+			args1, cpu := io.ParseCmdOption(args1, "--cpu", "100000", true)
+			args1, throttle := io.ParseCmdOption(args1, "--throttle", "32767", true)
+			args1, label := io.ParseCmdOption(args1, "--label", "", true)
+			args1, cooldownStr := io.ParseCmdOption(args1, "--cooldown", "10s", true)
+			cooldown, err := time.ParseDuration(cooldownStr)
 
 			flags := apmFlags(*env.es, env.apm.Url(), strcoll.Rest(5, args1))
 
 			if !env.apm.isRemote {
 				// starts apm-server process
-				err, env.apm = apmStart(conn, *env.apm, conn.CancelSig.Broadcast, flags, limit)
+				err, env.apm = apmStart(conn, *env.apm, conn.CancelSig.Broadcast, flags, limit, cpu)
 				if err != nil {
 					break
 				}
 			}
 
 			// load test and teardown
-			result := api.LoadTest(conn, env, conn.waitForCancel, throttle, args1...)
+			result := api.LoadTest(conn, env, conn.waitForCancel, throttle, cooldown, args1...)
 
 			var mem int64
 			if running := env.IsRunning(); running != nil && *running {
@@ -205,12 +203,12 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			report := api.NewReport(
 				result,
 				usr,
+				label,
 				env.apm.revision,
 				env.apm.revDate,
 				env.apm.unstaged,
 				env.apm.isRemote,
 				mem,
-				docker.ToBytes(limit),
 				removeSensitiveFlags(flags),
 				bw,
 			)
@@ -342,7 +340,7 @@ func apmSwitch(w stdio.Writer, apmDir, branch, revision string, opts []string) (
 
 // starts apm with the given arguments
 // injects output.elasticsearch and apm-server.host configuration from the current state
-func apmStart(w stdio.Writer, apm apm, cancel func(), flags []string, limit string) (error, *apm) {
+func apmStart(w stdio.Writer, apm apm, cancel func(), flags []string, limit, cpu string) (error, *apm) {
 	newApm := newApm(apm.loc)
 	newApm.branch = apm.branch
 	newApm.revision = apm.revision
@@ -356,6 +354,8 @@ func apmStart(w stdio.Writer, apm apm, cancel func(), flags []string, limit stri
 			"--memory=" + limit,
 			// disallow swapping
 			"--memory-swap=" + limit,
+			"--cpu-quota=" + cpu,
+			"--cpu-period=100000",
 			docker.Image(newApm.branch, newApm.revision),
 			"./apm-server"}
 		args = append(args, flags...)
@@ -423,21 +423,16 @@ func apmUse(usr, loc string) (string, *apm) {
 	if loc == "last" && usr != "" {
 		loc = strcoll.Nth(0, io.LoadApmcfg(usr))
 	}
+	var err error
+	var isRemote, isDockerized bool
 	if loc == "local" {
 		loc = filepath.Join(os.Getenv("GOPATH"), "/src/github.com/elastic/apm-server")
-	}
-
-	var isRemote bool
-	var err error
-	var netUrl *url.URL
-
-	if netUrl, err = url.ParseRequestURI(loc); err == nil && netUrl.Host != "" {
-		isRemote = true
+		err = os.Chdir(loc)
+	} else if loc == "docker" {
+		isDockerized = true
 	} else {
-		err = nil
-		if loc != "docker" {
-			err = os.Chdir(loc)
-		}
+		isRemote = true
+		_, err = url.ParseRequestURI(loc)
 	}
 
 	if err == nil && usr != "" {
@@ -454,12 +449,14 @@ func apmUse(usr, loc string) (string, *apm) {
 
 	apm := newApm(loc)
 	apm.isRemote = isRemote
+	apm.isDockerized = isDockerized
 	apm.useErr = err
 	return w.String(), apm
 }
 
 func newApm(loc string) *apm {
-	return &apm{loc: loc, useErr: nil, unstaged: true, log: make([]string, 0), mu: sync.RWMutex{}}
+	return &apm{loc: loc, useErr: nil, unstaged: true, log: make([]string, 0), mu: sync.RWMutex{},
+		isDockerized: loc == "docker", isRemote: loc != "docker" && loc != "local"}
 }
 
 func apmFlags(es es, apmUrl string, userFlags []string) []string {

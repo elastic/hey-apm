@@ -5,7 +5,6 @@ import (
 	"fmt"
 	stdio "io"
 	"math"
-	"os"
 	"strconv"
 	s "strings"
 	"time"
@@ -28,7 +27,7 @@ import (
 // it will send `N` simultaneous requests repeatedly as fast as possible for the given `duration`
 // if `spans/transaction is` 0, it creates errors; otherwise it creates transactions
 // blocks current goroutine for as long as `duration` or until waitForCancel returns
-func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string, cmd ...string) TestResult {
+func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string, cooldown time.Duration, cmd ...string) TestResult {
 	result := TestResult{Cancelled: true}
 
 	duration, err := time.ParseDuration(strcoll.Nth(0, cmd))
@@ -78,6 +77,7 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 	case <-time.After(duration):
 		work.Stop()
 		elapsedTime := time.Now().Sub(start)
+		time.Sleep(cooldown)
 		codes := work.StatusCodes()
 		_, totalResponses := output.SortedTotal(codes)
 		result = TestResult{
@@ -210,19 +210,17 @@ func Status(state State) *io.BufferWriter {
 	}
 	io.ReplyNL(w, io.Grey+fmt.Sprintf("ApmServer [%s]: %s", apmServer.Url(), apmStatus))
 
-	// apm-server repo status
-	// todo it would be better to expose useErr and print that instead
-	if err := os.Chdir(apmServer.Dir()); apmServer.Dir() != "" && err != nil {
-		io.ReplyNL(w, io.Red+fmt.Sprintf("Can't ch to directory %s", apmServer.Dir())+io.Grey+" (hint: apm use <dir>)")
-		return w
+	if apmServer.Dir() != "" {
+		io.ReplyNL(w, io.Grey, "Using "+apmServer.Dir())
 	}
+
 	var branch string
 	if apmServer.Branch() == "" {
 		branch = io.Red + "unknown branch" + io.Grey + " (hint: apm switch <branch>)"
 	} else {
 		branch = io.Green + apmServer.Branch() + io.Grey + ", " + apmServer.PrettyRevision()
 	}
-	io.ReplyNL(w, io.Grey+fmt.Sprintf("Using %s: %s", apmServer.Dir(), branch))
+	io.ReplyNL(w, io.Grey+fmt.Sprintf("Git info: %s", branch))
 	return w
 }
 
@@ -256,7 +254,7 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"        local"+io.Grey+" short for http://localhost:9200")
 	io.ReplyNL(w, io.Magenta+"elasticsearch reset")
 	io.ReplyNL(w, io.Grey+"    deletes all the apm-* indices")
-	io.ReplyNL(w, io.Magenta+"apm use [<dir> | <url> | last | docker | local]")
+	io.ReplyNL(w, io.Magenta+"apm use [<url> | last | docker | local]")
 	io.ReplyNL(w, io.Grey+"    informs the location of the apm-server repo")
 	io.ReplyNL(w, io.Magenta+"        last"+io.Grey+" uses the last working directory")
 	io.ReplyNL(w, io.Magenta+"        docker"+io.Grey+" builds and runs apm-server inside a docker container")
@@ -281,8 +279,9 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"        <spans>"+io.Grey+" spans per transaction: if 0 events are errors, otherwise they are transactions")
 	io.ReplyNL(w, io.Magenta+"        <frames>"+io.Grey+" frames per document, either spans or errors")
 	io.ReplyNL(w, io.Magenta+"        <concurrency>"+io.Grey+" number of simultaneous queries to send")
-	io.ReplyNL(w, io.Magenta+"        <apmserver-flags>"+io.Grey+" any flags passed to apm-server (elasticsearch url/username/password and apm-server url are overwritten), it doesn't have doEffect if apm-server is not managed by hey-apm")
+	io.ReplyNL(w, io.Magenta+"        <apm-server-flags>"+io.Grey+" any flags passed to apm-server (elasticsearch url/username/password and apm-server url are overwritten), it doesn't have doEffect if apm-server is not managed by hey-apm")
 	io.ReplyNL(w, io.Grey+"    OPTIONS:")
+	io.ReplyNL(w, io.Magenta+"        --label <label>"+io.Grey+" any string to optionally filter results by")
 	io.ReplyNL(w, io.Magenta+"        --mem <mem-limit>"+io.Grey+" memory limit passed to docker run, it doesn't have doEffect if apm-server is not dockerized")
 	io.ReplyNL(w, io.Grey+"        defaults to 4g")
 	io.ReplyNL(w, io.Magenta+"        --throttle <throttle>"+io.Grey+" upper limit of queries per second to send")
@@ -317,7 +316,7 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"                concurrency"+io.Grey+" number of concurrent requests targeted")
 	io.ReplyNL(w, io.Magenta+"                branch"+io.Grey+" git branch and commit (if the branch is variable, the revision necessarily varies too)")
 	io.ReplyNL(w, io.Magenta+"                revision"+io.Grey+" git commit")
-	io.ReplyNL(w, io.Magenta+"                limit"+io.Grey+" memory limit passed to docker")
+	io.ReplyNL(w, io.Magenta+"                label"+io.Grey+" any arbitrary string")
 	io.ReplyNL(w, io.Magenta+"                <flag>"+io.Grey+" flag passed to the apm-server with -E")
 	io.ReplyNL(w, io.Magenta+"        <FILTER>"+io.Grey+" returns only reports matching all given filters, specified like <FIELD>=|!=|<|><value>")
 	io.ReplyNL(w, io.Grey+"        dates must be formatted like \"2018-28-02\" and durations like \"1m\"")
