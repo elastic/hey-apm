@@ -127,7 +127,7 @@ func doBenchmark(flags []string, workload ...string) ([]api.TestReport, error) {
 		return nil, err
 	}
 	block := func() { select {} }
-	result := api.LoadTest(console, env, block, "1000", workload...)
+	result := api.LoadTest(console, env, block, "1000", time.Duration(0), workload...)
 	report := api.NewReport(
 		result,
 		"hey-apm-tester",

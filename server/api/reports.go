@@ -281,6 +281,7 @@ func independentVars(r TestReport) map[string]string {
 		"spans":       strconv.Itoa(r.Spans),
 		"frames":      strconv.Itoa(r.Frames),
 		"concurrency": strconv.Itoa(r.Concurrency),
+		"throttle":		strconv.Itoa(r.Qps),
 		"revision":    r.Revision,
 		"branch":      r.Branch,
 		"apm_host":    r.ApmHost,
@@ -296,8 +297,7 @@ func apmFlags(r TestReport) map[string]string {
 	var prev string
 	for _, flag := range r.apmFlags() {
 		if prev == "-E" &&
-			!s.HasPrefix(flag, "apm-server.host") &&
-			!s.HasPrefix(flag, "output.elasticsearch") {
+			!s.HasPrefix(flag, "apm-server.host") {
 			split := s.Split(flag, "=")
 			if len(split) == 2 {
 				ret[s.TrimSpace(split[0])] = s.TrimSpace(split[1])
@@ -664,7 +664,7 @@ func keysExcluding(exclude string, m map[string]string) []string {
 func digestMatrixHeader(variable string, m map[string]string) []string {
 	ret := make([]string, 0)
 	// always the same order
-	for _, attr := range []string{"label", "duration", "events", "spans", "frames", "concurrency", "branch"} {
+	for _, attr := range []string{"label", "duration", "events", "spans", "frames", "concurrency", "throttle", "branch"} {
 		if variable != attr {
 			ret = append(ret, io.Magenta+attr+" "+io.Grey+m[attr])
 		}

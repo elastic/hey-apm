@@ -1,9 +1,10 @@
 package docker
 
 import (
-	"github.com/elastic/hey-apm/server/api/io"
 	"os"
 	"path/filepath"
+
+	"github.com/elastic/hey-apm/server/api/io"
 )
 
 func Image(branch, revision string) string {
