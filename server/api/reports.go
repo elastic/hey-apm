@@ -123,7 +123,7 @@ type TestResult struct {
 }
 
 // creates and validates a report out of a test result
-func NewReport(result TestResult, usr, label, rev, revDate string, unstaged, isRemote bool, mem, memLimit int64, flags []string, w stdio.Writer) TestReport {
+func NewReport(result TestResult, usr, label, rev, revDate string, unstaged, isRemote bool, mem int64, flags []string, w stdio.Writer) TestReport {
 	r := TestReport{
 		Lang:       "python",
 		ReportId:   randId(time.Now().Unix()),
@@ -133,7 +133,6 @@ func NewReport(result TestResult, usr, label, rev, revDate string, unstaged, isR
 		Revision:   rev,
 		RevDate:    revDate,
 		MaxRss:     mem,
-		Limit:      memLimit,
 		Label:      label,
 		ApmFlags:   s.Join(flags, " "),
 		TestResult: result,
