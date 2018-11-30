@@ -23,7 +23,6 @@ var report = TestReport{
 	User:             "test_user",
 	Timestamp:        time.Now(),
 	Lang:             "python",
-	Limit:            -1,
 	Revision:         "rev12345678",
 	RevDate:          "Fri, 20 Apr 2018 10:00:00 +0200",
 	ApmFlags:         "-E apm-server.host=http://localhost:8200 -E output.elasticsearch.hosts=[http://localhost:9200]",
@@ -164,7 +163,7 @@ func (b *builder) addFlag(s string) *builder {
 }
 
 func (b *builder) get() TestReport {
-	r := NewReport(b.TestResult, b.User, "", b.Revision, b.RevDate, false, b.MaxRss, b.Limit, b.apmFlags(), io.NewBufferWriter())
+	r := NewReport(b.TestResult, b.User, "", b.Revision, b.RevDate, false, b.MaxRss, b.apmFlags(), io.NewBufferWriter())
 	r.ReportId = b.ReportId
 	r.ReportDate = b.ReportDate
 	return r

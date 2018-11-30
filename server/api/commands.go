@@ -326,7 +326,6 @@ func Help() string {
 	io.ReplyNL(w, io.Magenta+"                revision"+io.Grey+" git commit")
 	io.ReplyNL(w, io.Magenta+"                apm_host"+io.Grey+" apm hostname(s) separated by ',' ordered alphabetically")
 	io.ReplyNL(w, io.Magenta+"                apms"+io.Grey+" number of apm servers running")
-	io.ReplyNL(w, io.Magenta+"                limit"+io.Grey+" memory limit passed to docker")
 	io.ReplyNL(w, io.Magenta+"                <flag>"+io.Grey+" flag passed to the apm-server with -E")
 	io.ReplyNL(w, io.Magenta+"        <FILTER>"+io.Grey+" returns only reports matching all given filters, specified like <FIELD>=|!=|<|><value>")
 	io.ReplyNL(w, io.Grey+"        dates must be formatted like \"2018-28-02\" and durations like \"1m\"")

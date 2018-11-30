@@ -315,7 +315,8 @@ func apmFlags(r TestReport) map[string]string {
 	for _, flag := range r.apmFlags() {
 		if prev == "-E" &&
 			!s.HasPrefix(flag, "apm-server.host") &&
-			!s.HasPrefix(flag, "output.elasticsearch") {
+			!s.HasPrefix(flag, "output.elasticsearch.username") &&
+			!s.HasPrefix(flag, "output.elasticsearch.password") {
 			split := s.Split(flag, "=")
 			if len(split) == 2 {
 				ret[s.TrimSpace(split[0])] = s.TrimSpace(split[1])
