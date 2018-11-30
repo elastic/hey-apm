@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"fmt"
 
 	"github.com/elastic/hey-apm/compose"
 	"github.com/elastic/hey-apm/requester"
@@ -25,7 +26,7 @@ type Config struct {
 	RequestTimeout time.Duration
 	RunTimeout     time.Duration
 	Endpoint       string
-	SecretToken string
+	SecretToken    string
 	Stream         bool
 	*BodyConfig
 	DisableCompression, DisableKeepAlives, DisableRedirects bool
