@@ -252,6 +252,7 @@ func makeTarget(urls []string, args ...string) (target.Target, []string, error) 
 	args, pause := io.ParseCmdOption(args, "--pause", "100ms", true)
 	args, errorEvents := io.ParseCmdOption(args, "--errors", "0", true)
 	args, agents := io.ParseCmdOption(args, "--agents", "1", true)
+	args, secret := io.ParseCmdOption(args, "--secret", "none", true)
 	args, stream := io.ParseCmdOption(args, "--stream", "not streaming", false)
 	args, reqTimeout := io.ParseCmdOption(args, "--timeout", "10s", true)
 	t, err := target.NewTargetFromOptions(
@@ -263,6 +264,7 @@ func makeTarget(urls []string, args ...string) (target.Target, []string, error) 
 		target.RequestTimeout(reqTimeout),
 		target.Stream(stream),
 		target.NumErrors(errorEvents),
+		target.SecretToken(secret),
 		target.NumTransactions(strcoll.Nth(1, args)),
 		target.NumSpans(strcoll.Nth(2, args)),
 		target.NumFrames(strcoll.Nth(3, args)),

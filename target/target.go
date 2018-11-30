@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"fmt"
 
 	"github.com/elastic/hey-apm/compose"
 	"github.com/elastic/hey-apm/requester"
@@ -25,6 +26,7 @@ type Config struct {
 	RequestTimeout time.Duration
 	RunTimeout     time.Duration
 	Endpoint       string
+	SecretToken    string
 	Stream         bool
 	*BodyConfig
 	DisableCompression, DisableKeepAlives, DisableRedirects bool
@@ -90,6 +92,13 @@ func with(c *Config, f OptionFunc, err error) error {
 		return err
 	}
 	return f(c)
+}
+
+func SecretToken(s string) OptionFunc {
+	return func(c *Config) error {
+		c.SecretToken = s
+		return nil
+	}
 }
 
 func RunTimeout(s string) OptionFunc {
@@ -179,6 +188,8 @@ func (t *Target) GetWork(w io.Writer) *requester.Work {
 	if _, ok := t.Config.Header["User-Agent"]; !ok {
 		t.Config.Header.Add("User-Agent", defaultUserAgent)
 	}
+
+	t.Config.Header.Add("Authorization", fmt.Sprintf("Bearer %s", t.Config.SecretToken))
 
 	if len(t.Body) > 0 {
 		t.Config.Header.Add("Content-Type", "application/x-ndjson")
