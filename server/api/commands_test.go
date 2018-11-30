@@ -173,7 +173,7 @@ func TestDump(t *testing.T) {
 
 func TestStatus(t *testing.T) {
 	state := MockState{
-		MockApm{dir: "NOTADIR", url: "localhost:8200"},
+		MockApm{dir: "dir", url: "localhost:8200"},
 		MockEs{url: "localhost:9200", health: "great", docs: 17},
 		nil,
 	}
@@ -181,7 +181,9 @@ func TestStatus(t *testing.T) {
 	assert.Equal(t,
 		`ElasticSearch [localhost:9200]: great ,  17 docs
 ApmServer [localhost:8200]: not running
-Can't ch to directory NOTADIR (hint: apm use <dir>)
+
+Using dir
+Git info: unknown branch (hint: apm switch <branch>)
 `,
 		tests.WithoutColors(out))
 }
