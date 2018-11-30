@@ -289,24 +289,24 @@ func apmSwitch(w stdio.Writer, apmLoc string, apmUrls []string, branch, revision
 	fetchCmd := "true"
 	if strcoll.ContainsAny(opts, "f", "fetch") || apm.isDockerized() {
 		if len(tokens) == 2 {
-			fetchCmd = fmt.Sprintf("'git fetch %s'", tokens[0])
+			fetchCmd = fmt.Sprintf("git fetch %s", tokens[0])
 		} else {
-			fetchCmd = "'git fetch origin'"
+			fetchCmd = "git fetch origin"
 		}
 	}
 
 	checkoutCmd := "true"
 	if strcoll.ContainsAny(opts, "c", "checkout") || apm.isDockerized() {
 		if revision != "" {
-			checkoutCmd = fmt.Sprintf("'git checkout %s'", revision)
+			checkoutCmd = fmt.Sprintf("git checkout %s", revision)
 		} else {
-			checkoutCmd = fmt.Sprintf("'git checkout %s'", branch)
+			checkoutCmd = fmt.Sprintf("git checkout %s", branch)
 		}
 	}
 
 	makeUpdateCmd := "true"
 	if strcoll.ContainsAny(opts, "u", "make-update") || apm.isDockerized() {
-		makeUpdateCmd = "'make update'"
+		makeUpdateCmd = "make update"
 	}
 
 	makeCmd := "true"
