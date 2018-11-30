@@ -281,7 +281,7 @@ func independentVars(r TestReport) map[string]string {
 		"spans":       strconv.Itoa(r.Spans),
 		"frames":      strconv.Itoa(r.Frames),
 		"concurrency": strconv.Itoa(r.Concurrency),
-		"throttle":		strconv.Itoa(r.Qps),
+		"throttle":    strconv.Itoa(r.Qps),
 		"revision":    r.Revision,
 		"branch":      r.Branch,
 		"apm_host":    r.ApmHost,

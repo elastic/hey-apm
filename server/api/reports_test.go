@@ -559,15 +559,15 @@ func TestCollate(t *testing.T) {
 		return tests.WithoutColors(strings.Join(ret[idx0][idx1], " "))
 	}
 	assert.NoError(t, err)
-	assert.Equal(t, "duration 20m0s events 1 spans 100 frames 10 concurrency 10", text(0, 0))
+	assert.Equal(t, "label  duration 20m0s events 1 spans 100 frames 10 concurrency 10 throttle 32767", text(0, 0))
 	assert.Equal(t, "report id revision date  pushed    accepted   throughput latency index max rss effic branch flags", text(0, 1))
-	assert.Equal(t, "g 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.7% 1.0Mb 0.000 master ", text(0, 2))
-	assert.Equal(t, "duration 10m0s events 1 spans 100 frames 10 concurrency 10", text(1, 0))
+	assert.Equal(t, "g 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.7% 1.0Mb 0.000 master output.elasticsearch.hosts=[http://localhost:9200] ", text(0, 2))
+	assert.Equal(t, "label  duration 10m0s events 1 spans 100 frames 10 concurrency 10 throttle 32767", text(1, 0))
 	assert.Equal(t, "report id revision date  pushed    accepted   throughput latency index max rss effic branch flags", text(1, 1))
-	assert.Equal(t, "b 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.7% 1.0Mb 0.000 master ", text(1, 2))
-	assert.Equal(t, "d 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.7% 1.0Mb 0.000 branch2 ", text(1, 3))
-	assert.Equal(t, "e 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.7% 5.0kb 0.000 branch2 flag=1 ", text(1, 4))
-	assert.Equal(t, "f 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.7% 5.0kb 0.000 branch2 ", text(1, 5))
+	assert.Equal(t, "b 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.7% 1.0Mb 0.000 master output.elasticsearch.hosts=[http://localhost:9200] ", text(1, 2))
+	assert.Equal(t, "d 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.7% 1.0Mb 0.000 branch2 output.elasticsearch.hosts=[http://localhost:9200] ", text(1, 3))
+	assert.Equal(t, "e 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.7% 5.0kb 0.000 branch2 flag=1 output.elasticsearch.hosts=[http://localhost:9200] ", text(1, 4))
+	assert.Equal(t, "f 18-04-20 10:00 10 bps 6 bps 200.0dps 150ms 29.7% 5.0kb 0.000 branch2 output.elasticsearch.hosts=[http://localhost:9200] ", text(1, 5))
 }
 
 func TestFit(t *testing.T) {
