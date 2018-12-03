@@ -20,7 +20,7 @@ func TestInvalidLoadCmds(t *testing.T) {
 		{"1s", "1", "1", "1"},
 	} {
 		bw := io.NewBufferWriter()
-		ret := LoadTest(bw, MockState{}, nil, "32767", time.Duration(0), invalidCmd...)
+		ret := LoadTest(bw, MockState{}, nil, "32767", "", time.Duration(0), invalidCmd...)
 		assert.Contains(t, bw.String(), io.Red)
 		assert.Equal(t, ret, TestResult{Cancelled: true})
 	}
@@ -29,7 +29,7 @@ func TestInvalidLoadCmds(t *testing.T) {
 func TestLoadNotReady(t *testing.T) {
 	bw := io.NewBufferWriter()
 	cmd := []string{"1s", "1", "0", "1", "1"}
-	ret := LoadTest(bw, MockState{Ok: errors.New("not ready")}, nil, "32767", time.Duration(0), cmd...)
+	ret := LoadTest(bw, MockState{Ok: errors.New("not ready")}, nil, "32767", "", time.Duration(0), cmd...)
 	assert.Equal(t, "not ready", tests.WithoutColors(bw.String()))
 	assert.Equal(t, ret, TestResult{Cancelled: true})
 }
@@ -41,7 +41,7 @@ func TestLoadCancelled(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	s := MockState{MockApm{url: "localhost:822222"}, MockEs{}, nil}
-	ret := LoadTest(bw, s, cancel, "32767", time.Duration(0), cmd...)
+	ret := LoadTest(bw, s, cancel, "32767", "", time.Duration(0), cmd...)
 	assert.Equal(t, ret, TestResult{Cancelled: true})
 }
 
@@ -55,7 +55,7 @@ func TestLoadOk(t *testing.T) {
 		MockApm{url: "localhost:822222", branch: "master"},
 		MockEs{url: "localhost:922222", docs: 10},
 		nil}
-	ret := LoadTest(bw, s, cancel, "32767", time.Duration(0), cmd...)
+	ret := LoadTest(bw, s, cancel, "32767", "", time.Duration(0), cmd...)
 	assert.Equal(t, `started new work, payload size is 3.8kb...
 >>> 
 cmd = [1s 1 2 1 0]
