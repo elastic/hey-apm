@@ -66,6 +66,9 @@ pipeline {
           APM server stress tests.
         */
         stage('Hey APM test') {
+          environment {
+            APM_SERVER_DIR = "${env.WORKSPACE}/${env.APM_SERVER_BASE_DIR}"
+          }
           steps {
             withEnvWrapper() {
               unstash 'source'
