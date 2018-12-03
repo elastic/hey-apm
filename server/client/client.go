@@ -172,6 +172,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			args1, cpu := io.ParseCmdOption(args1, "--cpu", "100000", true)
 			args1, throttle := io.ParseCmdOption(args1, "--throttle", "32767", true)
 			args1, label := io.ParseCmdOption(args1, "--label", "", true)
+			args1, secret := io.ParseCmdOption(args1, "--secret", "none", true)
 			args1, cooldownStr := io.ParseCmdOption(args1, "--cooldown", "10s", true)
 			cooldown, err := time.ParseDuration(cooldownStr)
 
@@ -186,7 +187,7 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			}
 
 			// load test and teardown
-			result := api.LoadTest(conn, env, conn.waitForCancel, throttle, cooldown, args1...)
+			result := api.LoadTest(conn, env, conn.waitForCancel, throttle, secret, cooldown, args1...)
 
 			var mem int64
 			if running := env.IsRunning(); running != nil && *running {

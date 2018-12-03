@@ -5,6 +5,7 @@ import (
 	"fmt"
 	stdio "io"
 	"math"
+	"net/http"
 	"strconv"
 	s "strings"
 	"time"
@@ -27,7 +28,7 @@ import (
 // it will send `N` simultaneous requests repeatedly as fast as possible for the given `duration`
 // if `spans/transaction is` 0, it creates errors; otherwise it creates transactions
 // blocks current goroutine for as long as `duration` or until waitForCancel returns
-func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string, cooldown time.Duration, cmd ...string) TestResult {
+func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle, secret string, cooldown time.Duration, cmd ...string) TestResult {
 	result := TestResult{Cancelled: true}
 
 	duration, err := time.ParseDuration(strcoll.Nth(0, cmd))
@@ -54,11 +55,16 @@ func LoadTest(w stdio.Writer, state State, waitForCancel func(), throttle string
 	var targets t.Targets = []t.Target{
 		{"POST", url, reqBody, conc, float64(qps)},
 	}
+	headers := http.Header{}
+	if secret != "" {
+		headers.Add("Authorization", fmt.Sprintf("Bearer %s", secret))
+	}
 	work := targets.GetWork(state.ApmServer().Url(), &t.Config{
 		MaxRequests: math.MaxInt32,
 		// should match the one in apm-server
 		RequestTimeout:     30,
 		DisableCompression: false,
+		Header:             headers,
 	})[0]
 	docsBefore := state.ElasticSearch().Count()
 	start := time.Now()
