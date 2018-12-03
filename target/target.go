@@ -3,6 +3,8 @@ package target
 import (
 	"bytes"
 	"compress/gzip"
+	"container/ring"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -24,6 +26,7 @@ type Config struct {
 	RequestTimeout time.Duration
 	RunTimeout     time.Duration
 	Endpoint       string
+	SecretToken    string
 	Stream         bool
 	*BodyConfig
 	DisableCompression, DisableKeepAlives, DisableRedirects bool
@@ -35,46 +38,49 @@ type BodyConfig struct {
 }
 
 type Target struct {
-	Url    string
+	URLs   *ring.Ring
 	Method string
 	Body   []byte
 	Config *Config
 }
 
-var (
-	defaultCfg = Config{
+func defaultCfg() *Config {
+	return &Config{
 		MaxRequests:    math.MaxInt32,
 		RequestTimeout: 10 * time.Second,
 		Endpoint:       "/intake/v2/events",
 		BodyConfig:     &BodyConfig{},
 		Header:         make(http.Header),
 	}
-)
+}
 
 func buildBody(b *BodyConfig) []byte {
 	return compose.Compose(b.NumErrors, b.NumTransactions, b.NumSpans, b.NumFrames)
 }
 
-func NewTargetFromConfig(baseUrl, method string, cfg *Config) *Target {
+func NewTargetFromConfig(url, method string, cfg *Config) *Target {
 	if cfg == nil {
-		copyCfg := defaultCfg
-		cfg = &copyCfg
+		cfg = defaultCfg()
 	}
 	body := buildBody(cfg.BodyConfig)
-	url := strings.TrimSuffix(baseUrl, "/") + cfg.Endpoint
-	return &Target{Config: cfg, Body: body, Url: url, Method: method}
+	ring := ring.New(1)
+	ring.Value = strings.TrimSuffix(url, "/") + cfg.Endpoint
+	return &Target{Config: cfg, Body: body, URLs: ring, Method: method}
 }
 
-func NewTargetFromOptions(baseUrl string, opts ...OptionFunc) (*Target, error) {
-	copyCfg := defaultCfg
-	cfg := &copyCfg
+func NewTargetFromOptions(urls []string, opts ...OptionFunc) (*Target, error) {
+	cfg := defaultCfg()
 	var err error
 	for _, opt := range opts {
 		err = with(cfg, opt, err)
 	}
 	body := buildBody(cfg.BodyConfig)
-	url := strings.TrimSuffix(baseUrl, "/") + cfg.Endpoint
-	return &Target{Config: cfg, Body: body, Url: url, Method: "POST"}, err
+	ring := ring.New(len(urls))
+	for _, url := range urls {
+		ring.Value = strings.TrimSuffix(url, "/") + cfg.Endpoint
+		ring = ring.Next()
+	}
+	return &Target{Config: cfg, Body: body, URLs: ring, Method: "POST"}, err
 }
 
 type OptionFunc func(*Config) error
@@ -84,6 +90,13 @@ func with(c *Config, f OptionFunc, err error) error {
 		return err
 	}
 	return f(c)
+}
+
+func SecretToken(s string) OptionFunc {
+	return func(c *Config) error {
+		c.SecretToken = s
+		return nil
+	}
 }
 
 func RunTimeout(s string) OptionFunc {
@@ -174,6 +187,8 @@ func (t *Target) GetWork(w io.Writer) *requester.Work {
 		t.Config.Header.Add("User-Agent", defaultUserAgent)
 	}
 
+	t.Config.Header.Add("Authorization", fmt.Sprintf("Bearer %s", t.Config.SecretToken))
+
 	if len(t.Body) > 0 {
 		t.Config.Header.Add("Content-Type", "application/x-ndjson")
 	}
@@ -195,7 +210,7 @@ func (t *Target) GetWork(w io.Writer) *requester.Work {
 	if t.Config.Stream {
 		workReq = &requester.StreamReq{
 			Method:        t.Method,
-			Url:           t.Url,
+			URLs:          t.URLs,
 			Header:        t.Config.Header,
 			Timeout:       t.Config.RequestTimeout,
 			RunTimeout:    t.Config.RunTimeout,
@@ -205,8 +220,9 @@ func (t *Target) GetWork(w io.Writer) *requester.Work {
 		}
 	} else {
 		workReq = &requester.SimpleReq{
-			Request:     request(t.Method, t.Url, t.Config.Header, t.Body),
+			Request:     request(t.Method, t.URLs.Value.(string), t.Config.Header, t.Body),
 			RequestBody: t.Body,
+			URLs:        t.URLs,
 			Timeout:     int(t.Config.RequestTimeout.Seconds()),
 			QPS:         t.Config.Throttle,
 		}

@@ -24,14 +24,14 @@ func basicTarget(t *testing.T, opts ...target.OptionFunc) *target.Target {
 		target.NumAgents("0"),
 		target.Throttle("1"),
 	}
-	target, err := target.NewTargetFromOptions("", append(required, opts...)...)
+	target, err := target.NewTargetFromOptions([]string{""}, append(required, opts...)...)
 	assert.NoError(t, err)
 	return target
 }
 
 func TestLoadNotReady(t *testing.T) {
 	bw := io.NewBufferWriter()
-	ret := LoadTest(bw, MockState{Ok: errors.New("not ready")}, nil, *basicTarget(t))
+	ret := LoadTest(bw, MockState{Ok: errors.New("not ready")}, nil, time.Duration(0), *basicTarget(t))
 	assert.Equal(t, "not ready", tests.WithoutColors(bw.String()))
 	assert.Equal(t, ret, TestResult{Cancelled: true})
 }
@@ -42,7 +42,7 @@ func TestLoadCancelled(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	s := MockState{MockApm{url: "localhost:822222"}, MockEs{}, nil}
-	ret := LoadTest(bw, s, cancel, *basicTarget(t))
+	ret := LoadTest(bw, s, cancel, time.Duration(0), *basicTarget(t))
 	assert.Equal(t, ret, TestResult{Cancelled: true})
 }
 
@@ -55,8 +55,8 @@ func TestLoadOk(t *testing.T) {
 		MockApm{url: "localhost:822222", branch: "master"},
 		MockEs{url: "localhost:922222", docs: 10},
 		nil}
-	ret := LoadTest(bw, s, cancel, *basicTarget(t))
-	assert.Contains(t, bw.String(), "started new work, url /intake/v2/events")
+	ret := LoadTest(bw, s, cancel, time.Duration(0), *basicTarget(t))
+	assert.Contains(t, bw.String(), "started new work")
 
 	assert.Equal(t, time.Second, ret.Duration)
 	assert.Equal(t, 0, ret.Errors)
@@ -64,7 +64,7 @@ func TestLoadOk(t *testing.T) {
 	assert.Equal(t, 1, ret.Spans)
 	assert.Equal(t, 1, ret.Frames)
 	assert.Equal(t, "localhost:922222", ret.ElasticUrl)
-	assert.Equal(t, "localhost:822222", ret.ApmUrl)
+	assert.Equal(t, "localhost:822222", ret.ApmUrls)
 	assert.Equal(t, 0, ret.Agents)
 	assert.Equal(t, 1, ret.Throttle)
 	assert.Equal(t, "master", ret.Branch)
@@ -152,7 +152,7 @@ func TestDump(t *testing.T) {
 	out := Dump(mfw, "json", "1", "1", "1", "1")
 	assert.Contains(t, out, "written to disk", tests.WithoutColors(out))
 	for _, jsonKey := range []string{"\"metadata\"", "\"user\"", "\"process\"", "\"system\"",
-	"\"service\"", "\"transaction\"", "\"error\"", "\"span\"", "\"abs_path\""} {
+		"\"service\"", "\"transaction\"", "\"error\"", "\"span\"", "\"abs_path\""} {
 		assert.Contains(t, mfw.Data, jsonKey)
 	}
 
@@ -174,7 +174,7 @@ func TestDump(t *testing.T) {
 
 func TestStatus(t *testing.T) {
 	state := MockState{
-		MockApm{dir: "NOTADIR", url: "localhost:8200"},
+		MockApm{dir: "dir", url: "localhost:8200"},
 		MockEs{url: "localhost:9200", health: "great", docs: 17},
 		nil,
 	}
@@ -182,7 +182,9 @@ func TestStatus(t *testing.T) {
 	assert.Equal(t,
 		`ElasticSearch [localhost:9200]: great ,  17 docs
 ApmServer [localhost:8200]: not running
-Can't ch to directory NOTADIR (hint: apm use <dir>)
+
+Using dir
+Git Info: unknown branch (hint: apm switch <branch>)
 `,
 		tests.WithoutColors(out))
 }

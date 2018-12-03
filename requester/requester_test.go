@@ -16,6 +16,7 @@ package requester
 
 import (
 	"bytes"
+	"container/ring"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -24,6 +25,12 @@ import (
 	"testing"
 	"time"
 )
+
+func testRing(s string) *ring.Ring {
+	r := ring.New(1)
+	r.Value = s
+	return r
+}
 
 func TestN(t *testing.T) {
 	var count int64
@@ -35,7 +42,7 @@ func TestN(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", server.URL, nil)
 	w := &Work{
-		Req: &SimpleReq{Request: req},
+		Req: &SimpleReq{Request: req, URLs: testRing(server.URL)},
 		N:   20,
 		C:   2,
 	}
@@ -56,7 +63,7 @@ func TestQps(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", server.URL, nil)
 	w := &Work{
-		Req: &SimpleReq{Request: req, QPS: 1},
+		Req: &SimpleReq{Request: req, QPS: 1, URLs: testRing(server.URL)},
 		N:   20,
 		C:   2,
 	}
@@ -90,7 +97,7 @@ func TestRequest(t *testing.T) {
 	req.Header = header
 	req.SetBasicAuth("username", "password")
 	w := &Work{
-		Req: &SimpleReq{Request: req},
+		Req: &SimpleReq{Request: req, URLs: testRing(server.URL)},
 		N:   1,
 		C:   1,
 	}
@@ -122,7 +129,7 @@ func TestBody(t *testing.T) {
 
 	req, _ := http.NewRequest("POST", server.URL, bytes.NewBuffer([]byte("Body")))
 	w := &Work{
-		Req: &SimpleReq{Request: req, RequestBody: []byte("Body")},
+		Req: &SimpleReq{Request: req, RequestBody: []byte("Body"), URLs: testRing(server.URL)},
 		N:   10,
 		C:   1,
 	}

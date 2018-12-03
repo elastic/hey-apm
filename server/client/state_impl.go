@@ -74,7 +74,7 @@ func (apm apm) IsRunning() *bool {
 		return nil
 	}
 	isRunning := apm.cmd != nil && apm.cmd.Process != nil && apm.cmd.ProcessState == nil
-	if apm.isDockerized {
+	if apm.isDockerized() {
 		sh := io.Shell(io.NewBufferWriter(), docker.Dir(), false)
 		out, err := sh("docker", "exec", "-i", docker.Container(), "ps", "-C", "apm-server", "h")
 		isRunning = isRunning && err == nil && string(out) != ""
@@ -86,21 +86,20 @@ func (apm apm) PrettyRevision() string {
 	return apm.prettyRev
 }
 
-func (apm apm) Url() string {
-	if apm.isDockerized {
-		return "http://0.0.0.0:8200"
-	} else if apm.isRemote {
-		return apm.loc
-	} else {
-		return "http://localhost:8200"
-
+func (apm apm) Urls() []string {
+	if apm.Dir() == "" {
+		return apm.urls
+	} else if apm.Dir() == "docker" {
+		return []string{"http://0.0.0.0:8200"}
 	}
+	return []string{"http://localhost:8200"}
+}
+
+func (apm apm) isDockerized() bool {
+	return apm.loc == "docker"
 }
 
 func (apm apm) Dir() string {
-	if apm.isRemote || apm.isDockerized {
-		return ""
-	}
 	return apm.loc
 }
 
