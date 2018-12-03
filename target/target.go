@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"compress/gzip"
 	"container/ring"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
-	"fmt"
 
 	"github.com/elastic/hey-apm/compose"
 	"github.com/elastic/hey-apm/requester"
@@ -44,15 +44,15 @@ type Target struct {
 	Config *Config
 }
 
-var (
-	defaultCfg = Config{
+func defaultCfg() *Config {
+	return &Config{
 		MaxRequests:    math.MaxInt32,
 		RequestTimeout: 10 * time.Second,
 		Endpoint:       "/intake/v2/events",
 		BodyConfig:     &BodyConfig{},
 		Header:         make(http.Header),
 	}
-)
+}
 
 func buildBody(b *BodyConfig) []byte {
 	return compose.Compose(b.NumErrors, b.NumTransactions, b.NumSpans, b.NumFrames)
@@ -60,8 +60,7 @@ func buildBody(b *BodyConfig) []byte {
 
 func NewTargetFromConfig(url, method string, cfg *Config) *Target {
 	if cfg == nil {
-		copyCfg := defaultCfg
-		cfg = &copyCfg
+		cfg = defaultCfg()
 	}
 	body := buildBody(cfg.BodyConfig)
 	ring := ring.New(1)
@@ -70,8 +69,7 @@ func NewTargetFromConfig(url, method string, cfg *Config) *Target {
 }
 
 func NewTargetFromOptions(urls []string, opts ...OptionFunc) (*Target, error) {
-	copyCfg := defaultCfg
-	cfg := &copyCfg
+	cfg := defaultCfg()
 	var err error
 	for _, opt := range opts {
 		err = with(cfg, opt, err)
