@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"fmt"
-	"math/rand"
 	"strings"
 
 	"github.com/elastic/hey-apm/server/api/io"
@@ -175,10 +174,7 @@ func TestValidateResult(t *testing.T) {
 		msg string
 	}{
 		{newBuilder().setDur(time.Second * 10).get(), "duration too short"},
-		{newBuilder().setMaxRss(0).get(), "memory usage not available"},
 		{newBuilder().setBranch("").get(), "unknown branch"},
-		{newBuilder().setRev("").get(), "unknown revision"},
-		{newBuilder().setRevDate("").get(), "unknown revision date"},
 	} {
 		assert.Contains(t, test.tr.Error.Error(), test.msg)
 	}
@@ -384,35 +380,6 @@ func TestFilterFail(t *testing.T) {
 		query := query{combine(independentVars, metadata), -1, test.qfs}
 		_, err := filter(query, []TestReport{newBuilder().TestReport}, nil)
 		assert.Contains(t, err.Error(), test.errMsg)
-	}
-}
-
-func TestSortedAndUnique(t *testing.T) {
-	date1 := "Wed, 25 Apr 2018 17:36:14 +0200"
-	date2 := "Wed, 25 Apr 2018 17:37:14 +0200"
-	date3 := "Thu, 26 Apr 2018 17:00:00 +0200"
-	a1 := newBuilder().setId("a1").setBranch("a").setDate(date3).setMaxRss(10).get()
-	a2 := newBuilder().setId("a2").setBranch("a").setDate(date2).setMaxRss(25).get()
-	a3 := newBuilder().setId("a3").setBranch("a").setDate(date1).setMaxRss(50).get()
-	b1 := newBuilder().setId("b1").setBranch("b").setDate(date2).setMaxRss(70).get()
-	b2 := newBuilder().setId("b2").setBranch("b").setDate(date1).setMaxRss(100).get()
-	c1 := newBuilder().setId("c1").setBranch("c").setDate(date2).setMaxRss(20).get()
-	c2 := newBuilder().setId("c2").setBranch("c").setDate(date1).setMaxRss(5).get()
-
-	expected := []TestReport{a1, b1, c2}
-
-	for x := 0; x < 1000; x++ {
-		rand.Seed(time.Now().UnixNano())
-		asIs := []TestReport{a1, a2, a3, b1, b2, c1, c2}
-		original := make([]TestReport, 0)
-		// randomize order of the input
-		for len(asIs) > 0 {
-			x := rand.Intn(len(asIs))
-			original = append(original, asIs[x])
-			asIs = append(asIs[:x], asIs[x+1:]...)
-		}
-		ret := unique(original)
-		assert.Equal(t, expected, ret)
 	}
 }
 
