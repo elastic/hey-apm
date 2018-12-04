@@ -148,11 +148,7 @@ func NewReport(result TestResult, usr, label, rev, revDate string, unstaged, isR
 			errMsg: "test cancelled",
 		},
 		{
-			isOk:   func() bool { return !isRemote },
-			errMsg: "apm-server is not managed by hey-apm (an URL was provided in `apm use`)",
-		},
-		{
-			isOk:   func() bool { return !unstaged },
+			isOk:   func() bool { return isRemote || !unstaged },
 			errMsg: "git reported unstaged changes",
 		},
 		{
@@ -161,14 +157,6 @@ func NewReport(result TestResult, usr, label, rev, revDate string, unstaged, isR
 			doEffect: func() {
 				io.ReplyNL(w, fmt.Sprintf("on branch %s", r.Branch))
 			},
-		},
-		{
-			isOk:   func() bool { return r.Revision != "" },
-			errMsg: "unknown revision",
-		},
-		{
-			isOk:   func() bool { return !r.revisionDate().IsZero() },
-			errMsg: "unknown revision date",
 		},
 		{
 			isOk:   func() bool { return r.Duration.Seconds() >= 30 },
@@ -204,7 +192,7 @@ func NewReport(result TestResult, usr, label, rev, revDate string, unstaged, isR
 		},
 		{
 			isOk:   func() bool { return r.MaxRss > 0 },
-			errMsg: "memory usage not available",
+			errMsg: "",
 			doEffect: func() {
 				r.Efficiency = 60 * float64(r.AcceptedBps) / float64(r.MaxRss)
 
@@ -217,7 +205,7 @@ func NewReport(result TestResult, usr, label, rev, revDate string, unstaged, isR
 	} {
 		if ok := check.isOk(); ok && check.doEffect != nil {
 			check.doEffect()
-		} else if !ok && r.Error == nil {
+		} else if !ok && check.errMsg != "" && r.Error == nil {
 			r.Error = errors.New(check.errMsg)
 		}
 	}
@@ -363,6 +351,7 @@ func queryFilters(expressions []string) ([]queryFilter, error) {
 // returns true if the report from the most recent revision shows no less efficient than reports from older revisions
 // `filtersExpr` must include all the independent variables except revision and apm_host
 // `all` must not be empty
+// NOTE only for managed apm-servers
 func verify(since string, filtersExpr []string, all []TestReport) (bool, string, error) {
 	if len(all) == 0 {
 		return false, "", errors.New("no reports")
@@ -425,6 +414,7 @@ func collate(ND, variable, sortCriteria string, align bool, filtersExpr []string
 		}
 		// maybe a different sorting criteria would be better?
 		variants, err = top("7", sortCriteria, nil, unique(variants), err)
+		// "best" will be arbitrary for unmanaged apm-servers
 		best := best(append(newReports, variants...))
 		digestMatrix := make([][]string, len(variants)+3)
 		digestMatrix[0] = digestMatrixHeader(variable, independentVars(report))
@@ -569,7 +559,7 @@ func sortBy(criteria string, reports []TestReport) []TestReport {
 	return reports
 }
 
-// if 2 reports have the same independent variables, return the one that showed better performance
+// if 2 reports have the same independent variables, return the one that showed better throughput
 // reports are sorted by their date, most recent first
 func unique(reports []TestReport) []TestReport {
 	return uniq(sortBy("report_date", reports))
@@ -584,7 +574,7 @@ func uniq(reports []TestReport) []TestReport {
 	variant, _ := findVariants("", first, rest, nil)
 	isUnique := true
 	for _, k := range keys(variant, true) {
-		if first.Efficiency > variant[k].Efficiency {
+		if first.Throughput > variant[k].Throughput {
 			rest = append(rest[:k], rest[k+1:]...)
 		} else {
 			isUnique = false

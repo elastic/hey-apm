@@ -143,14 +143,15 @@ func (env *evalEnvironment) EvalAndUpdate(usr string, conn Connection) {
 			out, env.apm = apmUse(usr, strcoll.Nth(2, cmd))
 			err = env.apm.useErr
 		case fn == "apm" && arg1 == "switch":
+			args, opts := io.ParseCmdOptions(args2)
+			branch := strcoll.Nth(0, args)
 			if env.apm.useErr != nil {
 				// `apm switch` depends on `apm use` having succeeded
 				err = env.apm.useErr
 			} else if env.apm.isRemote {
-				out = io.Grey + "apm-server is not managed by hey-apm, nothing to do"
+				env.apm.branch = branch
+				out = io.Grey + "ok"
 			} else {
-				args, opts := io.ParseCmdOptions(args2)
-				branch := strcoll.Nth(0, args)
 				rev := strcoll.Nth(1, args)
 				// apmSwitch writes to the connection right away, out and err must have zero value to not duplicate the message
 				out, env.apm = apmSwitch(conn, env.apm.loc, branch, rev, opts)
