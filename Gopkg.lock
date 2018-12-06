@@ -11,26 +11,6 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:d15be7dee033e6ead2ab4d56f89bac9b74911e00c285dcda25356aa039afa9b3"
-  name = "github.com/elastic/hey-apm"
-  packages = [
-    "compose",
-    "output",
-    "requester",
-    "server",
-    "server/api",
-    "server/api/io",
-    "server/client",
-    "server/docker",
-    "server/strcoll",
-    "server/tests",
-    "target",
-  ]
-  pruneopts = "NUT"
-  revision = "4ecabb3dff6fc91337b328037ffd8972860e73a2"
-
-[[projects]]
-  branch = "master"
   digest = "1:853fe95bef4c5e8a70dcd405b5206b38a9ff09e9c26fef93d1d0adeaea39f9ce"
   name = "github.com/mailru/easyjson"
   packages = [
@@ -126,17 +106,6 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/elastic/hey-apm/compose",
-    "github.com/elastic/hey-apm/output",
-    "github.com/elastic/hey-apm/requester",
-    "github.com/elastic/hey-apm/server",
-    "github.com/elastic/hey-apm/server/api",
-    "github.com/elastic/hey-apm/server/api/io",
-    "github.com/elastic/hey-apm/server/client",
-    "github.com/elastic/hey-apm/server/docker",
-    "github.com/elastic/hey-apm/server/strcoll",
-    "github.com/elastic/hey-apm/server/tests",
-    "github.com/elastic/hey-apm/target",
     "github.com/olivere/elastic",
     "github.com/pkg/errors",
     "github.com/stretchr/testify/assert",

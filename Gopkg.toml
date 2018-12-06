@@ -26,10 +26,6 @@
 
 
 [[constraint]]
-  branch = "master"
-  name = "github.com/elastic/hey-apm"
-
-[[constraint]]
   name = "github.com/olivere/elastic"
   version = "6.2.14"
 
