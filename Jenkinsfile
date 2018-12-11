@@ -6,6 +6,8 @@ pipeline {
     BASE_DIR="src/github.com/elastic/hey-apm"
     APM_SERVER_BASE_DIR = "src/github.com/elastic/apm-server"
     JOB_GIT_CREDENTIALS = "f6c7695a-671e-4f4f-a331-acdce44ff9ba"
+    GO_VERSION = "${params.GO_VERSION}"
+    APM_SERVER_VERSION = "${params.APM_SERVER_VERSION}"
   }
   triggers {
     cron('0 0 * * 1-5')
