@@ -77,7 +77,7 @@ pipeline {
                   extensions: [], 
                   submoduleCfg: [], 
                   userRemoteConfigs: [[credentialsId: "${JOB_GIT_CREDENTIALS}", 
-                  url: "https://github.com/elastic/apm-server.git"]]])
+                  url: "git@github.com:elastic/apm-server.git"]]])
               }
               dir("${BASE_DIR}"){
                 withEsEnv(secret: 'apm-server-benchmark-cloud'){
