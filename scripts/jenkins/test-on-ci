@@ -9,6 +9,9 @@ pipeline {
     GO_VERSION = "${params.GO_VERSION}"
     APM_SERVER_VERSION = "${params.APM_SERVER_VERSION}"
   }
+  triggers {
+    cron('0 0 * * 1-5')
+  }
   options {
     timeout(time: 1, unit: 'HOURS') 
     buildDiscarder(logRotator(numToKeepStr: '20', artifactNumToKeepStr: '20', daysToKeepStr: '30'))
@@ -19,7 +22,7 @@ pipeline {
   }
   parameters {
     string(name: 'GO_VERSION', defaultValue: "1.10.3", description: "Go version to use.")
-    string(name: 'APM_SERVER_VERSION', defaultValue: "6.4", description: "APM Server Git branch/tag to use")
+    string(name: 'APM_SERVER_VERSION', defaultValue: "6.5", description: "APM Server Git branch/tag to use")
   }
   stages {
     stage('Initializing'){
@@ -38,27 +41,6 @@ pipeline {
           steps {
             gitCheckout(basedir: "${BASE_DIR}")
             stash allowEmpty: true, name: 'source', useDefaultExcludes: false
-          }
-        }
-        /**
-          Unit tests.
-        */
-        stage('Test') { 
-          steps {
-            withEnvWrapper() {
-              unstash 'source'
-              dir("${BASE_DIR}"){
-                sh './scripts/jenkins/unit-test.sh'
-              }
-            }
-          }
-          post {
-            always {
-              coverageReport("${BASE_DIR}/build/coverage")
-              junit(allowEmptyResults: true, 
-                keepLongStdio: true, 
-                testResults: "${BASE_DIR}/build/junit-report.xml,${BASE_DIR}/build/TEST-*.xml")
-            }
           }
         }
         /**
@@ -106,10 +88,11 @@ pipeline {
     }
     failure { 
       echoColor(text: '[FAILURE]', colorfg: 'red', colorbg: 'default')
-      //step([$class: 'Mailer', notifyEveryUnstableBuild: true, recipients: "${NOTIFY_TO}", sendToIndividuals: false])
+      step([$class: 'Mailer', notifyEveryUnstableBuild: true, recipients: "${NOTIFY_TO}", sendToIndividuals: false])
     }
     unstable { 
       echoColor(text: '[UNSTABLE]', colorfg: 'yellow', colorbg: 'default')
+      step([$class: 'Mailer', notifyEveryUnstableBuild: true, recipients: "${NOTIFY_TO}", sendToIndividuals: false])
     }
   }
 }
