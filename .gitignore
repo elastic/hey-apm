@@ -2,4 +2,3 @@
 vendor/
 hey-apm
 build
-Gopkg.lock
