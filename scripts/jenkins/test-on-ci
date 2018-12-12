@@ -10,7 +10,7 @@ pipeline {
     APM_SERVER_VERSION = "${params.APM_SERVER_VERSION}"
   }
   triggers {
-    cron('0 0 * * 1-5')
+    cron('H 3 * * 1-5')
   }
   options {
     timeout(time: 1, unit: 'HOURS') 
