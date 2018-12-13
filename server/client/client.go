@@ -294,8 +294,8 @@ func apmSwitch(w stdio.Writer, apmDir, branch, revision string, opts []string) (
 	} else {
 		sh(s.Split(fetchCmd, " ")...)
 		sh(s.Split(checkoutCmd, " ")...)
-		sh(s.Split(makeUpdateCmd, " ")...)
 		sh(s.Split(makeCmd, " ")...)
+		sh(s.Split(makeUpdateCmd, " ")...)
 	}
 
 	// save relevant git status data if no errors occurred
