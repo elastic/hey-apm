@@ -1,13 +1,15 @@
 #!/usr/bin/env groovy
 
 pipeline {
-  agent none
+  agent any
   environment {
     BASE_DIR="src/github.com/elastic/hey-apm"
     APM_SERVER_BASE_DIR = "src/github.com/elastic/apm-server"
     JOB_GIT_CREDENTIALS = "f6c7695a-671e-4f4f-a331-acdce44ff9ba"
     GO_VERSION = "${params.GO_VERSION}"
     APM_SERVER_VERSION = "${params.APM_SERVER_VERSION}"
+    NOTIFY_TO = credentials('notify-to')
+    JOB_GCS_BUCKET = credentials('gcs-bucket')
   }
   triggers {
     cron('H 3 * * 1-5')
@@ -40,6 +42,7 @@ pipeline {
         */
         stage('Checkout') {
           steps {
+            deleteDir()
             gitCheckout(basedir: "${BASE_DIR}", branch: params.branch_specifier, 
               repo: 'git@github.com:elastic/hey-apm.git', 
               credentialsId: "${JOB_GIT_CREDENTIALS}")
@@ -54,22 +57,21 @@ pipeline {
             APM_SERVER_DIR = "${env.WORKSPACE}/${env.APM_SERVER_BASE_DIR}"
           }
           steps {
-            withEnvWrapper() {
-              unstash 'source'
-              dir("${APM_SERVER_BASE_DIR}"){
-                checkout([$class: 'GitSCM', branches: [[name: "${APM_SERVER_VERSION}"]], 
-                  doGenerateSubmoduleConfigurations: false, 
-                  extensions: [], 
-                  submoduleCfg: [], 
-                  userRemoteConfigs: [[credentialsId: "${JOB_GIT_CREDENTIALS}", 
-                  url: "git@github.com:elastic/apm-server.git"]]])
+            deleteDir()
+            unstash 'source'
+            dir("${APM_SERVER_BASE_DIR}"){
+              checkout([$class: 'GitSCM', branches: [[name: "${APM_SERVER_VERSION}"]], 
+                doGenerateSubmoduleConfigurations: false, 
+                extensions: [], 
+                submoduleCfg: [], 
+                userRemoteConfigs: [[credentialsId: "${JOB_GIT_CREDENTIALS}", 
+                url: "git@github.com:elastic/apm-server.git"]]])
+            }
+            dir("${BASE_DIR}"){
+              withEsEnv(secret: 'apm-server-benchmark-cloud'){
+                sh './scripts/jenkins/run-test.sh'
               }
-              dir("${BASE_DIR}"){
-                withEsEnv(secret: 'apm-server-benchmark-cloud'){
-                  sh './scripts/jenkins/run-test.sh'
-                }
-              }
-            }  
+            }
           }
           post {
             always {

@@ -1,13 +1,15 @@
 #!/usr/bin/env groovy
 
 pipeline {
-  agent none
+  agent any
   environment {
     BASE_DIR="src/github.com/elastic/hey-apm"
     APM_SERVER_BASE_DIR = "src/github.com/elastic/apm-server"
     JOB_GIT_CREDENTIALS = "f6c7695a-671e-4f4f-a331-acdce44ff9ba"
     GO_VERSION = "${params.GO_VERSION}"
     APM_SERVER_VERSION = "${params.APM_SERVER_VERSION}"
+    NOTIFY_TO = credentials('notify-to')
+    JOB_GCS_BUCKET = credentials('gcs-bucket')
   }
   options {
     timeout(time: 1, unit: 'HOURS') 
@@ -36,6 +38,7 @@ pipeline {
         */
         stage('Checkout') {
           steps {
+            deleteDir()
             gitCheckout(basedir: "${BASE_DIR}")
             stash allowEmpty: true, name: 'source', useDefaultExcludes: false
           }
@@ -45,11 +48,10 @@ pipeline {
         */
         stage('Test') { 
           steps {
-            withEnvWrapper() {
-              unstash 'source'
-              dir("${BASE_DIR}"){
-                sh './scripts/jenkins/unit-test.sh'
-              }
+            deleteDir()
+            unstash 'source'
+            dir("${BASE_DIR}"){
+              sh './scripts/jenkins/unit-test.sh'
             }
           }
           post {
@@ -69,22 +71,21 @@ pipeline {
             APM_SERVER_DIR = "${env.WORKSPACE}/${env.APM_SERVER_BASE_DIR}"
           }
           steps {
-            withEnvWrapper() {
-              unstash 'source'
-              dir("${APM_SERVER_BASE_DIR}"){
-                checkout([$class: 'GitSCM', branches: [[name: "${APM_SERVER_VERSION}"]], 
-                  doGenerateSubmoduleConfigurations: false, 
-                  extensions: [], 
-                  submoduleCfg: [], 
-                  userRemoteConfigs: [[credentialsId: "${JOB_GIT_CREDENTIALS}", 
-                  url: "git@github.com:elastic/apm-server.git"]]])
+            deleteDir()
+            unstash 'source'
+            dir("${APM_SERVER_BASE_DIR}"){
+              checkout([$class: 'GitSCM', branches: [[name: "${APM_SERVER_VERSION}"]], 
+                doGenerateSubmoduleConfigurations: false, 
+                extensions: [], 
+                submoduleCfg: [], 
+                userRemoteConfigs: [[credentialsId: "${JOB_GIT_CREDENTIALS}", 
+                url: "git@github.com:elastic/apm-server.git"]]])
+            }
+            dir("${BASE_DIR}"){
+              withEsEnv(secret: 'apm-server-benchmark-cloud'){
+                sh './scripts/jenkins/run-test.sh'
               }
-              dir("${BASE_DIR}"){
-                withEsEnv(secret: 'apm-server-benchmark-cloud'){
-                  sh './scripts/jenkins/run-test.sh'
-                }
-              }
-            }  
+            }
           }
           post {
             always {
@@ -106,10 +107,11 @@ pipeline {
     }
     failure { 
       echoColor(text: '[FAILURE]', colorfg: 'red', colorbg: 'default')
-      //step([$class: 'Mailer', notifyEveryUnstableBuild: true, recipients: "${NOTIFY_TO}", sendToIndividuals: false])
+      step([$class: 'Mailer', notifyEveryUnstableBuild: true, recipients: "${NOTIFY_TO}", sendToIndividuals: false])
     }
     unstable { 
       echoColor(text: '[UNSTABLE]', colorfg: 'yellow', colorbg: 'default')
+      step([$class: 'Mailer', notifyEveryUnstableBuild: true, recipients: "${NOTIFY_TO}", sendToIndividuals: false])
     }
   }
 }
