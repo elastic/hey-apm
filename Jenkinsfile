@@ -1,5 +1,7 @@
 #!/usr/bin/env groovy
 
+@Library('apm@current') _
+
 pipeline {
   agent any
   environment {
@@ -18,10 +20,15 @@ pipeline {
     ansiColor('xterm')
     disableResume()
     durabilityHint('PERFORMANCE_OPTIMIZED')
+    rateLimitBuilds(throttle: [count: 60, durationName: 'hour', userBoost: true])
+    quietPeriod(10)
+  }
+  triggers {
+    cron('H H(3-5) * * 1-5')
   }
   parameters {
     string(name: 'GO_VERSION', defaultValue: "1.11.2", description: "Go version to use.")
-    string(name: 'APM_SERVER_VERSION', defaultValue: "6.4", description: "APM Server Git branch/tag to use")
+    string(name: 'APM_SERVER_VERSION', defaultValue: "6.7", description: "APM Server Git branch/tag to use")
   }
   stages {
     stage('Initializing'){
