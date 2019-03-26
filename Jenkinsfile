@@ -80,6 +80,7 @@ pipeline {
           steps {
             deleteDir()
             unstash 'source'
+            /*
             dir("${APM_SERVER_BASE_DIR}"){
               checkout([$class: 'GitSCM', branches: [[name: "${APM_SERVER_VERSION}"]], 
                 doGenerateSubmoduleConfigurations: false, 
@@ -91,8 +92,10 @@ pipeline {
             dir("${BASE_DIR}"){
               withEsEnv(secret: 'apm-server-benchmark-cloud'){
                 sh './scripts/jenkins/run-test.sh'
+                
               }
-            }
+            }*/
+            echo "NOOP"
           }
           post {
             always {
