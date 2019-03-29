@@ -11,15 +11,6 @@ fi
 
 eval "$(gvm ${GO_VERSION})"
 echo "Installing hey-apm dependencies and running unit tests..."
-go get -v -u github.com/golang/dep/cmd/dep
-dep ensure -v
-
-go get -v -u github.com/jstemmer/go-junit-report
-
-echo "Fetching apm-server and installing latest go-licenser and mage..."
-go get -v -u github.com/elastic/go-licenser
-go get -v -u github.com/magefile/mage
-(cd "$GOPATH/src/github.com/magefile/mage" && go run bootstrap.go)
 echo "Running apm-server stress tests..."
 set +x
 
