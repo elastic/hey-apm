@@ -107,50 +107,45 @@ func RunTimeout(s string) OptionFunc {
 	}
 }
 
-func RequestTimeout(s string) OptionFunc {
+func RequestTimeout(d time.Duration) OptionFunc {
 	return func(c *Config) error {
-		var err error
-		c.RequestTimeout, err = time.ParseDuration(s)
-		return err
-	}
-}
-
-func NumAgents(s string) OptionFunc {
-	return func(c *Config) error {
-		var err error
-		c.NumAgents, err = strconv.Atoi(s)
-		return err
-	}
-}
-
-func Throttle(s string) OptionFunc {
-	return func(c *Config) error {
-		throttle, err := strconv.Atoi(s)
-		c.Throttle = float64(throttle)
-		return err
-	}
-}
-
-func Pause(s string) OptionFunc {
-	return func(c *Config) error {
-		var err error
-		c.Pause, err = time.ParseDuration(s)
-		return err
-	}
-}
-
-func Stream(s string) OptionFunc {
-	return func(c *Config) error {
-		c.Stream = s == ""
+		c.RequestTimeout = d
 		return nil
 	}
 }
 
-func NumErrors(s string) OptionFunc {
+func NumAgents(i int) OptionFunc {
 	return func(c *Config) error {
-		var err error
-		c.NumErrors, err = strconv.Atoi(s)
-		return err
+		c.NumAgents = i
+		return nil
+	}
+}
+
+func Throttle(i int) OptionFunc {
+	return func(c *Config) error {
+		c.Throttle = float64(i)
+		return nil
+	}
+}
+
+func Pause(d time.Duration) OptionFunc {
+	return func(c *Config) error {
+		c.Pause = d
+		return nil
+	}
+}
+
+func Stream(b bool) OptionFunc {
+	return func(c *Config) error {
+		c.Stream = b
+		return nil
+	}
+}
+
+func NumErrors(i int) OptionFunc {
+	return func(c *Config) error {
+		c.NumErrors = i
+		return nil
 	}
 }
 
@@ -176,6 +171,10 @@ func NumFrames(s string) OptionFunc {
 		c.NumFrames, err = strconv.Atoi(s)
 		return err
 	}
+}
+
+func (t *Target) Size() int64 {
+	return int64(len(t.Body))
 }
 
 // Returns a runnable that simulates APM agents sending requests to APM Server with the `target` configuration

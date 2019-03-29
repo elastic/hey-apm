@@ -38,10 +38,6 @@
   version = "1.2.2"
 
 [[constraint]]
-  name = "github.com/struCoder/pidusage"
-  version = "0.1.2"
-
-[[constraint]]
   branch = "master"
   name = "golang.org/x/net"
 

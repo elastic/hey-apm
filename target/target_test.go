@@ -25,7 +25,7 @@ func TestTargets(t *testing.T) {
 	assert.Equal(t, "strconv.Atoi: parsing \"a\": invalid syntax", err.Error())
 	assert.Equal(t, time.Duration(0), target.Config.RunTimeout)
 
-	target, err = NewTargetFromOptions(urls, RequestTimeout("1s"))
+	target, err = NewTargetFromOptions(urls, RequestTimeout(time.Second))
 	assert.NoError(t, err)
 	assert.Equal(t, time.Duration(1)*time.Second, target.Config.RequestTimeout)
 }

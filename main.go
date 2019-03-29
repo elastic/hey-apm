@@ -1,9 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"compress/gzip"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -14,10 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/elastic/hey-apm/output"
+	"github.com/elastic/hey-apm/cli"
+	"github.com/elastic/hey-apm/out"
 	"github.com/elastic/hey-apm/requester"
-	"github.com/elastic/hey-apm/server"
-	"github.com/elastic/hey-apm/server/api/io"
 	"github.com/elastic/hey-apm/target"
 )
 
@@ -46,9 +42,7 @@ var (
 	disableKeepAlives  = flag.Bool("disable-keepalive", false, "")
 	disableRedirects   = flag.Bool("disable-redirects", false, "")
 
-	describe    = flag.Bool("describe", false, "describe payloads and exit")
-	dump        = flag.Bool("dump", false, "dump payloads in loadbeat config format and exit")
-	interactive = flag.Bool("interactive", false, "run hey-apm in interactive mode listening on 8234")
+	interactive = flag.Bool("cli", false, "run hey-apm in interactive mode listening on 8234")
 	stream      = flag.Bool("stream", false, "send data in a streaming way via http")
 )
 
@@ -83,69 +77,16 @@ func newStringsOpt(name string, value []string, usage string) *stringsOpt {
 	return &s
 }
 
-func desc(t *target.Target) {
-	var gzBody bytes.Buffer
-	if len(t.Body) > 0 {
-		zw := gzip.NewWriter(&gzBody)
-		zw.Write(t.Body)
-		zw.Close()
-	}
-	fmt.Printf("%s %s - %d (%d gz) bytes", t.Method, t.Config.Endpoint, len(t.Body), len(gzBody.Bytes()))
-
-	var j map[string]interface{}
-	if err := json.Unmarshal(t.Body, &j); err != nil {
-		fmt.Println(err)
-		return
-	}
-	var errs, trs, spans []interface{}
-	for k, v := range j {
-		switch k {
-		case "error":
-			errs = append(errs, v)
-		case "transaction":
-			trs = append(trs, v)
-		case "span":
-			spans = append(spans, v)
-		default:
-			fmt.Printf("Unknown type %s", k)
-		}
-	}
-	fmt.Printf(" - %d errors", len(errs))
-	fmt.Printf(" - %d transactions", len(trs))
-	fmt.Printf(" - %d spans", len(spans))
-	fmt.Println()
-}
-
-func dumpLoadbeat(t *target.Target) {
-	profileName := fmt.Sprintf("%s_%d_%d_%d_%d_%d_%d.yml", t.Method, *numErrors, *numTransactions, *numSpans, *numFrames, *numAgents, int(*qps))
-	f, _ := os.Create(profileName)
-	fmt.Fprintln(f, "loadbeat:")
-	fmt.Fprintln(f, "  targets:")
-	defer f.Close()
-	fmt.Fprintf(f, "    - number of agents: %d\n", *numAgents)
-	fmt.Fprintf(f, "      qps: %.5f\n", *qps)
-	fmt.Fprintf(f, "      method: %s\n", t.Method)
-	fmt.Fprintf(f, "      url: %s\n", t.Config.Endpoint)
-	if len(t.Body) > 0 {
-		fmt.Fprintln(f, "      headers:")
-		fmt.Fprintln(f, "        - Content-Type:application/json")
-		fmt.Fprintf(f, "      body: >\n        %s\n", t.Body)
-	}
-	fmt.Fprintln(f)
-	return
-}
-
 func main() {
 	flag.Parse()
 
 	logger := log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile)
 
 	if *interactive {
-		io.BootstrapChecks()
 		logger.Println("Starting hey-apm in interactive mode...")
 		logger.Println("Connect with 'rlwrap telnet localhost 8234'")
 		logger.Println("WARNING: Multiple concurrent tests against the same apm-server and/or elasticsearch instances will interfere with each other")
-		server.Serve()
+		cli.Serve()
 		os.Exit(0)
 	}
 
@@ -182,15 +123,6 @@ func main() {
 
 	t := target.NewTargetFromConfig(*baseUrl, *method, cfg)
 	work := t.GetWork(os.Stdout)
-
-	if *describe {
-		desc(t)
-		return
-	}
-	if *dump {
-		dumpLoadbeat(t)
-		return
-	}
 
 	start := time.Now()
 	done := make(chan struct{})
@@ -231,5 +163,5 @@ func main() {
 		}
 	}
 
-	output.PrintResults(work, time.Now().Sub(start).Seconds(), os.Stdout)
+	out.PrintResults(work, time.Now().Sub(start).Seconds(), os.Stdout)
 }
