@@ -59,14 +59,6 @@
   version = "v1.2.2"
 
 [[projects]]
-  digest = "1:568f2a323d6a0fbe3a81b4e586275959cc44973c4a05c3e9079ea0530d22c7a7"
-  name = "github.com/struCoder/pidusage"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "5e29cda97c066390d35b2eb889048fbc25381b2f"
-  version = "v0.1.2"
-
-[[projects]]
   branch = "master"
   digest = "1:585a4a8caad37b434f67858b2c178d24039453587a850c959c115006abd6e933"
   name = "golang.org/x/net"
@@ -109,7 +101,6 @@
     "github.com/olivere/elastic",
     "github.com/pkg/errors",
     "github.com/stretchr/testify/assert",
-    "github.com/struCoder/pidusage",
     "golang.org/x/net/http2",
   ]
   solver-name = "gps-cdcl"
