@@ -11,8 +11,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o hey-apm .
 FROM scratch
 MAINTAINER Elastic APM Team <docker@elastic.co>
 
-# https://github.com/golang/go/blob/release-branch.go1.9/src/crypto/x509/root_linux.go
-COPY docker/ca-certificates.crt /etc/ssl/certs/
+# https://github.com/golang/go/blob/release-branch.go1.12/src/crypto/x509/root_linux.go
+COPY --from=0 /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=0 /etc/passwd /etc/passwd
 COPY --from=0 /build/hey-apm /hey-apm
 
