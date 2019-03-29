@@ -70,32 +70,22 @@ func Dump(w io.Writer, args ...string) (int, error) {
 // filters and sorts `reports` and for each result and returns a digest matrix
 // each row is the digest of a report with all user-entered attributes equal but one
 // for more details check out the Readme and the `reports.collate` function
-func Collate(size int, since time.Duration, sort string, csv bool, args []string, reports []TestReport) string {
+// TODO add validation and return error
+func Collate(size int, since time.Duration, sort string, args []string, reports []TestReport) string {
 	variable := util.Get(0, args)
-	// we cant have a whitelist of variables because flags are unknown, but we can do some basic check
-	if variable == "" ||
-		s.Contains(variable, "=") ||
-		s.Contains(variable, ">") ||
-		s.Contains(variable, "<") {
-		return out.Red + "<variable> argument is required\n"
-	}
 	bw := out.NewBufferWriter()
-	digests, err := collate(since, size, variable, sort, !csv, util.From(1, args), reports)
+	digests, err := collate(since, size, variable, sort, util.From(1, args), reports)
 	if err != nil {
 		out.ReplyEitherNL(bw, err)
 	} else {
 		for _, group := range digests {
 			for _, line := range group {
-				if csv {
-					out.ReplyNL(bw, out.Grey+s.Join(line, "\t"))
-				} else {
-					out.ReplyNL(bw, out.Grey+s.Join(line, "  "))
-				}
+				out.ReplyNL(bw, s.Join(line, "\t"))
 			}
-			out.ReplyNL(bw, out.Grey)
+			out.Reply(bw, "\n")
 		}
 		if len(digests) == 0 {
-			out.Reply(bw, out.Grey+"\n")
+			out.Reply(bw, "\n")
 		}
 	}
 	return bw.String()

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/rand"
 	"sort"
 	"strconv"
 	s "strings"
@@ -20,7 +19,7 @@ type data func(TestReport) map[string]string
 // returns a map of attributes provided by the user, excluding labels
 func inputAttributes(r TestReport) map[string]string {
 	return map[string]string{
-		// "labels":       r.Labels,
+		// TODO add labels
 		"duration":     r.Duration.String(),
 		"errors":       strconv.Itoa(r.Errors),
 		"transactions": strconv.Itoa(r.Transactions),
@@ -30,9 +29,9 @@ func inputAttributes(r TestReport) map[string]string {
 		"throttle":     strconv.Itoa(r.Throttle),
 		"stream":       strconv.FormatBool(r.Stream),
 		"timeout":      r.ReqTimeout.String(),
-		"branch":       r.ApmVersion,
 		"apm_host":     r.ApmHost,
 		"apms":         strconv.Itoa(r.NumApm),
+		"apm_version":  r.ApmVersion,
 		"es_host":      r.ElasticHost,
 	}
 }
@@ -60,7 +59,7 @@ type query struct {
 	data data
 	// expected size of the data, -1 if irrelevant
 	size int
-	// keys in query filters are expected to be a subset of keys in data
+	// intKeys in query filters are expected to be a subset of intKeys in data
 	filters []queryFilter
 }
 
@@ -88,7 +87,7 @@ func queryFilters(expressions []string) ([]queryFilter, error) {
 }
 
 // returns true if the report from the most recent revision shows no less efficient than reports from older revisions
-// `filtersExpr` must include all the independent variables except apm_host and apms
+// `filtersExpr` must include all the independent variables except apm_host
 // `all` must not be empty
 // TODO needs build_date
 func verify(since time.Duration, filtersExpr []string, all []TestReport) (bool, error) {
@@ -101,7 +100,8 @@ func verify(since time.Duration, filtersExpr []string, all []TestReport) (bool, 
 		filterKeys = append(filterKeys, filter.k)
 	}
 	for k, _ := range inputAttributes(all[0]) {
-		if k != "apm_host" && k != "apms" && !util.Contains(k, filterKeys) {
+		// exclude "apm_host"?
+		if !util.Contains(k, filterKeys) {
 			return false, errors.New(k + " is a required filter")
 		}
 	}
@@ -120,12 +120,9 @@ func verify(since time.Duration, filtersExpr []string, all []TestReport) (bool, 
 
 }
 
-// applies the given filters to `all`, and returns up to `ND` reports sorted by `sortCriteria`
-// then, for each report it finds up to 7 reports with the same test parameters values except for `variable`
-// - see implementation for special cases regarding branch/revision and apm-server flags
-// - ND might be a number or a duration (see `head`)
-// - filters syntax and sortable fields are also described elsewhere
-func collate(since time.Duration, size int, attribute, sortCriteria string, align bool, filtersExpr []string, all []TestReport) ([][][]string, error) {
+// applies the given filters to `all`, and returns the top reports sorted by `sortCriteria`
+// then, for each report it finds other reports with the same test parameters values except for `variable`
+func collate(since time.Duration, size int, variable, sortCriteria string, filtersExpr []string, all []TestReport) ([][][]string, error) {
 	ret := make([][][]string, 0)
 	// keep track of observed reports to avoid duplicated in results
 	ids := make([]string, 0)
@@ -135,7 +132,7 @@ func collate(since time.Duration, size int, attribute, sortCriteria string, alig
 	reports, err := top(since, size, sortCriteria, filters, all, err)
 	for _, report := range reports {
 		var variants []TestReport
-		variants, err = values(findVariants(attribute, report, all, err))
+		variants, err = values(findVariants(variable, report, all, err))
 		variants, ids = seen(variants, ids)
 		newReports, ids = seen([]TestReport{report}, ids)
 		if len(newReports) == 0 {
@@ -145,11 +142,10 @@ func collate(since time.Duration, size int, attribute, sortCriteria string, alig
 		variants, err = top(since, size, sortCriteria, nil, unique(variants), err)
 		// best := best(append(newReports, variants...))
 		digestMatrix := make([][]string, len(variants)+3)
-		// digestMatrix[0] = digestMatrixHeader(attribute, inputAttributes(report))
-		//digestMatrix[0], digestMatrix[1] = digest(report, attribute, align, best == 0)
-		//for idx, variant := range variants {
-		//	_, digestMatrix[3+idx] = digest(variant, attribute, align, best == idx+1)
-		//}
+		digestMatrix[0], digestMatrix[1] = digest(report, variable)
+		for idx, variant := range variants {
+			_, digestMatrix[3+idx] = digest(variant, variable)
+		}
 		ret = append(ret, digestMatrix)
 	}
 	return ret, err
@@ -157,13 +153,12 @@ func collate(since time.Duration, size int, attribute, sortCriteria string, alig
 
 func top(since time.Duration, size int, criteria string, filters []queryFilter, reports []TestReport, err error) ([]TestReport, error) {
 	reports = sortBy(criteria, reports)
-	query := query{combine(inputAttributes, labelsMap, metadata), -1, filters}
+	// TODO add labelsMap
+	query := query{combine(inputAttributes, metadata), -1, filters}
 	ret, err := values(filter(query, reports, err))
 	return head(since, size, ret), err
 }
 
-// converts "-E apm-server.flag=a" into {"apm-server.flag":"a"}
-// only flags set by the user
 func labelsMap(r TestReport) map[string]string {
 	ret := make(map[string]string)
 	for _, label := range r.labels() {
@@ -178,7 +173,7 @@ func labelsMap(r TestReport) map[string]string {
 func findVariants(attribute string, a TestReport, bs []TestReport, err error) (map[int]TestReport, error) {
 	filters := make([]queryFilter, 0)
 	var data data
-	if util.Contains(attribute, keysExcluding([]string{"revision", "apm_host"}, inputAttributes(a))) {
+	if _, ok := inputAttributes(a)[attribute]; ok {
 		data = inputAttributes
 	} else {
 		// consider apm server labels only when comparing the same revision or a unknown attribute (eg flag)
@@ -186,10 +181,8 @@ func findVariants(attribute string, a TestReport, bs []TestReport, err error) (m
 		data = combine(inputAttributes, labelsMap)
 	}
 	for k, v := range data(a) {
-		// special cases: branch and apms
-		// ie. 2 results with different number of apms can't have the same apm_host value,
-		// and 2 results with different branch can't have the same Git revision
-		if k == attribute || (attribute == "branch" && k == "revision") || (attribute == "apms" && k == "apm_host") {
+		// special case: 2 results with different number of apms can't have the same apm_host value
+		if k == attribute || (attribute == "apms" && k == "apm_host") {
 			filters = append(filters, queryFilter{k, v, "!="})
 		} else {
 			filters = append(filters, queryFilter{k, v, "="})
@@ -207,9 +200,8 @@ func filter(query query, reports []TestReport, err error) (map[int]TestReport, e
 OuterLoop:
 	for idx, report := range reports {
 		data := query.data(report)
-		// todo still needed?
 		// if query.size != -1 && query.size != len(data) {
-		// this happens when comparing reports with different (number of) flags
+		// this happens when comparing reports with different (number of) labels
 		// query.size -1 means that the output of this function is not meant for comparison
 		// continue
 		//}
@@ -297,7 +289,6 @@ func sortBy(criteria string, reports []TestReport) []TestReport {
 
 // if 2 reports have the same independent variables, return the one that showed better performance
 // reports are sorted by their date, most recent first
-// performance is given by the efficiency variable, if that is unknown, then throughput is used instead
 func unique(reports []TestReport) []TestReport {
 	return uniq(sortBy("report_date", reports))
 }
@@ -310,7 +301,7 @@ func uniq(reports []TestReport) []TestReport {
 	first, rest := reports[0], reports[1:]
 	variant, _ := findVariants("", first, rest, nil)
 	isUnique := true
-	for _, k := range keys(variant, true) {
+	for _, k := range intKeys(variant, true) {
 		if first.Throughput > variant[k].Throughput {
 			rest = append(rest[:k], rest[k+1:]...)
 		} else {
@@ -323,7 +314,7 @@ func uniq(reports []TestReport) []TestReport {
 	return append(uniques, uniq(rest)...)
 }
 
-// return the first k reports
+// return the first `size` reports within the given time frame
 func head(since time.Duration, size int, reports []TestReport) []TestReport {
 	ret := make([]TestReport, 0)
 	for _, report := range reports {
@@ -337,14 +328,14 @@ func head(since time.Duration, size int, reports []TestReport) []TestReport {
 // returns the values of the given map in order
 func values(m map[int]TestReport, err error) ([]TestReport, error) {
 	ret := make([]TestReport, len(m))
-	for idx, k := range keys(m, false) {
+	for idx, k := range intKeys(m, false) {
 		ret[idx] = m[k]
 	}
 	return ret, err
 }
 
-// returns the keys of the given map in ascending or descending order
-func keys(m map[int]TestReport, desc bool) []int {
+// returns the intKeys of the given map in ascending or descending order
+func intKeys(m map[int]TestReport, desc bool) []int {
 	keys := make([]int, 0)
 	for k := range m {
 		keys = append(keys, k)
@@ -370,85 +361,26 @@ func seen(reports []TestReport, ids []string) ([]TestReport, []string) {
 	return ret, ids
 }
 
-// returns all the keys in the map except `exclude`
-func keysExcluding(exclude []string, m map[string]string) []string {
-	ret := make([]string, 0)
-	for k, _ := range m {
-		if !util.Contains(k, exclude) {
-			ret = append(ret, k)
+//// a digest describes the most informative performance data
+func digest(r TestReport, variable string) ([]string, []string) {
+	header := make([]string, 0)
+	data := make([]string, 0)
+	if val, ok := combine(inputAttributes, labelsMap)(r)[variable]; ok {
+		header = append(header, variable)
+		data = append(data, val)
+	}
+	for k, v := range inputAttributes(r) {
+		if k != variable {
+			header = append(header, k)
+			data = append(data, v)
 		}
 	}
-	return ret
+	header = append(header, "throughput")
+	header = append(header, "pushed")
+	data = append(data, fmt.Sprintf("%.1fdps", r.Throughput))
+	data = append(data, util.ByteCountDecimal(int64(r.PushedBps))+"ps")
+	return header, data
 }
-
-//func digestMatrixHeader(variable string, m map[string]string) []string {
-//	ret := make([]string, 0)
-//	// always the same order
-//	for _, attr := range []string{"label", "duration", "errors", "transactions", "spans", "frames", "stream", "agents", "throttle", "branch"} {
-//		if variable != attr {
-//			ret = append(ret, io.Magenta+attr+" "+io.Grey+m[attr])
-//		}
-//	}
-//	// special case due to that a different branch entails a different revision
-//	if variable != "branch" && variable != "revision" {
-//		ret = append(ret, io.Magenta+"revision "+io.Grey+m["revision"])
-//	}
-//	// special case due to that a different number of apms entails a different apm_host string
-//	if variable != "apms" && variable != "apm_host" {
-//		ret = append(ret, io.Magenta+"apm_host "+io.Grey+m["apm_host"])
-//	}
-//	return ret
-//}
-
-//// a digest describes the most informative performance data
-//func digest(r TestReport, variable string, align, isBest bool) ([]string, []string) {
-//	//header := []string{
-//	//	"pushed   ",
-//	//	"throughput",
-//	//	io.Magenta + "max rss",
-//	//	io.Magenta + "effic",
-//	//}
-//	//color := io.Grey
-//	//if isBest && align {
-//	//	color = io.Green
-//	//}
-//	//indexColor := io.Grey
-//	//
-//	//if r.ActualExpectRatio < 0.7 && align {
-//	//	indexColor = io.Red
-//	//} else if r.ActualExpectRatio < 0.85 && align {
-//	//	indexColor = io.Yellow
-//	//} else {
-//	//	indexColor = color
-//	//}
-//
-//	data := []string{
-//		color + util.ByteCountDecimal(int64(r.PushedBps)) + "ps",
-//		color + fmt.Sprintf("%.1fdps", r.Throughput),
-//		// fmt.Sprintf("%s%.1f%%", indexColor, r.ActualExpectRatio*100),
-//		io.Grey + r.maxRss(),
-//		fmt.Sprintf("%s%s", color, r.efficiency()),
-//	}
-//
-//	if val, ok := combine(inputAttributes, labelsMap)(r)[variable]; ok {
-//		header = append(header, io.Magenta+variable)
-//		data = append(data, io.Magenta+val)
-//	}
-//
-//	if align {
-//		for idx, val := range data {
-//			data[idx] = fit(val, len(header[idx]))
-//		}
-//	}
-//
-//	// if variable is not a flag, show flags as last column
-//	if _, ok := inputAttributes(r)[variable]; ok {
-//		header = append(header, io.Magenta+"flags")
-//		data = append(data, color+mapToStr(labelsMap(r)))
-//	}
-//
-//	return header, data
-//}
 
 // combines all the functions in the argument list into one that returns the same report as calling them in order
 func combine(fns ...data) data {
@@ -459,40 +391,6 @@ func combine(fns ...data) data {
 		}
 		return util.Concat(ms...)
 	}
-}
-
-//// truncates or fills s with spaces so that it has a fixed length (used for visually aligning columns)
-//func fit(s string, len int) string {
-//	ret := make([]rune, len)
-//	var idx int
-//	var r rune
-//	// surely there should be a simpler implementation...
-//	for idx, r = range s {
-//		if idx < len {
-//			ret[idx] = r
-//		} else {
-//			break
-//		}
-//	}
-//	for idx2, _ := range ret {
-//		if idx2 > idx {
-//			ret[idx2] = []rune(" ")[0]
-//		}
-//	}
-//	return string(ret)
-//}
-
-func mapToStr(m map[string]string) string {
-	var ret string
-	ks := make([]string, 0)
-	for k := range m {
-		ks = append(ks, k)
-	}
-	sort.Strings(ks)
-	for _, k := range ks {
-		ret = ret + k + "=" + m[k] + " "
-	}
-	return ret
 }
 
 const MARGIN = 1.33
@@ -513,15 +411,4 @@ func best(reports []TestReport) int {
 		}
 	}
 	return -1
-}
-
-func randId(seed int64) string {
-	rand.Seed(seed)
-	l := 8
-	runes := []rune("0123456789abcdefghijklmnopqrstuvwxyz")
-	b := make([]rune, l)
-	for i := 0; i < l; i++ {
-		b[i] = runes[rand.Intn(len(runes))]
-	}
-	return string(b)
 }

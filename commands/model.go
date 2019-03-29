@@ -2,6 +2,7 @@ package commands
 
 import (
 	"errors"
+	"math/rand"
 	"net/url"
 	"os"
 	"path"
@@ -51,7 +52,7 @@ type TestReport struct {
 	// number of apm-servers tested
 	NumApm int `json:"num_apm"`
 	// apm-server release version or build sha
-	ApmVersion string `json:"branch"`
+	ApmVersion string `json:"apm_version"`
 	// TODO add build version
 	// specified by the user, used for querying
 	Duration time.Duration `json:"duration"`
@@ -133,7 +134,7 @@ func NewReport(target target.Target, result TestResult, labels, esUrl, apmUrl, a
 
 	if r.Cancelled {
 		r.Error = errors.New("test run cancelled")
-	} else if r.Duration.Seconds() < 30 {
+	} else if r.Duration.Seconds() < 10 {
 		r.Error = errors.New("test duration too short")
 	}
 
@@ -164,4 +165,15 @@ func (r TestReport) labels() []string {
 func (r TestReport) date() time.Time {
 	t, _ := time.Parse(util.GITRFC, r.ReportDate)
 	return t
+}
+
+func randId(seed int64) string {
+	rand.Seed(seed)
+	l := 8
+	runes := []rune("0123456789abcdefghijklmnopqrstuvwxyz")
+	b := make([]rune, l)
+	for i := 0; i < l; i++ {
+		b[i] = runes[rand.Intn(len(runes))]
+	}
+	return string(b)
 }

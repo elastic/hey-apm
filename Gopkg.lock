@@ -11,7 +11,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:853fe95bef4c5e8a70dcd405b5206b38a9ff09e9c26fef93d1d0adeaea39f9ce"
+  digest = "1:06268133e9584afdd4ec94092076965820dbd23ecbe3b1c19bb156e501a14972"
   name = "github.com/mailru/easyjson"
   packages = [
     ".",
@@ -20,10 +20,10 @@
     "jwriter",
   ]
   pruneopts = "NUT"
-  revision = "60711f1a8329503b04e1c88535f419d0bb440bff"
+  revision = "1de009706dbeb9d05f18586f0735fcdb7c524481"
 
 [[projects]]
-  digest = "1:5fde17f0fad93f112de6b4c559ca8b3c2b7c804e054829d6a841d6d1367e6503"
+  digest = "1:dc5fef0930c0aa6cd47ba9fdf3a39537dc7da1c25e1f7826e88ef78bf9040245"
   name = "github.com/olivere/elastic"
   packages = [
     ".",
@@ -31,16 +31,16 @@
     "uritemplates",
   ]
   pruneopts = "NUT"
-  revision = "1619150b007041b6dba8aa447f0e2d151cc2b4c5"
-  version = "v6.2.14"
+  revision = "407a1d940dcc89e279c579eb393d0bdde8fd9ac4"
+  version = "v6.2.16"
 
 [[projects]]
-  digest = "1:5cf3f025cbee5951a4ee961de067c8a89fc95a5adabead774f82822efabab121"
+  digest = "1:14715f705ff5dfe0ffd6571d7d201dd8e921030f8070321a79380d8ca4ec1a24"
   name = "github.com/pkg/errors"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
-  version = "v0.8.0"
+  revision = "ba968bfe8b2f7e042a574c888954fccecfa385b4"
+  version = "v0.8.1"
 
 [[projects]]
   digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
@@ -51,16 +51,16 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:bacb8b590716ab7c33f2277240972c9582d389593ee8d66fc10074e0508b8126"
+  digest = "1:42e8c2456d7ec0f31e182c20022e74324c4da2cb3bd9069ff9b131fe33466308"
   name = "github.com/stretchr/testify"
   packages = ["assert"]
   pruneopts = "NUT"
-  revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
-  version = "v1.2.2"
+  revision = "ffdc059bfe9ce6a4e144ba849dbedead332c6053"
+  version = "v1.3.0"
 
 [[projects]]
   branch = "master"
-  digest = "1:585a4a8caad37b434f67858b2c178d24039453587a850c959c115006abd6e933"
+  digest = "1:1843621f4f9b7a0f25e633428302ec6c88b77039bd0048232014621dc3cccf16"
   name = "golang.org/x/net"
   packages = [
     "http/httpguts",
@@ -69,7 +69,7 @@
     "idna",
   ]
   pruneopts = "NUT"
-  revision = "351d144fa1fc0bd934e2408202be0c29f25e35a0"
+  revision = "74de082e2cca95839e88aa0aeee5aadf6ce7710f"
 
 [[projects]]
   digest = "1:e7071ed636b5422cc51c0e3a6cebc229d6c9fffc528814b519a980641422d619"

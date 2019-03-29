@@ -151,7 +151,7 @@ func (r *report) print() {
 		r.printf("  Fastest:\t%4.4f secs\n", r.fastest)
 		r.printf("  Average:\t%4.4f secs\n", r.average)
 		r.printf("  Requests/sec:\t%4.4f\n", r.rps)
-		r.printf("  Flushes:\t%4.4f\n", r.flushesTotal)
+		r.printf("  Flushes:\t%4.4f\n", float64(r.flushesTotal))
 		r.printf("  Average flushes/request:\t%4.4f\n", r.avgFlushes)
 		if r.sizeTotal > 0 {
 			r.printf("  Total data:\t%d bytes\n", r.sizeTotal)

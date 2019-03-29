@@ -118,13 +118,15 @@ func eval(cmd []string, env *env) string {
 		return bw.String()
 
 	case fn == "collate":
+		if env.reportEs.Err != nil {
+			return out.Red + env.reportEs.Err.Error()
+		}
 		args, size := util.ParseCmdIntOption(cmd[1:], "-n", 20)
 		args, since := util.ParseCmdDurationOption(cmd[1:], "--since", time.Hour*24*7)
 		args, sort := util.ParseCmdStringOption(args, "--sort", "report_date")
-		args, csv := util.ParseCmdBoolOption(args, "--csv")
 		reports, err := env.reportEs.FetchReports()
 		if err == nil {
-			return commands.Collate(size, since, sort, csv, args, reports)
+			return commands.Collate(size, since, sort, args, reports)
 		} else {
 			return out.Red + err.Error()
 		}
@@ -171,8 +173,8 @@ func newEnv(conn net.Conn) *env {
 		wg:              &sync.WaitGroup{},
 		cancel:          &sync.Cond{L: &sync.Mutex{}},
 		usr:             usr,
-		reportEs:        es.ReportNode{},
-		testEs:          es.TestNode{},
+		reportEs:        es.ReportNode{Err: errors.New("report node not specified")},
+		testEs:          es.TestNode{Err: errors.New("test node not specified")},
 		apm:             apm{},
 		nameDefs:        fileio.LoadDefs(usr),
 	}
@@ -251,7 +253,6 @@ func (env *env) evalAsyncLoop() {
 			}
 
 		case fn == "test":
-
 			if env.apm.err != nil {
 				err = env.apm.err
 				break
@@ -261,6 +262,9 @@ func (env *env) evalAsyncLoop() {
 				break
 			}
 			if _, err = env.testEs.Health(); err != nil {
+				break
+			}
+			if err = env.reportEs.Err; err != nil {
 				break
 			}
 			var target target.Target
@@ -369,37 +373,35 @@ func help() string {
 	w := out.NewBufferWriter()
 	out.ReplyNL(w, out.Yellow+"commands might be entered separated by semicolons, (eg: \"apm use last ; status\")")
 	out.ReplyNL(w, out.Magenta+"status")
-	out.ReplyNL(w, out.Grey+"    shows elasticsearch and apm-server current status, and queued commands")
-	out.ReplyNL(w, out.Magenta+"elasticsearch use [<url> <username> <password> | last | local]")
-	out.ReplyNL(w, out.Grey+"    connects to an elasticsearch node with given parameters")
-	out.ReplyNL(w, out.Magenta+"        last"+out.Grey+" uses the last working parameters")
+	out.ReplyNL(w, out.Grey+"    shows elasticsearch and apm-server current status, and number of queued commands")
+	out.ReplyNL(w, out.Magenta+"es report use [<url> <username> <password> | local]")
+	out.ReplyNL(w, out.Grey+"    connects to an elasticsearch node used for reporting, with given parameters")
+	out.ReplyNL(w, out.Magenta+"        local"+out.Grey+" short for http://localhost:9200")
+	out.ReplyNL(w, out.Magenta+"es test use [<url> <username> <password> | local]")
+	out.ReplyNL(w, out.Grey+"    connects to an elasticsearch node used for testing, with given parameters")
+	out.ReplyNL(w, out.Grey+"    NOTE: it must be the same one that apm-server is pointing to")
 	out.ReplyNL(w, out.Magenta+"        local"+out.Grey+" short for http://localhost:9200")
 	out.ReplyNL(w, out.Magenta+"elasticsearch reset")
 	out.ReplyNL(w, out.Grey+"    deletes all the apm-* indices")
-	out.ReplyNL(w, out.Magenta+"apm use [<urls> | last | docker | local]")
-	out.ReplyNL(w, out.Grey+"    informs the location of the apm-server repo")
-	out.ReplyNL(w, out.Magenta+"        last"+out.Grey+" uses the last working config")
-	out.ReplyNL(w, out.Magenta+"        docker"+out.Grey+" builds and runs apm-server inside a docker container")
-	out.ReplyNL(w, out.Magenta+"        local"+out.Grey+" expects an apm-server at GOPATH/src/github.com/elastic/apm-server")
-	out.ReplyNL(w, out.Magenta+"        <urls>"+out.Grey+" several urls can be passed - this will cause hey-apm to not manage apm-server")
-	out.ReplyNL(w, out.Magenta+"apm list")
-	out.ReplyNL(w, out.Grey+"    shows the docker images created by apm-server")
-	out.ReplyNL(w, out.Magenta+"apm switch <version> [<revision> <OPTIONS>...]")
-	out.ReplyNL(w, out.Grey+"    informs hey-apm to use the specified version and revision, it doesn't have doEffect if apm-server is not managed by hey-apm")
-	out.ReplyNL(w, out.Grey+"    OPTIONS:")
-	out.ReplyNL(w, out.Magenta+"        -f, --fetch"+out.Grey+" runs git fetch on apm-server")
-	out.ReplyNL(w, out.Magenta+"        -c, --checkout"+out.Grey+" runs git checkout <version> [<revision>] on apm-server")
-	out.ReplyNL(w, out.Magenta+"        -u, --make-update"+out.Grey+" runs make update")
-	out.ReplyNL(w, out.Magenta+"        -m, --make"+out.Grey+" runs make")
-	out.ReplyNL(w, out.Magenta+"        -v, --verbose"+out.Grey+" shows the output")
-	out.ReplyNL(w, out.Grey+"    when using docker, the only applicable option is -v, all the others are implicitly used")
-	out.ReplyNL(w, out.Magenta+"test <duration> <transactions> <spans> <frames> <agents> [<newApm-flags> <OPTIONS>...]")
-	out.ReplyNL(w, out.Grey+"    starts the apm-server and performs a workload test against it")
+	out.ReplyNL(w, out.Magenta+"apm use <version> [<urls> | local]")
+	out.ReplyNL(w, out.Grey+"    inform what apm-server to use and its version (release, tag, branch or commit)")
+	out.ReplyNL(w, out.Magenta+"        local"+out.Grey+" checkouts a version and runs make on an GOPATH/src/github.com/elastic/apm-server")
+	out.ReplyNL(w, out.Magenta+"        <urls>"+out.Grey+" several urls can be passed and hey-apm will RR request to them")
+	out.ReplyNL(w, out.Magenta+"apm restart [<flags>]")
+	out.ReplyNL(w, out.Grey+"    (re)starts a local apm-server process with given flags")
+	out.ReplyNL(w, out.Magenta+"apm stop")
+	out.ReplyNL(w, out.Grey+"    stops a local apm-server process started in the current hey-apm session")
+	out.ReplyNL(w, out.Magenta+"apm tail [-n <n>]")
+	out.ReplyNL(w, out.Grey+"    shows the last lines of the apm server log")
+	out.ReplyNL(w, out.Magenta+"        -n <n>"+out.Grey+" shows the last <n> lines up to 1000, defaults to 10")
+	out.ReplyNL(w, out.Magenta+"dump <file_name> <errors> <transactions> <spans> <frames>")
+	out.ReplyNL(w, out.Grey+"    writes to <file_name> a payload with the given profile (described above)")
+	out.ReplyNL(w, out.Magenta+"test <duration> <transactions> <spans> <frames> [<OPTIONS>...]")
+	out.ReplyNL(w, out.Grey+"    creates a workload for testing apm-server")
 	out.ReplyNL(w, out.Magenta+"        <duration>"+out.Grey+" duration of the load test (eg \"1m\")")
 	out.ReplyNL(w, out.Magenta+"        <transactions>"+out.Grey+" transactions per request body")
 	out.ReplyNL(w, out.Magenta+"        <spans>"+out.Grey+" spans per transaction")
 	out.ReplyNL(w, out.Magenta+"        <frames>"+out.Grey+" frames per document (for spans and errors)")
-	out.ReplyNL(w, out.Magenta+"        <apm-server-flags>"+out.Grey+" any flags passed to apm-server (elasticsearch url/username/password and apm-server url are overwritten), it doesn't have doEffect if apm-server is not managed by hey-apm")
 	out.ReplyNL(w, out.Grey+"    OPTIONS:")
 	out.ReplyNL(w, out.Magenta+"        --errors <errors>"+out.Grey+" number of errors per request body")
 	out.ReplyNL(w, out.Grey+"        defaults to 0")
@@ -410,74 +412,40 @@ func help() string {
 	out.ReplyNL(w, out.Grey+"        defaults to 1")
 	out.ReplyNL(w, out.Magenta+"        --timeout <timeout>"+out.Grey+" client request timeout")
 	out.ReplyNL(w, out.Grey+"        defaults to 10s")
-	out.ReplyNL(w, out.Magenta+"        --mem <mem-limit>"+out.Grey+" memory limit passed to docker run, it doesn't have effect if apm-server is not dockerized")
-	out.ReplyNL(w, out.Grey+"        defaults to 4g")
 	out.ReplyNL(w, out.Magenta+"        --cooldown <cooldown>"+out.Grey+" time to wait after sending requests and before stopping the apm-server")
 	out.ReplyNL(w, out.Grey+"        defaults to 1s")
-	out.ReplyNL(w, out.Magenta+"        --label <label>"+out.Grey+" any string to optionally filter results by")
-	out.ReplyNL(w, out.Magenta+"apm tail [-<n> <pattern>]")
-	out.ReplyNL(w, out.Grey+"    shows the last lines of the apm server log")
-	out.ReplyNL(w, out.Magenta+"        -<n>"+out.Grey+" shows the last <n> lines up to 1000, defaults to 10")
-	out.ReplyNL(w, out.Magenta+"        <pattern>"+out.Grey+" shows only the lines matching the pattern (no regex support)")
-	out.ReplyNL(w, out.Magenta+"cancel [<command_id>]")
-	out.ReplyNL(w, out.Grey+"    cancels the ongoing workload test, if any")
-	out.ReplyNL(w, out.Magenta+"         <command_id>"+out.Grey+" cancels all the queued commands with the given id")
-	out.ReplyNL(w, out.Magenta+"collate <VARIABLE> [-n <n> --csv --sort <CRITERIA> <FILTER>...]")
+	out.ReplyNL(w, out.Magenta+"        --labels <labels>"+out.Grey+" any labels with the format k1=v1,k2=v2")
+	out.ReplyNL(w, out.Magenta+"cancel current|queue")
+	out.ReplyNL(w, out.Magenta+"         current"+out.Grey+" cancels the ongoing test")
+	out.ReplyNL(w, out.Magenta+"         queue"+out.Grey+" cancels all the queued commands")
+	out.ReplyNL(w, out.Magenta+"collate <VARIABLE> [-n <n> --since <since> --sort <CRITERIA> <FILTER>...]")
 	out.ReplyNL(w, out.Grey+"    queries reports generated by workload tests, and per each result shows other reports in which only VARIABLE is different")
-	out.ReplyNL(w, out.Magenta+"        -n <n>"+out.Grey+" shows up to <n> report groups if n is a number, or since n time ago if n is a duration")
+	out.ReplyNL(w, out.Magenta+"        -n <n>"+out.Grey+" shows up to <n> report groups")
 	out.ReplyNL(w, out.Grey+"    defaults to 20")
+	out.ReplyNL(w, out.Magenta+"        --since <since>"+out.Grey+" filters out reports older than <since>")
+	out.ReplyNL(w, out.Grey+"    defaults to 1 week")
 	out.ReplyNL(w, out.Magenta+"        --sort <CRITERIA>"+out.Grey+" sorts the results by the given CRITERIA, defaults to report_date")
-	out.ReplyNL(w, out.Magenta+"        --csv"+out.Grey+" separate fields by tabs, without aligning rows and without truncating results")
 	out.ReplyNL(w, out.Grey+"        CRITERIA:")
 	out.ReplyNL(w, out.Magenta+"                report_date"+out.Grey+" date of the generated report, most recent first")
-	out.ReplyNL(w, out.Magenta+"                revision_date"+out.Grey+" date of the git commit, most recent first")
 	out.ReplyNL(w, out.Magenta+"                duration"+out.Grey+" duration of the workload test, higher first")
 	out.ReplyNL(w, out.Magenta+"                pushed_volume"+out.Grey+" bytes pushed per second, higher first")
-	// output.ReplyNL(w, output.Magenta+"                actual_expected_ratio"+output.Grey+" ratio between actual and expected docs indexed, higher first")
-	// output.ReplyNL(w, output.Magenta+"                latency"+output.Grey+" milliseconds per accepted request, lower first")
 	out.ReplyNL(w, out.Magenta+"                throughput"+out.Grey+" indexed documents per second, higher first")
-	out.ReplyNL(w, out.Magenta+"                efficiency"+out.Grey+" documents indexed per minute per megabyte of used RAM, higher first")
 	out.ReplyNL(w, out.Magenta+"        <VARIABLE>"+out.Grey+" shows together reports generated from workload tests with the same parameters except VARIABLE")
 	out.ReplyNL(w, out.Grey+"        VARIABLE:")
-	out.ReplyNL(w, out.Magenta+"                label"+out.Grey+" any arbitrary string")
 	out.ReplyNL(w, out.Magenta+"                duration"+out.Grey+" duration of the test")
 	out.ReplyNL(w, out.Magenta+"                transactions"+out.Grey+" transactions per request body")
 	out.ReplyNL(w, out.Magenta+"                errors"+out.Grey+" errors per request body")
 	out.ReplyNL(w, out.Magenta+"                spans"+out.Grey+" spans per transaction")
 	out.ReplyNL(w, out.Magenta+"                frames"+out.Grey+" frames per document")
-	out.ReplyNL(w, out.Magenta+"        		   stream"+out.Grey+" whether a test used the streaming protocol or not")
+	out.ReplyNL(w, out.Magenta+"                stream"+out.Grey+" whether a test used the streaming protocol or not")
 	out.ReplyNL(w, out.Magenta+"                agents"+out.Grey+" number of concurrent agents")
-	out.ReplyNL(w, out.Magenta+"        		   throttle"+out.Grey+" upper limit of queries per second sent")
-	out.ReplyNL(w, out.Magenta+"        		   timeout"+out.Grey+" request timeout")
-	out.ReplyNL(w, out.Magenta+"                version"+out.Grey+" git version and commit (if the version is variable, the revision necessarily varies too)")
-	out.ReplyNL(w, out.Magenta+"                revision"+out.Grey+" git commit")
+	out.ReplyNL(w, out.Magenta+"                throttle"+out.Grey+" upper limit of queries per second sent")
+	out.ReplyNL(w, out.Magenta+"                timeout"+out.Grey+" request timeout")
+	out.ReplyNL(w, out.Magenta+"                apm_version"+out.Grey+" git version and commit (if the version is variable, the revision necessarily varies too)")
 	out.ReplyNL(w, out.Magenta+"                apm_host"+out.Grey+" apm hostname(s) separated by ',' ordered alphabetically")
 	out.ReplyNL(w, out.Magenta+"                apms"+out.Grey+" number of apm servers running")
-	out.ReplyNL(w, out.Magenta+"                <flag>"+out.Grey+" flag passed to the apm-server with -E")
-	out.ReplyNL(w, out.Magenta+"        <FILTER>"+out.Grey+" returns only reports matching all given filters, specified like <FIELD>=|!=|<|><value>")
+	out.ReplyNL(w, out.Magenta+"        <FILTER>"+out.Grey+" returns only reports matching all given filters, specified like <field>=|!=|<|><value>")
 	out.ReplyNL(w, out.Grey+"        dates must be formatted like \"2018-28-02\" and durations like \"1m\"")
-	out.ReplyNL(w, out.Grey+"        strings do not support <,> comparators")
-	out.ReplyNL(w, out.Magenta+"        FIELDs"+out.Grey+"  any VARIABLE attribute, or:")
-	out.ReplyNL(w, out.Magenta+"                report_id"+out.Grey+" unique id generated for each report")
-	out.ReplyNL(w, out.Magenta+"                report_date"+out.Grey+" date of the generated report")
-	out.ReplyNL(w, out.Magenta+"                request_size"+out.Grey+" number of bytes in the request body")
-	out.ReplyNL(w, out.Magenta+"                revision_date"+out.Grey+" date of the git commit")
-	out.ReplyNL(w, out.Grey+"        command example: \"collate -24h revision version=master revision_date>2018-28-02 agents=10 duration<5m --sort efficiency\"")
-	out.ReplyNL(w, out.Magenta+"verify -n <n> <FILTER>...")
-	out.ReplyNL(w, out.Grey+"    verifies that there is not a negative trend over time")
-	out.ReplyNL(w, out.Grey+"    (apm-server flags might skew results)")
-	out.ReplyNL(w, out.Magenta+"        -n <n>"+out.Grey+" verifies the up to last <n> reports if n is a number, or since n time ago if n is a duration")
-	out.ReplyNL(w, out.Grey+"    defaults to 168h (1 week)")
-	out.ReplyNL(w, out.Magenta+"    FILTERS"+out.Grey+" are specified like <FIELD>=|!=|<|><value>")
-	out.ReplyNL(w, out.Grey+"    all FIELDS are required: duration, errors, transactions, spans, frames, stream, agents, throttle, timeout, version, limit")
-	out.ReplyNL(w, out.Magenta+"define [<pattern> | <name> <sequence> | rm <name>]")
-	out.ReplyNL(w, out.Grey+"    without arguments, shows the current saved name definitions")
-	out.ReplyNL(w, out.Magenta+"       <pattern>"+out.Grey+"  shows the current saved name definitions matching the pattern (no regex support)")
-	out.ReplyNL(w, out.Magenta+"       <name> <sequence>"+out.Grey+"   alias a sequence of strings to the given name")
-	out.ReplyNL(w, out.Grey+"       sequence can be any string(s) supporting $ placeholders for variable substitution, semicolons should be surrounded by spaces")
-	out.ReplyNL(w, out.Magenta+"       rm <name>"+out.Grey+"  removes given name")
-	out.ReplyNL(w, out.Magenta+"dump <file_name> <errors> <transactions> <spans> <frames>")
-	out.ReplyNL(w, out.Grey+"    writes to <file_name> a payload with the given profile (described above)")
 	out.ReplyNL(w, out.Magenta+"help")
 	out.ReplyNL(w, out.Grey+"    shows this help")
 	out.ReplyNL(w, out.Magenta+"quit")
