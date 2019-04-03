@@ -72,18 +72,17 @@ func (w *worker) addTransactions(limit, spanMin, spanMax int) *worker {
 	}
 
 	generator := func(done <-chan struct{}) error {
-	loop:
 		for cnt := 0; cnt < limit; cnt++ {
 			select {
 			case <-done:
-				break loop
+				return nil
 			default:
 			}
 
 			tx := apm.DefaultTracer.StartTransaction("generated", "gen")
 			ctx := apm.ContextWithTransaction(context.Background(), tx)
 			var wg sync.WaitGroup
-			spanCount := rand.Intn(spanMax-1) + spanMin
+			spanCount := rand.Intn(spanMax-spanMin+1) + spanMin
 			for i := 0; i < spanCount; i++ {
 				wg.Add(1)
 				go func() {
