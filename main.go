@@ -38,14 +38,14 @@ func main() {
 	defer func() {
 		flushed := make(chan struct{})
 		go func() {
-			tracer.Flush(flushed)
+			tracer.Flush(nil)
 			close(flushed)
 		}()
 
 		select {
 		case <-flushed:
 		case <-time.After(10 * time.Second):
-			close(flushed)
+			// give up waiting for flush
 		}
 		tracer.Close()
 	}()
