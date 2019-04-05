@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/heptio/workgroup"
@@ -27,11 +28,11 @@ type Report struct {
 }
 
 type sampler struct {
-	count int
+	count int64
 }
 
 func (s *sampler) Sample(apm.TraceContext) bool {
-	s.count++
+	atomic.AddInt64(&s.count, 1)
 	return true
 }
 
@@ -54,7 +55,7 @@ func (w *worker) Work() (Report, error) {
 	report.Start = time.Now()
 	err := w.Run()
 	report.End = time.Now()
-	report.Count = s.count
+	report.Count = int(atomic.LoadInt64(&s.count))
 	return report, err
 }
 
