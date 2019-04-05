@@ -2,18 +2,20 @@
 
 Basic load generation for apm-server built on [hey](https://github.com/rakyll/hey).
 
+# Requirements
+
+hey-apm requires go modules support.  Tested with go1.12.1.
+
 # Install
 
 ```
-# populate vendor/
-go get github.com/golang/dep/cmd/dep
-dep ensure -v
+go get github.com/elastic/hey-apm
 ```
 
 # Docker build
 
 ```
-docker build -f docker/Dockerfile .
+docker build -t hey-apm -f docker/Dockerfile .
 ```
 
 # Interactive shell mode

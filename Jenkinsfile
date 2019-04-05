@@ -27,7 +27,7 @@ pipeline {
     cron('H H(3-5) * * 1-5')
   }
   parameters {
-    string(name: 'GO_VERSION', defaultValue: "1.11.2", description: "Go version to use.")
+    string(name: 'GO_VERSION', defaultValue: "1.12.1", description: "Go version to use.")
     string(name: 'APM_SERVER_VERSION', defaultValue: "6.7", description: "APM Server Git branch/tag to use")
   }
   stages {
