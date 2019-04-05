@@ -77,7 +77,7 @@ func (w *worker) addTransactions(throttle <-chan interface{}, limit, spanMin, sp
 	}
 	generateSpan := func(ctx context.Context) {
 		span, ctx := apm.StartSpan(ctx, "I'm a span", "gen.era.ted")
-		defer span.End()
+		span.End()
 	}
 
 	generator := func(done <-chan struct{}) error {
