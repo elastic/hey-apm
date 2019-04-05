@@ -74,5 +74,10 @@ func main() {
 	}
 	w.addTransactions(*transactionLimit, *spanMinLimit, *spanMaxLimit)
 	report, _ := w.Work()
-	logger.Printf("complete after %d events in %s", report.Count, report.End.Sub(report.Start))
+	e, t, s := w.Counts()
+	logger.Printf("generated %d events (errors: %d, transctions: %d, spans: %d) in %s",
+		e+t+s, e, t, s, report.End.Sub(report.Start))
+	if report.Count != t {
+		logger.Errorf("unexpected sampling decision count, expected: %d got: %d", t, report.Count)
+	}
 }

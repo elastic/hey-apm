@@ -17,6 +17,12 @@ type worker struct {
 	*apm.Tracer
 	runTimeout time.Duration
 
+	count struct {
+		errors       int64
+		transactions int64
+		spans        int64
+	}
+
 	// not to be modified concurrently
 	workgroup.Group
 }
@@ -34,6 +40,12 @@ type sampler struct {
 func (s *sampler) Sample(apm.TraceContext) bool {
 	atomic.AddInt64(&s.count, 1)
 	return true
+}
+
+func (w *worker) Counts() (int, int, int) {
+	return int(atomic.LoadInt64(&w.count.errors)),
+		int(atomic.LoadInt64(&w.count.transactions)),
+		int(atomic.LoadInt64(&w.count.spans))
 }
 
 func (w *worker) Work() (Report, error) {
@@ -94,6 +106,8 @@ func (w *worker) addTransactions(limit, spanMin, spanMax int) *worker {
 			wg.Wait()
 			tx.Context.SetTag("spans", strconv.Itoa(spanCount))
 			tx.End()
+			atomic.AddInt64(&w.count.transactions, 1)
+			atomic.AddInt64(&w.count.spans, int64(spanCount))
 		}
 		return nil
 	}
