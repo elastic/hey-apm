@@ -25,6 +25,8 @@ func main() {
 	spanMaxLimit := flag.Int("sx", 10, "max spans to per transaction")
 	spanMinLimit := flag.Int("sm", 1, "min spans to per transaction")
 	transactionLimit := flag.Int("t", math.MaxInt64, "max transactions to generate")
+	transactionFrequency := flag.Duration("tf", 1*time.Nanosecond, "transaction frequency. "+
+		"generate transactions up to once in this duration")
 	flag.Parse()
 
 	if *spanMaxLimit < *spanMinLimit {
@@ -64,7 +66,7 @@ func main() {
 		transport.SetServerURL(u)
 	}
 
-	//tracer.SetSpanFramesMinDuration(0)
+	tracer.SetSpanFramesMinDuration(1 * time.Nanosecond)
 	tracer.SetMaxSpans(*spanMaxLimit)
 
 	w := worker{
@@ -72,7 +74,17 @@ func main() {
 		Tracer:     tracer,
 		runTimeout: *runTimeout,
 	}
-	w.addTransactions(*transactionLimit, *spanMinLimit, *spanMaxLimit)
+	throttle := make(chan interface{})
+	// convert ticker to throttle
+	go func() {
+		for range time.NewTicker(*transactionFrequency).C {
+			throttle <- struct{}{}
+		}
+	}()
+	w.addTransactions(throttle, *transactionLimit, *spanMinLimit, *spanMaxLimit)
+
+	logger.Debugf("start")
+	defer logger.Debugf("finish")
 	report, _ := w.Work()
 	e, t, s := w.Counts()
 	logger.Printf("generated %d events (errors: %d, transctions: %d, spans: %d) in %s",

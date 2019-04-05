@@ -71,17 +71,13 @@ func (w *worker) Work() (Report, error) {
 	return report, err
 }
 
-func (w *worker) addTransactions(limit, spanMin, spanMax int) *worker {
+func (w *worker) addTransactions(throttle <-chan interface{}, limit, spanMin, spanMax int) *worker {
 	if limit <= 0 {
 		return w
 	}
 	generateSpan := func(ctx context.Context) {
-		time.Sleep(time.Duration(rand.Intn(3)) * time.Millisecond)
 		span, ctx := apm.StartSpan(ctx, "I'm a span", "gen.era.ted")
 		defer span.End()
-		r := rand.Intn(500)
-		span.Context.SetTag("took_ms", strconv.Itoa(r))
-		time.Sleep(time.Duration(r) * time.Millisecond)
 	}
 
 	generator := func(done <-chan struct{}) error {
@@ -89,7 +85,7 @@ func (w *worker) addTransactions(limit, spanMin, spanMax int) *worker {
 			select {
 			case <-done:
 				return nil
-			default:
+			case <-throttle:
 			}
 
 			tx := apm.DefaultTracer.StartTransaction("generated", "gen")
