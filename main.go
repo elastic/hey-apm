@@ -15,8 +15,10 @@ import (
 func main() {
 	// run options
 	runTimeout := flag.Duration("run", 30*time.Second, "stop run after this duration")
+	flushTimeout := flag.Duration("flush", 10*time.Second, "wait timeout for agent flush")
 
 	// apm-server options
+	// convenience for https://www.elastic.co/guide/en/apm/agent/go/current/configuration.html
 	apmServerSecret := flag.String("secret", "", "") // ELASTIC_APM_SECRET_TOKEN
 	apmServerUrl := flag.String("url", "", "")       // ELASTIC_APM_SERVER_URL
 
@@ -37,20 +39,25 @@ func main() {
 	logger := newApmLogger(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile))
 
 	tracer := apm.DefaultTracer
-	defer func() {
+	flush := func() {
 		flushed := make(chan struct{})
 		go func() {
 			tracer.Flush(nil)
 			close(flushed)
 		}()
 
+		flushWait := time.After(*flushTimeout)
+		if *flushTimeout == 0 {
+			flushWait = make(<-chan time.Time)
+		}
 		select {
 		case <-flushed:
-		case <-time.After(10 * time.Second):
+		case <-flushWait:
 			// give up waiting for flush
+			logger.Errorf("timed out waiting for flush to complete")
 		}
 		tracer.Close()
-	}()
+	}
 	tracer.SetLogger(logger)
 	tracer.SetMetricsInterval(0) // disable metrics
 	transport := tracer.Transport.(*apmtransport.HTTPTransport)
@@ -86,6 +93,8 @@ func main() {
 	logger.Debugf("start")
 	defer logger.Debugf("finish")
 	report, _ := w.Work()
+	defer func() { logger.Debugf("%s elapsed since event generation completed", time.Now().Sub(report.End)) }()
+	defer flush()
 	e, t, s := w.Counts()
 	logger.Printf("generated %d events (errors: %d, transctions: %d, spans: %d) in %s",
 		e+t+s, e, t, s, report.End.Sub(report.Start))
