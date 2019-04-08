@@ -23,7 +23,11 @@ func main() {
 	apmServerUrl := flag.String("url", "", "")       // ELASTIC_APM_SERVER_URL
 
 	// payload options
-	//errorLimit := flag.Int("e", math.MaxInt64, "max errors to generate")
+	errorLimit := flag.Int("e", math.MaxInt64, "max errors to generate")
+	errorFrequency := flag.Duration("ef", 1*time.Nanosecond, "error frequency. "+
+		"generate errors up to once in this duration")
+	errorFrameMaxLimit := flag.Int("ex", 10, "max error frames to per error")
+	errorFrameMinLimit := flag.Int("em", 0, "max error frames to per error")
 	spanMaxLimit := flag.Int("sx", 10, "max spans to per transaction")
 	spanMinLimit := flag.Int("sm", 1, "min spans to per transaction")
 	transactionLimit := flag.Int("t", math.MaxInt64, "max transactions to generate")
@@ -81,14 +85,8 @@ func main() {
 		Tracer:     tracer,
 		runTimeout: *runTimeout,
 	}
-	throttle := make(chan interface{})
-	// convert ticker to throttle
-	go func() {
-		for range time.NewTicker(*transactionFrequency).C {
-			throttle <- struct{}{}
-		}
-	}()
-	w.addTransactions(throttle, *transactionLimit, *spanMinLimit, *spanMaxLimit)
+	w.addErrors(throttle(time.NewTicker(*errorFrequency).C), *errorLimit, *errorFrameMinLimit, *errorFrameMaxLimit)
+	w.addTransactions(throttle(time.NewTicker(*transactionFrequency).C), *transactionLimit, *spanMinLimit, *spanMaxLimit)
 
 	logger.Debugf("start")
 	defer logger.Debugf("finish")
@@ -101,4 +99,15 @@ func main() {
 	if report.Count != t {
 		logger.Errorf("unexpected sampling decision count, expected: %d got: %d", t, report.Count)
 	}
+}
+
+// throttle converts a time ticker to a channel of things
+func throttle(c <-chan time.Time) chan interface{} {
+	throttle := make(chan interface{})
+	go func() {
+		for range c {
+			throttle <- struct{}{}
+		}
+	}()
+	return throttle
 }

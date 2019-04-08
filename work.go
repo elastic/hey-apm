@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"strconv"
 	"sync"
@@ -9,7 +10,9 @@ import (
 	"time"
 
 	"github.com/heptio/workgroup"
+
 	"go.elastic.co/apm"
+	"go.elastic.co/apm/stacktrace"
 )
 
 type worker struct {
@@ -69,6 +72,50 @@ func (w *worker) Work() (Report, error) {
 	report.End = time.Now()
 	report.Count = int(atomic.LoadInt64(&s.count))
 	return report, err
+}
+
+type generatedErr struct {
+	frames int
+}
+
+func (e *generatedErr) Error() string {
+	plural := "s"
+	if e.frames == 1 {
+		plural = ""
+	}
+	return fmt.Sprintf("Generated error with %d stacktrace frame%s", e.frames, plural)
+}
+
+func (e *generatedErr) StackTrace() []stacktrace.Frame {
+	st := make([]stacktrace.Frame, e.frames)
+	for i := 0; i < e.frames; i++ {
+		st[i] = stacktrace.Frame{
+			File:     "fake.go",
+			Function: "oops",
+			Line:     i + 100,
+		}
+	}
+	return st
+}
+
+func (w *worker) addErrors(throttle <-chan interface{}, limit, framesMin, framesMax int) *worker {
+	if limit <= 0 {
+		return w
+	}
+	w.Add(func(done <-chan struct{}) error {
+		for cnt := 0; cnt < limit; cnt++ {
+			select {
+			case <-done:
+				return nil
+			case <-throttle:
+			}
+
+			apm.DefaultTracer.NewError(&generatedErr{frames: rand.Intn(framesMax-framesMin+1) + framesMin}).Send()
+			atomic.AddInt64(&w.count.errors, 1)
+		}
+		return nil
+	})
+	return w
 }
 
 func (w *worker) addTransactions(throttle <-chan interface{}, limit, spanMin, spanMax int) *worker {
