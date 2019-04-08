@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"math"
+	"math/rand"
 	"net/url"
 	"os"
 	"time"
@@ -16,6 +17,7 @@ func main() {
 	// run options
 	runTimeout := flag.Duration("run", 30*time.Second, "stop run after this duration")
 	flushTimeout := flag.Duration("flush", 10*time.Second, "wait timeout for agent flush")
+	seed := flag.Int64("seed", time.Now().Unix(), "random seed")
 
 	// apm-server options
 	// convenience for https://www.elastic.co/guide/en/apm/agent/go/current/configuration.html
@@ -41,6 +43,8 @@ func main() {
 
 	// configure tracer
 	logger := newApmLogger(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile))
+	rand.Seed(*seed)
+	logger.Debugf("random seed: %d", *seed)
 
 	tracer := apm.DefaultTracer
 	flush := func() {
