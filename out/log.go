@@ -1,4 +1,4 @@
-package main
+package out
 
 import (
 	"log"
@@ -16,7 +16,7 @@ func (l *apmLogger) Errorf(format string, args ...interface{}) {
 	l.Printf("[error] "+format, args...)
 }
 
-func newApmLogger(logger *log.Logger) *apmLogger {
+func NewApmLogger(logger *log.Logger) *apmLogger {
 	return &apmLogger{
 		Logger: logger,
 	}
