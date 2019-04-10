@@ -3,7 +3,6 @@ package work
 import (
 	"bytes"
 	"context"
-	apmtransport "go.elastic.co/apm/transport"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"go.elastic.co/apm"
+	apmtransport "go.elastic.co/apm/transport"
 )
 
 type Tracer struct {
@@ -53,8 +53,8 @@ func (t *Tracer) flush() {
 type transport struct {
 	*apmtransport.HTTPTransport
 	headers http.Header
-	url *url.URL
-	logger apm.Logger
+	url     *url.URL
+	logger  apm.Logger
 }
 
 func wrap(backend *apmtransport.HTTPTransport, logger apm.Logger, serverSecret, serverUrl string) *transport {

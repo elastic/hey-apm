@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/elastic/hey-apm/out"
+	"github.com/heptio/workgroup"
 	"go.elastic.co/apm"
 	"go.elastic.co/apm/stacktrace"
 
-	"github.com/heptio/workgroup"
+	"github.com/elastic/hey-apm/out"
 )
 
 type Worker struct {
