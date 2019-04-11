@@ -60,6 +60,7 @@ func main() {
 		MaxFramesPerError:      *errorFrameMaxLimit,
 		MinFramesPerError:      *errorFrameMinLimit,
 	}
+	w.Add(work.HandleSignals())
 
 	logger.Debugf("start")
 	defer logger.Debugf("finish")

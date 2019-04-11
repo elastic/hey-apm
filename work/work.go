@@ -2,10 +2,12 @@ package work
 
 import (
 	"context"
+	errs "errors"
 	"fmt"
 	"log"
 	"math/rand"
 	"os"
+	"os/signal"
 	"strconv"
 	"sync"
 	"time"
@@ -40,7 +42,6 @@ type Report struct {
 }
 
 func (w *Worker) Work(tracer *tracer.Tracer) (Report, error) {
-
 	logger := out.NewApmLogger(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile))
 
 	if w.ErrorLimit > 0 {
@@ -159,6 +160,20 @@ func timeout(d time.Duration) generator {
 			return nil
 		case <-time.After(d):
 			return nil // time expired
+		}
+	}
+}
+
+func HandleSignals() generator {
+	return func(done <-chan struct{}) error {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt)
+
+		select {
+		case <-done:
+			return nil
+		case sig := <-c:
+			return errs.New(sig.String())
 		}
 	}
 }
