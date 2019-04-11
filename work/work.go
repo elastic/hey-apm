@@ -2,7 +2,6 @@ package work
 
 import (
 	"context"
-	errs "errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -10,6 +9,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/elastic/hey-apm/tracer"
 
 	"github.com/elastic/hey-apm/out"
 	"go.elastic.co/apm"
@@ -23,9 +24,6 @@ type Worker struct {
 	workgroup.Group
 
 	RunTimeout             time.Duration
-	AgentFlushTimeout      time.Duration
-	ServerUrl              string
-	SecretToken            string
 	TransactionLimit       int
 	TransactionFrequency   time.Duration
 	MaxSpansPerTransaction int
@@ -37,41 +35,33 @@ type Worker struct {
 }
 
 type Report struct {
-	TransactionsSent uint64
-	SpansSent        uint64
-	ErrorsSent       uint64
-	Start            time.Time
-	End              time.Time
-	RequestErrors    uint64
+	Stats apm.TracerStats
+	Start time.Time
+	End   time.Time
 }
 
-func (w *Worker) Work() (Report, error) {
+func (w *Worker) Work(tracer *tracer.Tracer) (Report, error) {
 
 	logger := out.NewApmLogger(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile))
-	if w.RunTimeout < time.Second {
-		return Report{}, errs.New("run timeout too short")
+
+	if w.ErrorLimit > 0 {
+		w.Add(errors(throttle(w.ErrorFrequency), tracer, w.ErrorLimit, w.MinFramesPerError, w.MaxFramesPerError))
 	}
-
-	tracer := newTracer(logger, w.AgentFlushTimeout, w.SecretToken, w.ServerUrl, w.MaxSpansPerTransaction)
-
-	w.Add(errors(throttle(w.ErrorFrequency), tracer, w.ErrorLimit, w.MinFramesPerError, w.MaxFramesPerError))
-	w.Add(transactions(throttle(w.TransactionFrequency), tracer, w.TransactionLimit, w.MinSpansPerTransaction, w.MaxSpansPerTransaction))
-	w.Add(timeout(w.RunTimeout))
+	if w.TransactionLimit > 0 {
+		w.Add(transactions(throttle(w.TransactionFrequency), tracer, w.TransactionLimit, w.MinSpansPerTransaction, w.MaxSpansPerTransaction))
+	}
+	if w.RunTimeout > 0 {
+		w.Add(timeout(w.RunTimeout))
+	}
 
 	logger.Debugf("start")
 	defer logger.Debugf("finish")
 
 	report := Report{Start: time.Now()}
 	err := w.Run()
-	tracer.flush()
+	tracer.FlushAll()
 	report.End = time.Now()
-
-	stats := tracer.Stats()
-	report.TransactionsSent = stats.TransactionsSent
-	report.SpansSent = stats.SpansSent
-	report.ErrorsSent = stats.ErrorsSent
-	report.RequestErrors = stats.Errors.SendStream
-
+	report.Stats = tracer.Stats()
 	return report, err
 }
 
@@ -88,11 +78,7 @@ func throttle(d time.Duration) chan interface{} {
 
 type generator func(<-chan struct{}) error
 
-func transactions(throttle <-chan interface{}, tracer *Tracer, limit, spanMin, spanMax int) generator {
-	if limit <= 0 {
-		return noop()
-	}
-
+func transactions(throttle <-chan interface{}, tracer *tracer.Tracer, limit, spanMin, spanMax int) generator {
 	generateSpan := func(ctx context.Context) {
 		span, ctx := apm.StartSpan(ctx, "I'm a span", "gen.era.ted")
 		span.End()
@@ -120,7 +106,7 @@ func transactions(throttle <-chan interface{}, tracer *Tracer, limit, spanMin, s
 			wg.Wait()
 			tx.Context.SetTag("spans", strconv.Itoa(spanCount))
 			tx.End()
-			sent = int(tracer.Stats().TransactionsSent)
+			sent++
 		}
 		return nil
 	}
@@ -151,10 +137,7 @@ func (e *generatedErr) StackTrace() []stacktrace.Frame {
 	return st
 }
 
-func errors(throttle <-chan interface{}, tracer *Tracer, limit, framesMin, framesMax int) generator {
-	if limit <= 0 {
-		return noop()
-	}
+func errors(throttle <-chan interface{}, tracer *tracer.Tracer, limit, framesMin, framesMax int) generator {
 	return func(done <-chan struct{}) error {
 		sent := 0
 		for sent < limit {
@@ -164,7 +147,7 @@ func errors(throttle <-chan interface{}, tracer *Tracer, limit, framesMin, frame
 			case <-throttle:
 			}
 			tracer.NewError(&generatedErr{frames: rand.Intn(framesMax-framesMin+1) + framesMin}).Send()
-			sent = int(tracer.Stats().ErrorsSent)
+			sent++
 		}
 		return nil
 	}
@@ -177,15 +160,6 @@ func timeout(d time.Duration) generator {
 			return nil
 		case <-time.After(d):
 			return nil // time expired
-		}
-	}
-}
-
-func noop() generator {
-	return func(done <-chan struct{}) error {
-		select {
-		case <-done:
-			return nil
 		}
 	}
 }

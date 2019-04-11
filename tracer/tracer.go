@@ -1,14 +1,15 @@
-package work
+package tracer
 
 import (
 	"bytes"
 	"context"
-	apmtransport "go.elastic.co/apm/transport"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
+
+	apmtransport "go.elastic.co/apm/transport"
 
 	"go.elastic.co/apm"
 )
@@ -19,18 +20,17 @@ type Tracer struct {
 	timeout time.Duration
 }
 
-func newTracer(logger apm.Logger, timeout time.Duration, serverSecret, serverUrl string, spanLimit int) *Tracer {
+func NewTracer(logger apm.Logger, timeout time.Duration, serverSecret, serverUrl string) *Tracer {
 	tracer := apm.DefaultTracer
 	transport := tracer.Transport.(*apmtransport.HTTPTransport)
 	tracer.Transport = wrap(transport, logger, serverSecret, serverUrl)
 	tracer.SetLogger(logger)
 	tracer.SetMetricsInterval(0) // disable metrics
 	tracer.SetSpanFramesMinDuration(1 * time.Nanosecond)
-	tracer.SetMaxSpans(spanLimit)
 	return &Tracer{tracer, logger, timeout}
 }
 
-func (t *Tracer) flush() {
+func (t *Tracer) FlushAll() {
 	flushed := make(chan struct{})
 	go func() {
 		t.Flush(nil)
@@ -53,8 +53,8 @@ func (t *Tracer) flush() {
 type transport struct {
 	*apmtransport.HTTPTransport
 	headers http.Header
-	url *url.URL
-	logger apm.Logger
+	url     *url.URL
+	logger  apm.Logger
 }
 
 func wrap(backend *apmtransport.HTTPTransport, logger apm.Logger, serverSecret, serverUrl string) *transport {

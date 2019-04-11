@@ -8,6 +8,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/elastic/hey-apm/tracer"
+
 	"github.com/elastic/hey-apm/out"
 	"github.com/elastic/hey-apm/work"
 )
@@ -49,8 +51,6 @@ func main() {
 
 	w := work.Worker{
 		RunTimeout:             *runTimeout,
-		ServerUrl:              *apmServerUrl,
-		SecretToken:            *apmServerSecret,
 		TransactionLimit:       *transactionLimit,
 		TransactionFrequency:   *transactionFrequency,
 		MaxSpansPerTransaction: *spanMaxLimit,
@@ -59,23 +59,24 @@ func main() {
 		ErrorFrequency:         *errorFrequency,
 		MaxFramesPerError:      *errorFrameMaxLimit,
 		MinFramesPerError:      *errorFrameMinLimit,
-		AgentFlushTimeout:      *flushTimeout,
 	}
 
 	logger.Debugf("start")
 	defer logger.Debugf("finish")
-	report, _ := w.Work()
+	tracer := tracer.NewTracer(logger, *flushTimeout, *apmServerSecret, *apmServerUrl)
+
+	report, _ := w.Work(tracer)
 	logger.Debugf("%s elapsed since event generation completed", time.Now().Sub(report.End))
-	e := report.ErrorsSent
-	t := report.TransactionsSent
-	s := report.SpansSent
-	logger.Printf("generated %d events (errors: %d, transactions: %d, spans: %d) in %s",
-		e+t+s, e, t, s, report.End.Sub(report.Start))
-	logger.Printf("%d request errors", report.RequestErrors)
-	info, err := QueryServerInfo(*apmServerSecret, *apmServerUrl)
-	if err != nil {
-		logger.Errorf("apm-server health error: %s", err.Error())
-	} else {
-		logger.Print(info.String())
-	}
+	e, de := report.Stats.ErrorsSent, report.Stats.ErrorsDropped
+	t, dt := report.Stats.TransactionsSent, report.Stats.TransactionsDropped
+	s, ds := report.Stats.SpansSent, report.Stats.SpansDropped
+	logger.Printf("sent %d events in %.1f seconds (%d dropped)", e+t+s, report.End.Sub(report.Start).Seconds(), de+dt+ds)
+	logger.Printf("    transactions (sent / dropped) : %d / %d [%.2f%%] ", t, dt, per(t, dt))
+	logger.Printf("    spans (sent / dropped)        : %d / %d [%.2f%%] ", s, ds, per(s, ds))
+	logger.Printf("    errors (sent / dropped)       : %d / %d [%.2f%%] ", e, de, per(e, de))
+	logger.Printf("%d request errors", report.Stats.Errors.SendStream)
+}
+
+func per(i1, i2 uint64) float64 {
+	return float64(i1) * 100 / (float64(i1) + float64(i2))
 }
