@@ -13,10 +13,9 @@ import (
 	"github.com/elastic/hey-apm/tracer"
 
 	"github.com/elastic/hey-apm/out"
+	"github.com/heptio/workgroup"
 	"go.elastic.co/apm"
 	"go.elastic.co/apm/stacktrace"
-
-	"github.com/heptio/workgroup"
 )
 
 type Worker struct {

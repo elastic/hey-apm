@@ -12,6 +12,7 @@ import (
 	apmtransport "go.elastic.co/apm/transport"
 
 	"go.elastic.co/apm"
+	apmtransport "go.elastic.co/apm/transport"
 )
 
 type Tracer struct {
