@@ -4,7 +4,6 @@ import (
 	"context"
 	errs "errors"
 	"fmt"
-	"log"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/elastic/hey-apm/tracer"
 
-	"github.com/elastic/hey-apm/out"
 	"github.com/heptio/workgroup"
 	"go.elastic.co/apm"
 	"go.elastic.co/apm/stacktrace"
@@ -38,11 +36,13 @@ type Worker struct {
 type Report struct {
 	Stats apm.TracerStats
 	Start time.Time
-	End   time.Time
+	// timestamp after run, before flush
+	Stop time.Time
+	// timestamp after flush
+	End time.Time
 }
 
 func (w *Worker) Work(tracer *tracer.Tracer) (Report, error) {
-	logger := out.NewApmLogger(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile))
 
 	if w.ErrorLimit > 0 {
 		w.Add(errors(throttle(w.ErrorFrequency), tracer, w.ErrorLimit, w.MinFramesPerError, w.MaxFramesPerError))
@@ -54,11 +54,9 @@ func (w *Worker) Work(tracer *tracer.Tracer) (Report, error) {
 		w.Add(timeout(w.RunTimeout))
 	}
 
-	logger.Debugf("start")
-	defer logger.Debugf("finish")
-
 	report := Report{Start: time.Now()}
 	err := w.Run()
+	report.Stop = time.Now()
 	tracer.FlushAll()
 	report.End = time.Now()
 	report.Stats = tracer.Stats()

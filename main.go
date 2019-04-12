@@ -8,9 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/elastic/hey-apm/tracer"
-
 	"github.com/elastic/hey-apm/out"
+	"github.com/elastic/hey-apm/tracer"
 	"github.com/elastic/hey-apm/work"
 )
 
@@ -66,8 +65,11 @@ func main() {
 	defer logger.Debugf("finish")
 	tracer := tracer.NewTracer(logger, *flushTimeout, *apmServerSecret, *apmServerUrl)
 
-	report, _ := w.Work(tracer)
-	logger.Debugf("%s elapsed since event generation completed", time.Now().Sub(report.End))
+	report, err := w.Work(tracer)
+	if err != nil {
+		logger.Errorf(err.Error())
+	}
+	logger.Debugf("%s elapsed since event generation completed", time.Now().Sub(report.Stop))
 	e, de := report.Stats.ErrorsSent, report.Stats.ErrorsDropped
 	t, dt := report.Stats.TransactionsSent, report.Stats.TransactionsDropped
 	s, ds := report.Stats.SpansSent, report.Stats.SpansDropped
