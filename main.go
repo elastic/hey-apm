@@ -2,12 +2,16 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"math"
 	"math/rand"
 	"net/url"
 	"os"
 	"time"
+
+	"github.com/elastic/hey-apm/out"
+	"github.com/elastic/hey-apm/server"
 
 	"go.elastic.co/apm"
 	apmtransport "go.elastic.co/apm/transport"
@@ -21,8 +25,8 @@ func main() {
 
 	// apm-server options
 	// convenience for https://www.elastic.co/guide/en/apm/agent/go/current/configuration.html
-	apmServerSecret := flag.String("secret", "", "") // ELASTIC_APM_SECRET_TOKEN
-	apmServerUrl := flag.String("url", "", "")       // ELASTIC_APM_SERVER_URL
+	apmServerSecret := flag.String("secret", "", "")                // ELASTIC_APM_SECRET_TOKEN
+	apmServerUrl := flag.String("url", "http://localhost:8200", "") // ELASTIC_APM_SERVER_URL
 
 	// payload options
 	errorLimit := flag.Int("e", math.MaxInt64, "max errors to generate")
@@ -102,6 +106,13 @@ func main() {
 		e+t+s, e, t, s, report.End.Sub(report.Start))
 	if report.Count != t {
 		logger.Errorf("unexpected sampling decision count, expected: %d got: %d", t, report.Count)
+	}
+
+	info, err := server.QueryInfo(*apmServerSecret, *apmServerUrl)
+	if err != nil {
+		logger.Errorf("apm-server health error: %s", err.Error())
+	} else {
+		fmt.Println(out.Bold + "\n*** " + info.String() + " ***\n" + out.Reset)
 	}
 }
 
