@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/elastic/hey-apm/out"
-
 	"github.com/elastic/hey-apm/server"
 
 	"go.elastic.co/apm"
