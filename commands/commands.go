@@ -7,6 +7,8 @@ import (
 	s "strings"
 	"time"
 
+	"github.com/elastic/hey-apm/conv"
+
 	"github.com/elastic/hey-apm/compose"
 	"github.com/elastic/hey-apm/out"
 	"github.com/elastic/hey-apm/target"
@@ -25,7 +27,7 @@ func LoadTest(w io.Writer, wait func(), cooldown time.Duration, t target.Target)
 	start := time.Now()
 	go work.Run()
 	out.ReplyNL(w, out.Grey+fmt.Sprintf("started new work, payload size %s (uncompressed), %s (compressed) ...",
-		util.ByteCountDecimal(t.Size()), util.ByteCountDecimal(t.Size())))
+		conv.ByteCountDecimal(t.Size()), conv.ByteCountDecimal(t.Size())))
 	out.Prompt(w)
 
 	cancelled := make(chan struct{}, 1)
@@ -56,10 +58,10 @@ func LoadTest(w io.Writer, wait func(), cooldown time.Duration, t target.Target)
 
 // writes to disk
 func Dump(w io.Writer, args ...string) (int, error) {
-	errors, err := util.Aton(util.Get(0, args), nil)
-	transactions, err := util.Aton(util.Get(1, args), err)
-	spans, err := util.Aton(util.Get(2, args), err)
-	frames, err := util.Aton(util.Get(3, args), err)
+	errors, err := conv.Aton(util.Get(0, args), nil)
+	transactions, err := conv.Aton(util.Get(1, args), err)
+	spans, err := conv.Aton(util.Get(2, args), err)
+	frames, err := conv.Aton(util.Get(3, args), err)
 	if err != nil {
 		return 0, err
 	}

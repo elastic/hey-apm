@@ -6,16 +6,15 @@ import (
 	"log"
 	"math"
 	"math/rand"
-	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/elastic/hey-apm/agent"
+	"github.com/elastic/hey-apm/worker"
+
 	"github.com/elastic/hey-apm/out"
 	"github.com/elastic/hey-apm/server"
-
-	"go.elastic.co/apm"
-	apmtransport "go.elastic.co/apm/transport"
 )
 
 func main() {
@@ -47,37 +46,20 @@ func main() {
 	}
 
 	// configure tracer
-	logger := newApmLogger(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile))
+	logger := out.NewApmLogger(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile))
 	rand.Seed(*seed)
 	logger.Debugf("random seed: %d", *seed)
 
-	tracer := apm.DefaultTracer
-	tracer.SetLogger(logger)
-	tracer.SetMetricsInterval(0) // disable metrics
-	transport := tracer.Transport.(*apmtransport.HTTPTransport)
-	transport.SetUserAgent("hey-apm")
-	if *apmServerSecret != "" {
-		transport.SetSecretToken(*apmServerSecret)
-	}
-	if *apmServerUrl != "" {
-		u, err := url.Parse(*apmServerUrl)
-		if err != nil {
-			logger.Fatal("invalid apm server url:", err)
-		}
-		transport.SetServerURL(u)
-	}
+	tracer := agent.Tracer(logger, *apmServerUrl, *apmServerSecret, *spanMaxLimit)
 
-	tracer.SetSpanFramesMinDuration(1 * time.Nanosecond)
-	tracer.SetMaxSpans(*spanMaxLimit)
-
-	w := worker{
-		apmLogger:    logger,
+	w := worker.Worker{
+		ApmLogger:    logger,
 		Tracer:       tracer,
-		runTimeout:   *runTimeout,
-		flushTimeout: *flushTimeout,
+		RunTimeout:   *runTimeout,
+		FlushTimeout: *flushTimeout,
 	}
-	w.addErrors(throttle(time.NewTicker(*errorFrequency).C), *errorLimit, *errorFrameMinLimit, *errorFrameMaxLimit)
-	w.addTransactions(throttle(time.NewTicker(*transactionFrequency).C), *transactionLimit, *spanMinLimit, *spanMaxLimit)
+	w.AddErrors(*errorFrequency, *errorLimit, *errorFrameMinLimit, *errorFrameMaxLimit)
+	w.AddTransactions(*transactionFrequency, *transactionLimit, *spanMinLimit, *spanMaxLimit)
 
 	logger.Debugf("start")
 	defer logger.Debugf("finish")
@@ -88,10 +70,10 @@ func main() {
 	logger.Debugf("%s elapsed since event generation completed", report.Flushed.Sub(report.End))
 
 	fmt.Println()
-	for _, pair := range report.Stats {
-		metric, value := pair.k, pair.v
-		metric += " " + strings.Repeat(".", 30-len(metric))
-		fmt.Printf("%s %s\n", metric, value)
+	for _, metric := range report.Stats {
+		name, value := metric.Name, metric.Value
+		name += " " + strings.Repeat(".", 30-len(name))
+		fmt.Printf("%s %s\n", name, value)
 	}
 
 	info, err := server.QueryInfo(*apmServerSecret, *apmServerUrl)
@@ -100,15 +82,4 @@ func main() {
 	} else {
 		fmt.Println(out.Bold + "\n*** " + info.String() + " ***\n" + out.Reset)
 	}
-}
-
-// throttle converts a time ticker to a channel of things
-func throttle(c <-chan time.Time) chan interface{} {
-	throttle := make(chan interface{})
-	go func() {
-		for range c {
-			throttle <- struct{}{}
-		}
-	}()
-	return throttle
 }

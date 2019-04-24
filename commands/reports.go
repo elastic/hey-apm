@@ -9,6 +9,8 @@ import (
 	s "strings"
 	"time"
 
+	"github.com/elastic/hey-apm/conv"
+
 	"github.com/elastic/hey-apm/util"
 )
 
@@ -378,7 +380,7 @@ func digest(r TestReport, variable string) ([]string, []string) {
 	header = append(header, "throughput")
 	header = append(header, "pushed")
 	data = append(data, fmt.Sprintf("%.1fdps", r.Throughput))
-	data = append(data, util.ByteCountDecimal(int64(r.PushedBps))+"ps")
+	data = append(data, conv.ByteCountDecimal(int64(r.PushedBps))+"ps")
 	return header, data
 }
 

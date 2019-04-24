@@ -1,4 +1,4 @@
-package main
+package worker
 
 import (
 	"context"
@@ -8,50 +8,54 @@ import (
 	"sync"
 	"time"
 
+	"github.com/elastic/hey-apm/conv"
+	"github.com/elastic/hey-apm/numbers"
+	"github.com/elastic/hey-apm/out"
+
 	"github.com/heptio/workgroup"
 
 	"go.elastic.co/apm"
 	"go.elastic.co/apm/stacktrace"
 )
 
-type worker struct {
-	*apmLogger
+type Worker struct {
+	*out.ApmLogger
 	*apm.Tracer
-	runTimeout   time.Duration
-	flushTimeout time.Duration
+	RunTimeout   time.Duration
+	FlushTimeout time.Duration
 
 	// not to be modified concurrently
 	workgroup.Group
 }
 
-type pair struct {
-	k, v string
+type metric struct {
+	Name, Value string
 }
 
 type Report struct {
-	Stats   []pair
+	Stats   []metric
 	Start   time.Time
 	End     time.Time
 	Flushed time.Time
 }
 
-func (r *Report) add(metric string, value interface{}) {
-	r.Stats = append(r.Stats, pair{metric, stringOf(value)})
+func (r *Report) add(metricName string, value interface{}) {
+	r.Stats = append(r.Stats, metric{metricName, conv.StringOf(value)})
 }
 
-func (w *worker) Work() (Report, error) {
-	if w.runTimeout > 0 {
+func (w *Worker) Work() (Report, error) {
+	if w.RunTimeout > 0 {
 		w.Add(func(done <-chan struct{}) error {
 			select {
 			case <-done:
 				return nil
-			case <-time.After(w.runTimeout):
+			case <-time.After(w.RunTimeout):
 				return nil // time expired
 			}
 		})
 	}
 
-	report := Report{Stats: make([]pair, 0)}
+	report := Report{Stats: make([]metric, 0)}
 	report.Start = time.Now()
 	err := w.Run()
 	report.End = time.Now()
@@ -83,15 +87,15 @@ func (w *worker) Work() (Report, error) {
 	return report, err
 }
 
-func (w *worker) flush() {
+func (w *Worker) flush() {
 	flushed := make(chan struct{})
 	go func() {
 		w.Flush(nil)
 		close(flushed)
 	}()
 
-	flushWait := time.After(w.flushTimeout)
-	if w.flushTimeout == 0 {
+	flushWait := time.After(w.FlushTimeout)
+	if w.FlushTimeout == 0 {
 		flushWait = make(<-chan time.Time)
 	}
 	select {
@@ -101,25 +105,6 @@ func (w *worker) flush() {
 		w.Errorf("timed out waiting for flush to complete")
 	}
 	w.Close()
-}
-
-func perct(i1, i2 uint64) float64 {
-	return div(i1*100, i1+i2)
-}
-
-func div(i1, i2 uint64) float64 {
-	return float64(i1) / float64(i2)
-}
-
-func stringOf(v interface{}) string {
-	switch v.(type) {
-	case uint64:
-		return fmt.Sprintf("%d", v)
-	case float64:
-		return fmt.Sprintf("%.2f", v)
-	default:
-		return fmt.Sprintf("%v", v)
-	}
 }
 
 type generatedErr struct {
@@ -146,31 +131,32 @@ func (e *generatedErr) StackTrace() []stacktrace.Frame {
 	return st
 }
 
-func (w *worker) addErrors(throttle <-chan interface{}, limit, framesMin, framesMax int) *worker {
+func (w *Worker) AddErrors(frequency time.Duration, limit, framesMin, framesMax int) {
 	if limit <= 0 {
-		return w
+		return
 	}
+	t := throttle(time.NewTicker(frequency).C)
 	w.Add(func(done <-chan struct{}) error {
 		var count int
 		for count < limit {
 			select {
 			case <-done:
 				return nil
-			case <-throttle:
+			case <-t:
 			}
 
-			apm.DefaultTracer.NewError(&generatedErr{frames: rand.Intn(framesMax-framesMin+1) + framesMin}).Send()
+			w.Tracer.NewError(&generatedErr{frames: rand.Intn(framesMax-framesMin+1) + framesMin}).Send()
 			count++
 		}
 		return nil
 	})
-	return w
 }
 
-func (w *worker) addTransactions(throttle <-chan interface{}, limit, spanMin, spanMax int) *worker {
+func (w *Worker) AddTransactions(frequency time.Duration, limit, spanMin, spanMax int) {
 	if limit <= 0 {
-		return w
+		return
 	}
+	t := throttle(time.NewTicker(frequency).C)
 	generateSpan := func(ctx context.Context) {
 		span, ctx := apm.StartSpan(ctx, "I'm a span", "gen.era.ted")
 		span.End()
@@ -182,10 +168,10 @@ func (w *worker) addTransactions(throttle <-chan interface{}, limit, spanMin, sp
 			select {
 			case <-done:
 				return nil
-			case <-throttle:
+			case <-t:
 			}
 
-			tx := apm.DefaultTracer.StartTransaction("generated", "gen")
+			tx := w.Tracer.StartTransaction("generated", "gen")
 			ctx := apm.ContextWithTransaction(context.Background(), tx)
 			var wg sync.WaitGroup
 			spanCount := rand.Intn(spanMax-spanMin+1) + spanMin
@@ -203,7 +189,16 @@ func (w *worker) addTransactions(throttle <-chan interface{}, limit, spanMin, sp
 		}
 		return nil
 	}
-
 	w.Add(generator)
-	return w
+}
+
+// throttle converts a time ticker to a channel of things
+func throttle(c <-chan time.Time) chan interface{} {
+	throttle := make(chan interface{})
+	go func() {
+		for range c {
+			throttle <- struct{}{}
+		}
+	}()
+	return throttle
 }

@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/elastic/hey-apm/conv"
+
 	"github.com/elastic/hey-apm/cli/fileio"
 	"github.com/elastic/hey-apm/commands"
 	"github.com/elastic/hey-apm/es"
@@ -114,7 +116,7 @@ func eval(cmd []string, env *env) string {
 	case fn == "dump":
 		n, err := commands.Dump(out.FileWriter{Filename: util.Get(1, cmd)}, util.From(2, cmd)...)
 		bw := out.NewBufferWriter()
-		out.ReplyEitherNL(bw, err, out.Grey+util.ByteCountDecimal(int64(n))+" written to disk")
+		out.ReplyEitherNL(bw, err, out.Grey+conv.ByteCountDecimal(int64(n))+" written to disk")
 		return bw.String()
 
 	case fn == "collate":
