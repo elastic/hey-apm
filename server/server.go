@@ -32,13 +32,12 @@ func QueryInfo(secret, url string) (Info, error) {
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
-	defer resp.Body.Close()
-
 	info := Info{}
 
 	if err != nil {
 		return info, err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		return info, errs.New("server status not OK: " + resp.Status)

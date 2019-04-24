@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/heptio/workgroup"
@@ -18,37 +17,26 @@ import (
 type worker struct {
 	*apmLogger
 	*apm.Tracer
-	runTimeout time.Duration
-
-	count struct {
-		errors       int64
-		transactions int64
-		spans        int64
-	}
+	runTimeout   time.Duration
+	flushTimeout time.Duration
 
 	// not to be modified concurrently
 	workgroup.Group
 }
 
+type pair struct {
+	k, v string
+}
+
 type Report struct {
-	Count int
-	Start time.Time
-	End   time.Time
+	Stats   []pair
+	Start   time.Time
+	End     time.Time
+	Flushed time.Time
 }
 
-type sampler struct {
-	count int64
-}
-
-func (s *sampler) Sample(apm.TraceContext) bool {
-	atomic.AddInt64(&s.count, 1)
-	return true
-}
-
-func (w *worker) Counts() (int, int, int) {
-	return int(atomic.LoadInt64(&w.count.errors)),
-		int(atomic.LoadInt64(&w.count.transactions)),
-		int(atomic.LoadInt64(&w.count.spans))
+func (r *Report) add(metric string, value interface{}) {
+	r.Stats = append(r.Stats, pair{metric, stringOf(value)})
 }
 
 func (w *worker) Work() (Report, error) {
@@ -63,15 +51,74 @@ func (w *worker) Work() (Report, error) {
 		})
 	}
 
-	var s sampler
-	w.Tracer.SetSampler(&s)
-
-	report := Report{}
+	report := Report{Stats: make([]pair, 0)}
 	report.Start = time.Now()
 	err := w.Run()
 	report.End = time.Now()
-	report.Count = int(atomic.LoadInt64(&s.count))
+	w.flush()
+	report.Flushed = time.Now()
+
+	rs := w.Stats()
+	report.add("transactions sent", rs.TransactionsSent)
+	report.add("transactions dropped", rs.TransactionsDropped)
+	if rs.TransactionsSent+rs.TransactionsDropped > 0 {
+		report.add("transactions sent perct.", perct(rs.TransactionsSent, rs.TransactionsDropped))
+		report.add("spans sent", rs.SpansSent)
+		report.add("spans dropped", rs.SpansDropped)
+		report.add("spans sent perct.", perct(rs.SpansSent, rs.SpansDropped))
+		if rs.TransactionsSent > 0 {
+			report.add("spans sent per transaction", div(rs.SpansSent, rs.TransactionsSent))
+		}
+	}
+	report.add("errors sent", rs.ErrorsSent)
+	report.add("errors dropped", rs.ErrorsDropped)
+	if rs.ErrorsSent+rs.ErrorsDropped > 0 {
+		report.add("errors sent perct.", perct(rs.ErrorsSent, rs.ErrorsDropped))
+	}
+	report.add("failed", rs.Errors.SendStream)
+	eventsSent := float64(rs.ErrorsSent + rs.SpansSent + rs.TransactionsSent)
+	report.add("events sent per second", eventsSent/report.Flushed.Sub(report.Start).Seconds())
+
 	return report, err
+}
+
+func (w *worker) flush() {
+	flushed := make(chan struct{})
+	go func() {
+		w.Flush(nil)
+		close(flushed)
+	}()
+
+	flushWait := time.After(w.flushTimeout)
+	if w.flushTimeout == 0 {
+		flushWait = make(<-chan time.Time)
+	}
+	select {
+	case <-flushed:
+	case <-flushWait:
+		// give up waiting for flush
+		w.Errorf("timed out waiting for flush to complete")
+	}
+	w.Close()
+}
+
+func perct(i1, i2 uint64) float64 {
+	return div(i1*100, i1+i2)
+}
+
+func div(i1, i2 uint64) float64 {
+	return float64(i1) / float64(i2)
+}
+
+func stringOf(v interface{}) string {
+	switch v.(type) {
+	case uint64:
+		return fmt.Sprintf("%d", v)
+	case float64:
+		return fmt.Sprintf("%.2f", v)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }
 
 type generatedErr struct {
@@ -103,7 +150,8 @@ func (w *worker) addErrors(throttle <-chan interface{}, limit, framesMin, frames
 		return w
 	}
 	w.Add(func(done <-chan struct{}) error {
-		for cnt := 0; cnt < limit; cnt++ {
+		var sent int
+		for sent < limit {
 			select {
 			case <-done:
 				return nil
@@ -111,7 +159,7 @@ func (w *worker) addErrors(throttle <-chan interface{}, limit, framesMin, frames
 			}
 
 			apm.DefaultTracer.NewError(&generatedErr{frames: rand.Intn(framesMax-framesMin+1) + framesMin}).Send()
-			atomic.AddInt64(&w.count.errors, 1)
+			sent++
 		}
 		return nil
 	})
@@ -128,7 +176,8 @@ func (w *worker) addTransactions(throttle <-chan interface{}, limit, spanMin, sp
 	}
 
 	generator := func(done <-chan struct{}) error {
-		for cnt := 0; cnt < limit; cnt++ {
+		var sent int
+		for sent < limit {
 			select {
 			case <-done:
 				return nil
@@ -149,8 +198,7 @@ func (w *worker) addTransactions(throttle <-chan interface{}, limit, spanMin, sp
 			wg.Wait()
 			tx.Context.SetTag("spans", strconv.Itoa(spanCount))
 			tx.End()
-			atomic.AddInt64(&w.count.transactions, 1)
-			atomic.AddInt64(&w.count.spans, int64(spanCount))
+			sent++
 		}
 		return nil
 	}
