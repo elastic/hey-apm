@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/elastic/hey-apm/agent"
 	"github.com/elastic/hey-apm/conv"
 	"github.com/elastic/hey-apm/numbers"
 	"github.com/elastic/hey-apm/out"
@@ -20,7 +21,7 @@ import (
 
 type Worker struct {
 	*out.ApmLogger
-	*apm.Tracer
+	*agent.Tracer
 	RunTimeout   time.Duration
 	FlushTimeout time.Duration
 
@@ -80,9 +81,22 @@ func (w *Worker) Work() (Report, error) {
 		report.add(" - success %", numbers.Perct(rs.ErrorsSent, rs.ErrorsDropped))
 	}
 	eventsSent := float64(rs.ErrorsSent + rs.SpansSent + rs.TransactionsSent)
-	report.add("total events sent", eventsSent)
-	report.add(" - per second", eventsSent/report.Flushed.Sub(report.Start).Seconds())
+	elapsed := report.Flushed.Sub(report.Start).Seconds()
+	if elapsed == 0 {
+		return report, err
+	}
+
+	report.add("total events sent", int(eventsSent))
+	report.add(" - per second", eventsSent/elapsed)
+	report.add(" - accepted", int64(w.TransportStats.Accepted))
+	if w.TransportStats.Accepted > 0 && eventsSent != w.TransportStats.Accepted {
+		report.add("   - per second", w.TransportStats.Accepted/elapsed)
+		report.add("   - success %", w.TransportStats.Accepted*100/eventsSent)
+	}
 	report.add("failed", rs.Errors.SendStream)
+	if len(w.TransportStats.TopErrors) > 0 {
+		report.add("server errors", w.TransportStats.TopErrors)
+	}
 
 	return report, err
 }

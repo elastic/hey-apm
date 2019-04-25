@@ -50,7 +50,7 @@ func main() {
 	rand.Seed(*seed)
 	logger.Debugf("random seed: %d", *seed)
 
-	tracer := agent.Tracer(logger, *apmServerUrl, *apmServerSecret, *spanMaxLimit)
+	tracer := agent.NewTracer(logger, *apmServerUrl, *apmServerSecret, *spanMaxLimit)
 
 	w := worker.Worker{
 		ApmLogger:    logger,
