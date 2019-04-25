@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/elastic/hey-apm/out"
@@ -51,25 +52,6 @@ func main() {
 	logger.Debugf("random seed: %d", *seed)
 
 	tracer := apm.DefaultTracer
-	flush := func() {
-		flushed := make(chan struct{})
-		go func() {
-			tracer.Flush(nil)
-			close(flushed)
-		}()
-
-		flushWait := time.After(*flushTimeout)
-		if *flushTimeout == 0 {
-			flushWait = make(<-chan time.Time)
-		}
-		select {
-		case <-flushed:
-		case <-flushWait:
-			// give up waiting for flush
-			logger.Errorf("timed out waiting for flush to complete")
-		}
-		tracer.Close()
-	}
 	tracer.SetLogger(logger)
 	tracer.SetMetricsInterval(0) // disable metrics
 	transport := tracer.Transport.(*apmtransport.HTTPTransport)
@@ -89,23 +71,27 @@ func main() {
 	tracer.SetMaxSpans(*spanMaxLimit)
 
 	w := worker{
-		apmLogger:  logger,
-		Tracer:     tracer,
-		runTimeout: *runTimeout,
+		apmLogger:    logger,
+		Tracer:       tracer,
+		runTimeout:   *runTimeout,
+		flushTimeout: *flushTimeout,
 	}
 	w.addErrors(throttle(time.NewTicker(*errorFrequency).C), *errorLimit, *errorFrameMinLimit, *errorFrameMaxLimit)
 	w.addTransactions(throttle(time.NewTicker(*transactionFrequency).C), *transactionLimit, *spanMinLimit, *spanMaxLimit)
 
 	logger.Debugf("start")
 	defer logger.Debugf("finish")
-	report, _ := w.Work()
-	defer func() { logger.Debugf("%s elapsed since event generation completed", time.Now().Sub(report.End)) }()
-	defer flush()
-	e, t, s := w.Counts()
-	logger.Printf("generated %d events (errors: %d, transctions: %d, spans: %d) in %s",
-		e+t+s, e, t, s, report.End.Sub(report.Start))
-	if report.Count != t {
-		logger.Errorf("unexpected sampling decision count, expected: %d got: %d", t, report.Count)
+	report, err := w.Work()
+	if err != nil {
+		logger.Errorf(err.Error())
+	}
+	logger.Debugf("%s elapsed since event generation completed", report.Flushed.Sub(report.End))
+
+	fmt.Println()
+	for _, pair := range report.Stats {
+		metric, value := pair.k, pair.v
+		metric += " " + strings.Repeat(".", 30-len(metric))
+		fmt.Printf("%s %s\n", metric, value)
 	}
 
 	info, err := server.QueryInfo(*apmServerSecret, *apmServerUrl)
