@@ -8,8 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/elastic/hey-apm/conv"
-	"github.com/elastic/hey-apm/numbers"
+	"github.com/elastic/hey-apm/agent"
 	"github.com/elastic/hey-apm/out"
 
 	"github.com/heptio/workgroup"
@@ -20,27 +19,12 @@ import (
 
 type Worker struct {
 	*out.ApmLogger
-	*apm.Tracer
+	*agent.Tracer
 	RunTimeout   time.Duration
 	FlushTimeout time.Duration
 
 	// not to be modified concurrently
 	workgroup.Group
-}
-
-type metric struct {
-	Name, Value string
-}
-
-type Report struct {
-	Stats   []metric
-	Start   time.Time
-	End     time.Time
-	Flushed time.Time
-}
-
-func (r *Report) add(metricName string, value interface{}) {
-	r.Stats = append(r.Stats, metric{metricName, conv.StringOf(value)})
 }
 
 func (w *Worker) Work() (Report, error) {
@@ -55,34 +39,14 @@ func (w *Worker) Work() (Report, error) {
 		})
 	}
 
-	report := Report{Stats: make([]metric, 0)}
+	report := Report{}
 	report.Start = time.Now()
 	err := w.Run()
 	report.End = time.Now()
 	w.flush()
 	report.Flushed = time.Now()
-
-	rs := w.Stats()
-	report.add("transactions sent", rs.TransactionsSent)
-	report.add("transactions dropped", rs.TransactionsDropped)
-	if rs.TransactionsSent+rs.TransactionsDropped > 0 {
-		report.add(" - success %", numbers.Perct(rs.TransactionsSent, rs.TransactionsDropped))
-		report.add("spans sent", rs.SpansSent)
-		report.add("spans dropped", rs.SpansDropped)
-		report.add(" - success %", numbers.Perct(rs.SpansSent, rs.SpansDropped))
-		if rs.TransactionsSent > 0 {
-			report.add("spans sent per transaction", numbers.Div(rs.SpansSent, rs.TransactionsSent))
-		}
-	}
-	report.add("errors sent", rs.ErrorsSent)
-	report.add("errors dropped", rs.ErrorsDropped)
-	if rs.ErrorsSent+rs.ErrorsDropped > 0 {
-		report.add(" - success %", numbers.Perct(rs.ErrorsSent, rs.ErrorsDropped))
-	}
-	eventsSent := float64(rs.ErrorsSent + rs.SpansSent + rs.TransactionsSent)
-	report.add("total events sent", eventsSent)
-	report.add(" - per second", eventsSent/report.Flushed.Sub(report.Start).Seconds())
-	report.add("failed", rs.Errors.SendStream)
+	report.TracerStats = w.Stats()
+	report.TransportStats = *w.TransportStats
 
 	return report, err
 }

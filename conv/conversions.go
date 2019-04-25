@@ -3,7 +3,11 @@ package conv
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
+	"strings"
+
+	"github.com/elastic/hey-apm/types"
 )
 
 // shamelessly stolen from http://programming.guide/go/formatting-byte-size-to-human-readable-format.html
@@ -38,7 +42,36 @@ func StringOf(v interface{}) string {
 		return fmt.Sprintf("%d", v)
 	case float64:
 		return fmt.Sprintf("%.2f", v)
+	case []string:
+		return strings.Join(v.([]string), ",")
 	default:
 		return fmt.Sprintf("%v", v)
 	}
+}
+
+func AsFloat64(m interface{}, k string) float64 {
+	return asType(m, k, float64(0)).(float64)
+}
+
+func AsUint64(m interface{}, k string) uint64 {
+	return uint64(AsFloat64(m, k))
+}
+
+func AsSlice(m interface{}, k string) types.Is {
+	return asType(m, k, make(types.Is, 0)).(types.Is)
+}
+
+func AsString(m interface{}, k string) string {
+	return asType(m, k, "").(string)
+}
+
+func asType(m interface{}, k string, v interface{}) interface{} {
+	if m2, ok := m.(types.M); ok {
+		if v2, ok := m2[k]; ok {
+			if reflect.TypeOf(v2) == reflect.TypeOf(v) {
+				return v2
+			}
+		}
+	}
+	return v
 }
