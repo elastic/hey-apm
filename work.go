@@ -151,8 +151,8 @@ func (w *worker) addErrors(throttle <-chan interface{}, limit, framesMin, frames
 		return w
 	}
 	w.Add(func(done <-chan struct{}) error {
-		var sent int
-		for sent < limit {
+		var count int
+		for count < limit {
 			select {
 			case <-done:
 				return nil
@@ -160,7 +160,7 @@ func (w *worker) addErrors(throttle <-chan interface{}, limit, framesMin, frames
 			}
 
 			apm.DefaultTracer.NewError(&generatedErr{frames: rand.Intn(framesMax-framesMin+1) + framesMin}).Send()
-			sent++
+			count++
 		}
 		return nil
 	})
@@ -177,8 +177,8 @@ func (w *worker) addTransactions(throttle <-chan interface{}, limit, spanMin, sp
 	}
 
 	generator := func(done <-chan struct{}) error {
-		var sent int
-		for sent < limit {
+		var count int
+		for count < limit {
 			select {
 			case <-done:
 				return nil
@@ -199,7 +199,7 @@ func (w *worker) addTransactions(throttle <-chan interface{}, limit, spanMin, sp
 			wg.Wait()
 			tx.Context.SetTag("spans", strconv.Itoa(spanCount))
 			tx.End()
-			sent++
+			count++
 		}
 		return nil
 	}
