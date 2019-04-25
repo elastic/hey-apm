@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/elastic/hey-apm/commands"
-	"github.com/elastic/hey-apm/util"
+	"github.com/elastic/hey-apm/strcoll"
 	"github.com/olivere/elastic"
 )
 
@@ -23,12 +23,12 @@ type es struct {
 // returns a client connected to an ElasticSearch node with given `params`
 // "local" is short for http://localhost:9200
 func elasticsearch(params ...string) es {
-	url := util.Get(0, params)
+	url := strcoll.Get(0, params)
 	if url == "local" {
 		url = "http://localhost:9200"
 	}
-	username := util.Get(1, params)
-	password := util.Get(2, params)
+	username := strcoll.Get(1, params)
+	password := strcoll.Get(2, params)
 	client, err := elastic.NewClient(
 		elastic.SetURL(url),
 		elastic.SetBasicAuth(username, password),

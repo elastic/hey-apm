@@ -1,4 +1,4 @@
-package util
+package conv
 
 import (
 	"errors"
@@ -30,4 +30,15 @@ func Aton(attr string, err error) (int, error) {
 		err = errors.New("negative values not allowed")
 	}
 	return n, err
+}
+
+func StringOf(v interface{}) string {
+	switch v.(type) {
+	case uint64:
+		return fmt.Sprintf("%d", v)
+	case float64:
+		return fmt.Sprintf("%.2f", v)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }

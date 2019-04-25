@@ -1,8 +1,10 @@
-package util
+package cli
 
 import (
 	"strconv"
 	"time"
+
+	"github.com/elastic/hey-apm/strcoll"
 )
 
 // parses command `option` as string
@@ -56,8 +58,8 @@ func parseCmdOption(cmd []string, option, dfault string, isBool bool) ([]string,
 			if !isBool {
 				subIdx = 1
 			}
-			ret := Get(idx+subIdx, cmd)
-			return append(cmd[:idx], From(idx+1+subIdx, cmd)...), ret
+			ret := strcoll.Get(idx+subIdx, cmd)
+			return append(cmd[:idx], strcoll.From(idx+1+subIdx, cmd)...), ret
 		}
 	}
 	return cmd, dfault

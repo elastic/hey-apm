@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"strings"
 
-	"github.com/elastic/hey-apm/util"
+	"github.com/elastic/hey-apm/strcoll"
 )
 
 // ANSI color codes
@@ -22,7 +22,7 @@ const (
 )
 
 func Reply(w io.Writer, msg ...string) bool {
-	if util.Get(0, msg) != "" {
+	if strcoll.Get(0, msg) != "" {
 		w.Write([]byte(strings.Join(msg, "\n")))
 		return true
 	}

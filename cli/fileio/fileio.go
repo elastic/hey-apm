@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/elastic/hey-apm/util"
+	"github.com/elastic/hey-apm/strcoll"
 	"github.com/pkg/errors"
 )
 
@@ -40,7 +40,7 @@ func LoadDefs(usr string) map[string][]string {
 	if len(b) > 0 {
 		for _, line := range strings.Split(string(b), "\n") {
 			token := strings.Fields(line)
-			if len(util.From(1, token)) > 0 {
+			if len(strcoll.From(1, token)) > 0 {
 				defs[token[0]] = token[1:]
 			}
 		}

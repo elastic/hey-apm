@@ -9,7 +9,9 @@ import (
 	s "strings"
 	"time"
 
-	"github.com/elastic/hey-apm/util"
+	"github.com/elastic/hey-apm/conv"
+
+	"github.com/elastic/hey-apm/strcoll"
 )
 
 // functions of this type map a subset of attribute names to their (stringified) values
@@ -101,7 +103,7 @@ func verify(since time.Duration, filtersExpr []string, all []TestReport) (bool, 
 	}
 	for k, _ := range inputAttributes(all[0]) {
 		// exclude "apm_host"?
-		if !util.Contains(k, filterKeys) {
+		if !strcoll.Contains(k, filterKeys) {
 			return false, errors.New(k + " is a required filter")
 		}
 	}
@@ -237,8 +239,8 @@ func compare(s1, s2 string, op string) (bool, error) {
 		case "<":
 			return i1 < i2, err2
 		}
-	} else if t1, err1 := time.Parse(util.GITRFC, s1); err1 == nil {
-		t2, err2 := time.Parse(util.HUMAN, s2)
+	} else if t1, err1 := time.Parse(GITRFC, s1); err1 == nil {
+		t2, err2 := time.Parse(HUMAN, s2)
 		t1 = t1.UTC().Truncate(time.Hour * 24)
 		t2 = t2.UTC()
 		switch op {
@@ -353,7 +355,7 @@ func intKeys(m map[int]TestReport, desc bool) []int {
 func seen(reports []TestReport, ids []string) ([]TestReport, []string) {
 	ret := make([]TestReport, 0)
 	for _, report := range reports {
-		if !util.Contains(report.ReportId, ids) {
+		if !strcoll.Contains(report.ReportId, ids) {
 			ids = append(ids, report.ReportId)
 			ret = append(ret, report)
 		}
@@ -378,7 +380,7 @@ func digest(r TestReport, variable string) ([]string, []string) {
 	header = append(header, "throughput")
 	header = append(header, "pushed")
 	data = append(data, fmt.Sprintf("%.1fdps", r.Throughput))
-	data = append(data, util.ByteCountDecimal(int64(r.PushedBps))+"ps")
+	data = append(data, conv.ByteCountDecimal(int64(r.PushedBps))+"ps")
 	return header, data
 }
 
@@ -389,7 +391,7 @@ func combine(fns ...data) data {
 		for _, fn := range fns {
 			ms = append(ms, fn(report))
 		}
-		return util.Concat(ms...)
+		return strcoll.Concat(ms...)
 	}
 }
 

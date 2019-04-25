@@ -7,7 +7,7 @@ import (
 
 	"github.com/elastic/hey-apm/out"
 
-	"github.com/elastic/hey-apm/util"
+	"github.com/elastic/hey-apm/strcoll"
 )
 
 // returns a function that sends its arguments to exec.Cmd, tracking occurred errors across invocations and
@@ -15,7 +15,7 @@ import (
 func Shell(w io.Writer, dir string, verbose bool) func(...string) (string, error) {
 	var err error
 	return func(args ...string) (string, error) {
-		if err != nil || util.Get(0, args) == "" {
+		if err != nil || strcoll.Get(0, args) == "" {
 			return "", err
 		}
 		cmd := exec.Command(args[0], args[1:]...)
