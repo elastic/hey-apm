@@ -13,13 +13,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/elastic/hey-apm/conv"
+	"github.com/elastic/hey-apm/worker"
 
 	"github.com/elastic/hey-apm/cli/fileio"
 	"github.com/elastic/hey-apm/commands"
 	"github.com/elastic/hey-apm/es"
 	"github.com/elastic/hey-apm/out"
-	"github.com/elastic/hey-apm/target"
 	"github.com/pkg/errors"
 
 	"github.com/elastic/hey-apm/strcoll"
@@ -112,12 +111,6 @@ func eval(cmd []string, env *env) string {
 			}()
 		}
 		return out.Grey + "ok/n"
-
-	case fn == "dump":
-		n, err := commands.Dump(out.FileWriter{Filename: strcoll.Get(1, cmd)}, strcoll.From(2, cmd)...)
-		bw := out.NewBufferWriter()
-		out.ReplyEitherNL(bw, err, out.Grey+conv.ByteCountDecimal(int64(n))+" written to disk")
-		return bw.String()
 
 	case fn == "collate":
 		if env.reportEs.Err != nil {
@@ -269,20 +262,14 @@ func (env *env) evalAsyncLoop() {
 			if err = env.reportEs.Err; err != nil {
 				break
 			}
-			var target target.Target
-			target, err = makeTarget(env.apm.urls, args1...)
-			if err != nil {
-				break
-			}
 
 			docsBefore := env.testEs.Count()
 			args1, labels := ParseCmdStringOption(args1, "--labels", "")
 			args1, cooldown := ParseCmdDurationOption(args1, "--cooldown", time.Second)
 
-			result := commands.LoadTest(env.ReadWriteCloser, env.wait, cooldown, target)
+			result := commands.LoadTest(env.ReadWriteCloser, env.wait, cooldown, worker.Worker{})
 
 			report := commands.NewReport(
-				target,
 				result,
 				labels,
 				env.testEs.Url,
@@ -308,35 +295,6 @@ func (env *env) evalAsyncLoop() {
 		out.Prompt(env)
 		env.wg.Wait()
 	}
-}
-
-// builds a target describing how to make requests to apm-server
-// test duration, number of transactions, spans and frames are unnamed required args
-func makeTarget(urls []string, args ...string) (target.Target, error) {
-	duration := strcoll.Get(0, args)
-	args, throttle := ParseCmdIntOption(args, "--throttle", 32767)
-	args, pause := ParseCmdDurationOption(args, "--pause", time.Millisecond*100)
-	args, errorEvents := ParseCmdIntOption(args, "--errors", 0)
-	args, agents := ParseCmdIntOption(args, "--agents", 1)
-	args, stream := ParseCmdBoolOption(args, "--stream")
-	args, reqTimeout := ParseCmdDurationOption(args, "--timeout", time.Second*10)
-	t, err := target.NewTargetFromOptions(
-		urls,
-		target.RunTimeout(duration),
-		target.NumAgents(agents),
-		target.Throttle(throttle),
-		target.Pause(pause),
-		target.RequestTimeout(reqTimeout),
-		target.Stream(stream),
-		target.NumErrors(errorEvents),
-		target.NumTransactions(strcoll.Get(1, args)),
-		target.NumSpans(strcoll.Get(2, args)),
-		target.NumFrames(strcoll.Get(3, args)),
-	)
-	if err == nil && t.Config.RunTimeout < time.Second {
-		err = errors.New("run timeout is too short")
-	}
-	return *t, err
 }
 
 func status(esReportClient es.ReportNode, esTestClient es.TestNode, apm apm, cmds int) string {
