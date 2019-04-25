@@ -1,4 +1,4 @@
-package util
+package strcoll
 
 // returns the element of the slice at the given index or the empty string
 func Get(idx int, slice []string) string {

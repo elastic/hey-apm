@@ -12,7 +12,6 @@ import (
 	"github.com/elastic/hey-apm/exec"
 	"github.com/elastic/hey-apm/out"
 	"github.com/elastic/hey-apm/target"
-	"github.com/elastic/hey-apm/util"
 )
 
 type TestResult struct {
@@ -101,7 +100,7 @@ func NewReport(target target.Target, result TestResult, labels, esUrl, apmUrl, a
 		Lang:         "python",
 		APIVersion:   "v2",
 		ReportId:     randId(time.Now().Unix()),
-		ReportDate:   time.Now().Format(util.GITRFC),
+		ReportDate:   time.Now().Format(GITRFC),
 		Timestamp:    time.Now(),
 		Duration:     target.Config.RunTimeout,
 		Errors:       target.Config.NumErrors,
@@ -163,7 +162,7 @@ func (r TestReport) labels() []string {
 }
 
 func (r TestReport) date() time.Time {
-	t, _ := time.Parse(util.GITRFC, r.ReportDate)
+	t, _ := time.Parse(GITRFC, r.ReportDate)
 	return t
 }
 

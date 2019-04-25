@@ -22,7 +22,7 @@ import (
 	"github.com/elastic/hey-apm/target"
 	"github.com/pkg/errors"
 
-	"github.com/elastic/hey-apm/util"
+	"github.com/elastic/hey-apm/strcoll"
 )
 
 // listens for connections on tcp:8234
@@ -67,7 +67,7 @@ func Serve() {
 				}
 
 				for _, cmd := range cmds {
-					if util.Get(0, cmd) == "quit" || util.Get(0, cmd) == "exit" {
+					if strcoll.Get(0, cmd) == "quit" || strcoll.Get(0, cmd) == "exit" {
 						env.cancel.Broadcast()
 						out.ReplyNL(env, out.Grey+"bye!")
 						env.Close()
@@ -87,7 +87,7 @@ func Serve() {
 // if `cmd` doesn't modify the state, it is evaluated right away
 // otherwise it is pushed onto the env's channel for it to be evaluated in a different goroutine
 func eval(cmd []string, env *env) string {
-	fn := util.Get(0, cmd)
+	fn := strcoll.Get(0, cmd)
 
 	switch {
 	case fn == "help":
@@ -96,11 +96,11 @@ func eval(cmd []string, env *env) string {
 	case fn == "status":
 		return status(env.reportEs, env.testEs, env.apm, len(env.ch))
 
-	case fn == "define" && util.Get(2, cmd) == "":
-		return nameDefinitions(env.nameDefs, util.Get(1, cmd))
+	case fn == "define" && strcoll.Get(2, cmd) == "":
+		return nameDefinitions(env.nameDefs, strcoll.Get(1, cmd))
 
 	case fn == "cancel":
-		if subCmd := util.Get(1, cmd); subCmd == "current" {
+		if subCmd := strcoll.Get(1, cmd); subCmd == "current" {
 			env.cancel.Broadcast()
 		} else if subCmd == "queue" {
 			func() {
@@ -114,7 +114,7 @@ func eval(cmd []string, env *env) string {
 		return out.Grey + "ok/n"
 
 	case fn == "dump":
-		n, err := commands.Dump(out.FileWriter{Filename: util.Get(1, cmd)}, util.From(2, cmd)...)
+		n, err := commands.Dump(out.FileWriter{Filename: strcoll.Get(1, cmd)}, strcoll.From(2, cmd)...)
 		bw := out.NewBufferWriter()
 		out.ReplyEitherNL(bw, err, out.Grey+conv.ByteCountDecimal(int64(n))+" written to disk")
 		return bw.String()
@@ -123,9 +123,9 @@ func eval(cmd []string, env *env) string {
 		if env.reportEs.Err != nil {
 			return out.Red + env.reportEs.Err.Error()
 		}
-		args, size := util.ParseCmdIntOption(cmd[1:], "-n", 20)
-		args, since := util.ParseCmdDurationOption(cmd[1:], "--since", time.Hour*24*7)
-		args, sort := util.ParseCmdStringOption(args, "--sort", "report_date")
+		args, size := ParseCmdIntOption(cmd[1:], "-n", 20)
+		args, since := ParseCmdDurationOption(cmd[1:], "--since", time.Hour*24*7)
+		args, sort := ParseCmdStringOption(args, "--sort", "report_date")
 		reports, err := env.reportEs.FetchReports()
 		if err == nil {
 			return commands.Collate(size, since, sort, args, reports)
@@ -190,7 +190,7 @@ func (env env) wait() {
 }
 
 func (env env) names() map[string][]string {
-	return util.Copy(env.nameDefs)
+	return strcoll.Copy(env.nameDefs)
 }
 
 // pulls commands from the env's channel and evaluates them sequentially (ie: blocking its goroutine)
@@ -201,12 +201,12 @@ func (env *env) evalAsyncLoop() {
 		var err error
 		res := "ok"
 
-		fn := util.Get(0, cmd)
-		arg1 := util.Get(1, cmd)
-		arg2 := util.Get(2, cmd)
-		args1 := util.From(1, cmd)
-		args2 := util.From(2, cmd)
-		args3 := util.From(3, cmd)
+		fn := strcoll.Get(0, cmd)
+		arg1 := strcoll.Get(1, cmd)
+		arg2 := strcoll.Get(2, cmd)
+		args1 := strcoll.From(1, cmd)
+		args2 := strcoll.From(2, cmd)
+		args3 := strcoll.From(3, cmd)
 
 		switch {
 
@@ -247,7 +247,7 @@ func (env *env) evalAsyncLoop() {
 			env.apm.proc = nil
 
 		case fn == "apm" && arg1 == "tail":
-			_, tailSize := util.ParseCmdIntOption(args2, "-n", 10)
+			_, tailSize := ParseCmdIntOption(args2, "-n", 10)
 			if env.apm.proc != nil {
 				res = tail(env.apm.proc.log, tailSize)
 			} else {
@@ -276,8 +276,8 @@ func (env *env) evalAsyncLoop() {
 			}
 
 			docsBefore := env.testEs.Count()
-			args1, labels := util.ParseCmdStringOption(args1, "--labels", "")
-			args1, cooldown := util.ParseCmdDurationOption(args1, "--cooldown", time.Second)
+			args1, labels := ParseCmdStringOption(args1, "--labels", "")
+			args1, cooldown := ParseCmdDurationOption(args1, "--cooldown", time.Second)
 
 			result := commands.LoadTest(env.ReadWriteCloser, env.wait, cooldown, target)
 
@@ -286,7 +286,7 @@ func (env *env) evalAsyncLoop() {
 				result,
 				labels,
 				env.testEs.Url,
-				util.Get(0, env.apm.urls),
+				strcoll.Get(0, env.apm.urls),
 				env.apm.version,
 				len(env.apm.urls),
 				env.testEs.Count()-docsBefore,
@@ -313,13 +313,13 @@ func (env *env) evalAsyncLoop() {
 // builds a target describing how to make requests to apm-server
 // test duration, number of transactions, spans and frames are unnamed required args
 func makeTarget(urls []string, args ...string) (target.Target, error) {
-	duration := util.Get(0, args)
-	args, throttle := util.ParseCmdIntOption(args, "--throttle", 32767)
-	args, pause := util.ParseCmdDurationOption(args, "--pause", time.Millisecond*100)
-	args, errorEvents := util.ParseCmdIntOption(args, "--errors", 0)
-	args, agents := util.ParseCmdIntOption(args, "--agents", 1)
-	args, stream := util.ParseCmdBoolOption(args, "--stream")
-	args, reqTimeout := util.ParseCmdDurationOption(args, "--timeout", time.Second*10)
+	duration := strcoll.Get(0, args)
+	args, throttle := ParseCmdIntOption(args, "--throttle", 32767)
+	args, pause := ParseCmdDurationOption(args, "--pause", time.Millisecond*100)
+	args, errorEvents := ParseCmdIntOption(args, "--errors", 0)
+	args, agents := ParseCmdIntOption(args, "--agents", 1)
+	args, stream := ParseCmdBoolOption(args, "--stream")
+	args, reqTimeout := ParseCmdDurationOption(args, "--timeout", time.Second*10)
 	t, err := target.NewTargetFromOptions(
 		urls,
 		target.RunTimeout(duration),
@@ -329,9 +329,9 @@ func makeTarget(urls []string, args ...string) (target.Target, error) {
 		target.RequestTimeout(reqTimeout),
 		target.Stream(stream),
 		target.NumErrors(errorEvents),
-		target.NumTransactions(util.Get(1, args)),
-		target.NumSpans(util.Get(2, args)),
-		target.NumFrames(util.Get(3, args)),
+		target.NumTransactions(strcoll.Get(1, args)),
+		target.NumSpans(strcoll.Get(2, args)),
+		target.NumFrames(strcoll.Get(3, args)),
 	)
 	if err == nil && t.Config.RunTimeout < time.Second {
 		err = errors.New("run timeout is too short")
@@ -488,14 +488,14 @@ func nameDefinitions(nameDefs map[string][]string, match string) string {
 // `rm fe` (will remove the `fe` definition and cause `mafe` invocations to fail)
 func define(w io.Writer, cmd []string, nameDefs map[string][]string) (map[string][]string, error) {
 	var err error
-	m := util.Copy(nameDefs)
-	left, right := util.Get(0, cmd), util.From(1, cmd)
+	m := strcoll.Copy(nameDefs)
+	left, right := strcoll.Get(0, cmd), strcoll.From(1, cmd)
 	if left == "rm" {
 		// this might leave dangling names
-		delete(m, util.Get(0, right))
+		delete(m, strcoll.Get(0, right))
 		err = fileio.StoreDefs(w, m)
 	} else {
-		if util.Contains(left, right) {
+		if strcoll.Contains(left, right) {
 			err = errors.New(left + " can't appear in the right side")
 		} else {
 			m[left] = right

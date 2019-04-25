@@ -11,8 +11,8 @@ import (
 
 	"github.com/elastic/hey-apm/compose"
 	"github.com/elastic/hey-apm/out"
+	"github.com/elastic/hey-apm/strcoll"
 	"github.com/elastic/hey-apm/target"
-	"github.com/elastic/hey-apm/util"
 )
 
 // creates a test workload for the apm-server and returns a test result
@@ -58,10 +58,10 @@ func LoadTest(w io.Writer, wait func(), cooldown time.Duration, t target.Target)
 
 // writes to disk
 func Dump(w io.Writer, args ...string) (int, error) {
-	errors, err := conv.Aton(util.Get(0, args), nil)
-	transactions, err := conv.Aton(util.Get(1, args), err)
-	spans, err := conv.Aton(util.Get(2, args), err)
-	frames, err := conv.Aton(util.Get(3, args), err)
+	errors, err := conv.Aton(strcoll.Get(0, args), nil)
+	transactions, err := conv.Aton(strcoll.Get(1, args), err)
+	spans, err := conv.Aton(strcoll.Get(2, args), err)
+	frames, err := conv.Aton(strcoll.Get(3, args), err)
 	if err != nil {
 		return 0, err
 	}
@@ -74,9 +74,9 @@ func Dump(w io.Writer, args ...string) (int, error) {
 // for more details check out the Readme and the `reports.collate` function
 // TODO add validation and return error
 func Collate(size int, since time.Duration, sort string, args []string, reports []TestReport) string {
-	variable := util.Get(0, args)
+	variable := strcoll.Get(0, args)
 	bw := out.NewBufferWriter()
-	digests, err := collate(since, size, variable, sort, util.From(1, args), reports)
+	digests, err := collate(since, size, variable, sort, strcoll.From(1, args), reports)
 	if err != nil {
 		out.ReplyEitherNL(bw, err)
 	} else {

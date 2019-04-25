@@ -66,18 +66,18 @@ func (w *Worker) Work() (Report, error) {
 	report.add("transactions sent", rs.TransactionsSent)
 	report.add("transactions dropped", rs.TransactionsDropped)
 	if rs.TransactionsSent+rs.TransactionsDropped > 0 {
-		report.add(" - success %", perct(rs.TransactionsSent, rs.TransactionsDropped))
+		report.add(" - success %", numbers.Perct(rs.TransactionsSent, rs.TransactionsDropped))
 		report.add("spans sent", rs.SpansSent)
 		report.add("spans dropped", rs.SpansDropped)
-		report.add(" - success %", perct(rs.SpansSent, rs.SpansDropped))
+		report.add(" - success %", numbers.Perct(rs.SpansSent, rs.SpansDropped))
 		if rs.TransactionsSent > 0 {
-			report.add("spans sent per transaction", div(rs.SpansSent, rs.TransactionsSent))
+			report.add("spans sent per transaction", numbers.Div(rs.SpansSent, rs.TransactionsSent))
 		}
 	}
 	report.add("errors sent", rs.ErrorsSent)
 	report.add("errors dropped", rs.ErrorsDropped)
 	if rs.ErrorsSent+rs.ErrorsDropped > 0 {
-		report.add(" - success %", perct(rs.ErrorsSent, rs.ErrorsDropped))
+		report.add(" - success %", numbers.Perct(rs.ErrorsSent, rs.ErrorsDropped))
 	}
 	eventsSent := float64(rs.ErrorsSent + rs.SpansSent + rs.TransactionsSent)
 	report.add("total events sent", eventsSent)

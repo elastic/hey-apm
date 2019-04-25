@@ -1,4 +1,4 @@
-package util
+package commands
 
 // like RFC1123Z but not necessarily 2 digits for date
 const GITRFC = "Mon, 2 Jan 2006 15:04:05 -0700"
