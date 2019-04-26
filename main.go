@@ -7,7 +7,6 @@ import (
 	"math"
 	"math/rand"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/elastic/hey-apm/agent"
@@ -70,11 +69,7 @@ func main() {
 	logger.Debugf("%s elapsed since event generation completed", report.Flushed.Sub(report.End))
 
 	fmt.Println()
-	for _, metric := range report.Stats {
-		name, value := metric.Name, metric.Value
-		name += " " + strings.Repeat(".", 30-len(name))
-		fmt.Printf("%s %s\n", name, value)
-	}
+	fmt.Println(report.Stats.Format(30))
 
 	info, err := server.QueryInfo(*apmServerSecret, *apmServerUrl)
 	if err != nil {

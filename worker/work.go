@@ -3,13 +3,13 @@ package worker
 import (
 	"context"
 	"fmt"
+	"github.com/elastic/hey-apm/strcoll"
 	"math/rand"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/elastic/hey-apm/agent"
-	"github.com/elastic/hey-apm/conv"
 	"github.com/elastic/hey-apm/numbers"
 	"github.com/elastic/hey-apm/out"
 
@@ -29,19 +29,15 @@ type Worker struct {
 	workgroup.Group
 }
 
-type metric struct {
-	Name, Value string
-}
-
 type Report struct {
-	Stats   []metric
+	Stats   strcoll.Tuples
 	Start   time.Time
 	End     time.Time
 	Flushed time.Time
 }
 
 func (r *Report) add(metricName string, value interface{}) {
-	r.Stats = append(r.Stats, metric{metricName, conv.StringOf(value)})
+	r.Stats = r.Stats.Append(metricName, value)
 }
 
 func (w *Worker) Work() (Report, error) {
@@ -56,7 +52,7 @@ func (w *Worker) Work() (Report, error) {
 		})
 	}
 
-	report := Report{Stats: make([]metric, 0)}
+	report := Report{Stats: make(strcoll.Tuples, 0)}
 	report.Start = time.Now()
 	err := w.Run()
 	report.End = time.Now()
