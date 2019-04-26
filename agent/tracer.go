@@ -1,9 +1,9 @@
 package agent
 
 import (
-	"context"
+	"bytes"
 	"encoding/json"
-	"io"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -29,26 +29,40 @@ type transportStats struct {
 
 func (t Tracer) Close() {
 	t.Tracer.Close()
-	t.Transport.(*transport).wg.Wait()
-	close(t.Transport.(*transport).responses)
+	rt := t.Transport.(*apmtransport.HTTPTransport).Client.Transport.(*roundTripper)
+	rt.wg.Wait()
+	close(rt.c)
 }
 
 func NewTracer(logger apm.Logger, serverUrl, serverSecret string, maxSpans int) *Tracer {
 
 	goTracer := apm.DefaultTracer
-	transport := wrap(goTracer.Transport.(*apmtransport.HTTPTransport), serverUrl, serverSecret)
-	goTracer.Transport = transport
 	goTracer.SetLogger(logger)
 	goTracer.SetMetricsInterval(0) // disable metrics
 	goTracer.SetSpanFramesMinDuration(1 * time.Nanosecond)
 	goTracer.SetMaxSpans(maxSpans)
+
+	transport := goTracer.Transport.(*apmtransport.HTTPTransport)
+	transport.SetUserAgent("hey-apm")
+	if serverSecret != "" {
+		transport.SetSecretToken(serverSecret)
+	}
+	if serverUrl != "" {
+		u, err := url.Parse(serverUrl)
+		if err != nil {
+			panic(err)
+		}
+		transport.SetServerURL(u)
+	}
+	rt := &roundTripper{c: make(chan []byte, 0)}
+	transport.Client.Transport = rt
 
 	tracer := &Tracer{goTracer, &transportStats{}}
 
 	go func() {
 		for {
 			select {
-			case response := <-transport.responses:
+			case response := <-rt.c:
 				var m map[string]interface{}
 				if err := json.Unmarshal(response, &m); err != nil {
 					return
@@ -60,81 +74,47 @@ func NewTracer(logger apm.Logger, serverUrl, serverSecret string, maxSpans int) 
 						tracer.TransportStats.TopErrors = append(tracer.TransportStats.TopErrors, e)
 					}
 				}
-				transport.wg.Done()
+				rt.wg.Done()
 			}
 		}
 	}()
 	return tracer
 }
 
-type transport struct {
-	*apmtransport.HTTPTransport
-	headers   http.Header
-	url       *url.URL
-	responses chan []byte
-	wg        sync.WaitGroup
+type roundTripper struct {
+	c  chan []byte
+	wg sync.WaitGroup
 }
 
-func wrap(backend *apmtransport.HTTPTransport, serverUrl, serverSecret string) *transport {
-	headers := make(http.Header)
-	headers.Set("Content-Type", "application/x-ndjson")
-	headers.Set("Content-Encoding", "deflate")
-	headers.Set("Transfer-Encoding", "chunked")
-	headers.Set("User-Agent", "hey-apm")
-	headers.Set("Accept", "application/json")
-	if serverSecret != "" {
-		headers.Set("Authorization", "Bearer "+serverSecret)
+func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	switch req.URL.Path {
+	case "/intake/v2/events", "/intake/v2/rum/events":
+	default:
+		return http.DefaultTransport.RoundTrip(req)
 	}
-	u, err := url.Parse(serverUrl + "/intake/v2/events?verbose")
+
+	q := req.URL.Query()
+	q.Set("verbose", "")
+	req.URL.RawQuery = q.Encode()
+
+	resp, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil {
-		panic(err)
-	}
-	return &transport{HTTPTransport: backend, headers: headers, url: u, responses: make(chan []byte, 0)}
-}
-
-func (t *transport) SendStream(ctx context.Context, r io.Reader) error {
-	req := t.newRequest(t.url)
-	req = requestWithContext(ctx, req)
-	req.Body = ioutil.NopCloser(r)
-	if err := t.sendRequest(req); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (t *transport) sendRequest(req *http.Request) error {
-	resp, err := t.Client.Do(req)
-	if err != nil {
-		return err
+		return resp, err
 	}
 	defer resp.Body.Close()
 
-	bodyContents, err := ioutil.ReadAll(resp.Body)
-	if err == nil {
-		t.responses <- bodyContents
-		t.wg.Add(1)
+	if resp.Body == http.NoBody {
+		return resp, err
 	}
-	return err
-}
 
-func (t *transport) newRequest(url *url.URL) *http.Request {
-	req := &http.Request{
-		Method:     "POST",
-		URL:        url,
-		Proto:      "HTTP/1.1",
-		ProtoMajor: 1,
-		ProtoMinor: 1,
-		Header:     t.headers,
-		Host:       url.Host,
+	b, rerr := ioutil.ReadAll(resp.Body)
+	if rerr == nil {
+		rt.c <- b
+		rt.wg.Add(1)
+		resp.Body = ioutil.NopCloser(bytes.NewReader(b))
+	} else {
+		fmt.Println(rerr)
 	}
-	return req
-}
 
-func requestWithContext(ctx context.Context, req *http.Request) *http.Request {
-	url := req.URL
-	req.URL = nil
-	reqCopy := req.WithContext(ctx)
-	reqCopy.URL = url
-	req.URL = url
-	return reqCopy
+	return resp, err
 }
