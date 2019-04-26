@@ -3,6 +3,7 @@ package conv
 import (
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -11,17 +12,22 @@ import (
 )
 
 // shamelessly stolen from http://programming.guide/go/formatting-byte-size-to-human-readable-format.html
-func ByteCountDecimal(b int64) string {
+func ByteCountDecimal(z int64) string {
+	n := int64(math.Abs(float64(z)))
 	const unit = 1000
-	if b < unit {
-		return fmt.Sprintf("%d b", b)
+	if n < unit {
+		return fmt.Sprintf("%d n", n)
 	}
 	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
+	for n := n / unit; n >= unit; n /= unit {
 		div *= unit
 		exp++
 	}
-	return fmt.Sprintf("%.1f%cb", float64(b)/float64(div), "kMGTPE"[exp])
+	var neg string
+	if z != n {
+		neg = "-"
+	}
+	return fmt.Sprintf("%s%.1f%cb", neg, float64(n)/float64(div), "kMGTPE"[exp])
 }
 
 // like Atoi for positive integers and error handling
@@ -38,7 +44,7 @@ func Aton(attr string, err error) (int, error) {
 
 func StringOf(v interface{}) string {
 	switch v.(type) {
-	case uint64:
+	case uint64, int64:
 		return fmt.Sprintf("%d", v)
 	case float64:
 		return fmt.Sprintf("%.2f", v)

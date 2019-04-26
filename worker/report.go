@@ -1,13 +1,12 @@
 package worker
 
 import (
-	"fmt"
 	"time"
-
-	"github.com/elastic/hey-apm/strcoll"
 
 	"github.com/elastic/hey-apm/agent"
 	"github.com/elastic/hey-apm/numbers"
+	"github.com/elastic/hey-apm/strcoll"
+
 	"go.elastic.co/apm"
 )
 
@@ -55,7 +54,7 @@ func (r Report) SpansPerTransaction() float64 {
 	return numbers.Div(r.SpansSent, r.TransactionsSent)
 }
 
-func (r Report) Print() {
+func (r Report) String() string {
 	metrics := strcoll.NewTuples()
 
 	metrics.Add("transactions sent", r.TransactionsSent)
@@ -90,5 +89,5 @@ func (r Report) Print() {
 		metrics.Add("server errors", r.TopErrors)
 	}
 
-	fmt.Println(metrics.Format(30))
+	return metrics.Format(30)
 }
