@@ -59,24 +59,22 @@ func NewTracer(logger apm.Logger, serverUrl, serverSecret string, maxSpans int) 
 
 	tracer := &Tracer{goTracer, &TransportStats{}}
 
+	// TODO confirm that synchronization is wired up correctly
 	go func() {
-		for {
-			select {
-			case response := <-rt.c:
-				var m map[string]interface{}
-				if err := json.Unmarshal(response, &m); err != nil {
-					return
-				}
-				tracer.TransportStats.Accepted += conv.AsUint64(m, "accepted")
-				tracer.TransportStats.NumRequests += 1
-				for _, i := range conv.AsSlice(m, "errors") {
-					e := conv.AsString(i, "message")
-					if !strcoll.Contains(e, tracer.TransportStats.TopErrors) {
-						tracer.TransportStats.TopErrors = append(tracer.TransportStats.TopErrors, e)
-					}
-				}
-				rt.wg.Done()
+		for response := range rt.c {
+			var m map[string]interface{}
+			if err := json.Unmarshal(response, &m); err != nil {
+				return
 			}
+			tracer.TransportStats.Accepted += conv.AsUint64(m, "accepted")
+			tracer.TransportStats.NumRequests += 1
+			for _, i := range conv.AsSlice(m, "errors") {
+				e := conv.AsString(i, "message")
+				if !strcoll.Contains(e, tracer.TransportStats.TopErrors) {
+					tracer.TransportStats.TopErrors = append(tracer.TransportStats.TopErrors, e)
+				}
+			}
+			rt.wg.Done()
 		}
 	}()
 	return tracer

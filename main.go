@@ -62,6 +62,9 @@ func main() {
 
 	logger.Debugf("start")
 	defer logger.Debugf("finish")
+
+	metricsBefore, merr1 := server.QueryExpvar(*apmServerSecret, *apmServerUrl)
+
 	report, err := w.Work()
 	if err != nil {
 		logger.Errorf(err.Error())
@@ -69,7 +72,17 @@ func main() {
 	logger.Debugf("%s elapsed since event generation completed", report.Flushed.Sub(report.End))
 
 	fmt.Println()
-	report.Print()
+	fmt.Println(report)
+
+	metricsAfter, merr2 := server.QueryExpvar(*apmServerSecret, *apmServerUrl)
+	if merr2 == nil {
+		if merr1 == nil {
+			fmt.Println()
+			fmt.Println(metricsAfter.Memstats.Sub(metricsBefore.Memstats))
+		}
+	} else {
+		logger.Errorf("could not get expvar metrics: %s", merr2.Error())
+	}
 
 	info, err := server.QueryInfo(*apmServerSecret, *apmServerUrl)
 	if err != nil {
