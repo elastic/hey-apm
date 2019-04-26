@@ -2,8 +2,11 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
+	"os"
+	"os/signal"
 	"strconv"
 	"sync"
 	"time"
@@ -154,6 +157,19 @@ func (w *Worker) AddTransactions(frequency time.Duration, limit, spanMin, spanMa
 		return nil
 	}
 	w.Add(generator)
+}
+
+func (w *Worker) AddSignalHandling() {
+	w.Add(func(done <-chan struct{}) error {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt)
+		select {
+		case <-done:
+			return nil
+		case sig := <-c:
+			return errors.New(sig.String())
+		}
+	})
 }
 
 // throttle converts a time ticker to a channel of things

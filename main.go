@@ -59,6 +59,7 @@ func main() {
 	}
 	w.AddErrors(*errorFrequency, *errorLimit, *errorFrameMinLimit, *errorFrameMaxLimit)
 	w.AddTransactions(*transactionFrequency, *transactionLimit, *spanMinLimit, *spanMaxLimit)
+	w.AddSignalHandling()
 
 	logger.Debugf("start")
 	defer logger.Debugf("finish")
