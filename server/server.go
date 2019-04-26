@@ -7,12 +7,51 @@ import (
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/elastic/hey-apm/strcoll"
+
+	"github.com/elastic/hey-apm/conv"
 )
 
 type Info struct {
 	BuildDate time.Time `json:"build_date"`
 	BuildSha  string    `json:"build_sha"`
 	Version   string    `json:"version"`
+}
+
+type ExpvarMetrics struct {
+	Cmdline  []string `json:"cmdline"`
+	Memstats Memstats `json:"memstats"`
+}
+
+type Memstats struct {
+	TotalAlloc     int64 `json:"TotalAlloc"`
+	HeapAlloc      int64 `json:"HeapAlloc"`
+	Mallocs        int64 `json:"Mallocs"`
+	NumGC          int64 `json:"NumGC"`
+	TotalAllocDiff int64
+	HeapAllocDiff  int64
+}
+
+func (ms Memstats) Sub(ms2 Memstats) Memstats {
+	return Memstats{
+		TotalAlloc:     ms.TotalAlloc,
+		HeapAlloc:      ms.HeapAlloc,
+		TotalAllocDiff: ms.TotalAlloc - ms2.TotalAlloc,
+		HeapAllocDiff:  ms.HeapAlloc - ms2.HeapAlloc,
+		Mallocs:        ms.Mallocs - ms2.Mallocs,
+		NumGC:          ms.NumGC - ms2.NumGC,
+	}
+}
+
+func (ms Memstats) String() string {
+	metrics := make(strcoll.Tuples, 0)
+	metrics = metrics.Append("heap", conv.ByteCountDecimal(ms.HeapAlloc))
+	metrics = metrics.Append("total allocated", conv.ByteCountDecimal(ms.TotalAllocDiff))
+	metrics = metrics.Append("heap allocated", conv.ByteCountDecimal(ms.HeapAllocDiff))
+	metrics = metrics.Append("mallocs", ms.Mallocs)
+	metrics = metrics.Append("num GC", ms.NumGC)
+	return metrics.Format(18)
 }
 
 func (info Info) String() string {
@@ -24,7 +63,26 @@ func (info Info) String() string {
 }
 
 func QueryInfo(secret, url string) (Info, error) {
+	body, err := request(secret, url)
+	info := Info{}
+	if err == nil {
+		err = json.Unmarshal(body, &info)
+	}
+	return info, err
+}
+
+func QueryExpvar(secret, url string) (ExpvarMetrics, error) {
+	body, err := request(secret, url)
+	metrics := ExpvarMetrics{}
+	if err == nil {
+		err = json.Unmarshal(body, &metrics)
+	}
+	return metrics, err
+}
+
+func request(secret, url string) ([]byte, error) {
 	req, _ := http.NewRequest("GET", url, nil)
+	req.URL.Path = "/debug/vars"
 	if secret != "" {
 		req.Header.Set("Authorization", "Beater "+secret)
 	}
@@ -32,18 +90,15 @@ func QueryInfo(secret, url string) (Info, error) {
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
-	info := Info{}
 
 	if err != nil {
-		return info, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		return info, errs.New("server status not OK: " + resp.Status)
-	}
-
 	body, _ := ioutil.ReadAll(resp.Body)
-	err = json.Unmarshal(body, &info)
-	return info, err
+	if resp.StatusCode >= 300 {
+		return body, errs.New("server status not OK: " + resp.Status)
+	}
+	return body, err
 }

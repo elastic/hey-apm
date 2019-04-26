@@ -3,11 +3,12 @@ package worker
 import (
 	"context"
 	"fmt"
-	"github.com/elastic/hey-apm/strcoll"
 	"math/rand"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/elastic/hey-apm/strcoll"
 
 	"github.com/elastic/hey-apm/agent"
 	"github.com/elastic/hey-apm/numbers"

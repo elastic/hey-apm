@@ -1,8 +1,9 @@
 package strcoll
 
 import (
-	"github.com/elastic/hey-apm/conv"
 	"strings"
+
+	"github.com/elastic/hey-apm/conv"
 )
 
 type Tuple struct {

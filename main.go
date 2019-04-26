@@ -62,6 +62,9 @@ func main() {
 
 	logger.Debugf("start")
 	defer logger.Debugf("finish")
+
+	metricsBefore, merr1 := server.QueryExpvar(*apmServerSecret, *apmServerUrl)
+
 	report, err := w.Work()
 	if err != nil {
 		logger.Errorf(err.Error())
@@ -70,6 +73,12 @@ func main() {
 
 	fmt.Println()
 	fmt.Println(report.Stats.Format(30))
+
+	metricsAfter, merr2 := server.QueryExpvar(*apmServerSecret, *apmServerUrl)
+	if merr2 == nil && merr1 == nil {
+		fmt.Println()
+		fmt.Println(metricsAfter.Memstats.Sub(metricsBefore.Memstats))
+	}
 
 	info, err := server.QueryInfo(*apmServerSecret, *apmServerUrl)
 	if err != nil {

@@ -38,7 +38,7 @@ func Aton(attr string, err error) (int, error) {
 
 func StringOf(v interface{}) string {
 	switch v.(type) {
-	case uint64:
+	case uint64, int64:
 		return fmt.Sprintf("%d", v)
 	case float64:
 		return fmt.Sprintf("%.2f", v)
