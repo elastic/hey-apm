@@ -1,72 +1,21 @@
 package commands
 
 import (
-	"fmt"
 	"io"
-	"io/ioutil"
 	s "strings"
 	"time"
 
-	"github.com/elastic/hey-apm/conv"
+	"github.com/elastic/hey-apm/worker"
 
-	"github.com/elastic/hey-apm/compose"
 	"github.com/elastic/hey-apm/out"
 	"github.com/elastic/hey-apm/strcoll"
-	"github.com/elastic/hey-apm/target"
 )
 
-// creates a test workload for the apm-server and returns a test result
-// apm-server must be running
-// target holds all the configuration for making requests: URL, request body, timeouts, etc.
-// blocks current goroutine for as long as `duration` or until wait returns
-func LoadTest(w io.Writer, wait func(), cooldown time.Duration, t target.Target) TestResult {
+// TODO
+func LoadTest(w io.Writer, wait func(), cooldown time.Duration, worker worker.Worker) TestResult {
 	result := TestResult{Cancelled: true}
-
-	work := t.GetWork(ioutil.Discard)
-
-	start := time.Now()
-	go work.Run()
-	out.ReplyNL(w, out.Grey+fmt.Sprintf("started new work, payload size %s (uncompressed), %s (compressed) ...",
-		conv.ByteCountDecimal(t.Size()), conv.ByteCountDecimal(t.Size())))
-	out.Prompt(w)
-
-	cancelled := make(chan struct{}, 1)
-	go func() {
-		wait()
-		cancelled <- struct{}{}
-	}()
-
-	select {
-	case <-time.After(t.Config.RunTimeout):
-		work.Stop()
-		time.Sleep(cooldown)
-		elapsedTime := time.Now().Sub(start)
-		codes := work.StatusCodes()
-		_, totalResponses := out.SortedTotal(codes)
-		result = TestResult{
-			Elapsed:        elapsedTime,
-			Flushes:        work.Flushes(),
-			TotalResponses: totalResponses,
-		}
-		out.PrintResults(work, elapsedTime.Seconds(), w)
-
-	case <-cancelled:
-		work.Stop()
-	}
+	worker.Run()
 	return result
-}
-
-// writes to disk
-func Dump(w io.Writer, args ...string) (int, error) {
-	errors, err := conv.Aton(strcoll.Get(0, args), nil)
-	transactions, err := conv.Aton(strcoll.Get(1, args), err)
-	spans, err := conv.Aton(strcoll.Get(2, args), err)
-	frames, err := conv.Aton(strcoll.Get(3, args), err)
-	if err != nil {
-		return 0, err
-	}
-	var reqBody = compose.Compose(errors, transactions, spans, frames)
-	return w.Write(reqBody)
 }
 
 // filters and sorts `reports` and for each result and returns a digest matrix

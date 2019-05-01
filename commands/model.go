@@ -11,7 +11,6 @@ import (
 
 	"github.com/elastic/hey-apm/exec"
 	"github.com/elastic/hey-apm/out"
-	"github.com/elastic/hey-apm/target"
 )
 
 type TestResult struct {
@@ -94,41 +93,21 @@ type TestReport struct {
 	TestResult
 }
 
-func NewReport(target target.Target, result TestResult, labels, esUrl, apmUrl, apmVersion string, numApm, indexCount int) TestReport {
-	pushed := target.Size() * result.Flushes
+func NewReport(result TestResult, labels, esUrl, apmUrl, apmVersion string, numApm, indexCount int) TestReport {
 	r := TestReport{
-		Lang:         "python",
-		APIVersion:   "v2",
-		ReportId:     randId(time.Now().Unix()),
-		ReportDate:   time.Now().Format(GITRFC),
-		Timestamp:    time.Now(),
-		Duration:     target.Config.RunTimeout,
-		Errors:       target.Config.NumErrors,
-		Transactions: target.Config.NumTransactions,
-		Spans:        target.Config.NumSpans,
-		Frames:       target.Config.NumFrames,
-		DocsPerRequest: int64(target.Config.NumErrors+
-			target.Config.NumTransactions+
-			(target.Config.NumTransactions*target.Config.NumSpans)) *
-			result.Flushes,
-		Agents:       target.Config.NumAgents,
-		Throttle:     int(target.Config.Throttle),
-		Stream:       target.Config.Stream,
-		GzipBodySize: int64(len(target.Body)),
-		BodySize:     target.Size(),
-		Pushed:       pushed,
-		GzipPushed:   int64(len(target.Body)) * result.Flushes,
-		ReqTimeout:   time.Duration(target.Config.RequestTimeout),
-		PushedRps:    float64(result.TotalResponses) / result.Elapsed.Seconds(),
-		PushedBps:    float64(pushed) / result.Elapsed.Seconds(),
-		Throughput:   float64(indexCount) / result.Elapsed.Seconds(),
-		Labels:       labels,
-		ElasticHost:  host(esUrl),
-		ApmHost:      host(apmUrl),
-		NumApm:       numApm,
-		ApmVersion:   apmVersion,
-		ActualDocs:   int64(indexCount),
-		TestResult:   result,
+		Lang:        "python",
+		APIVersion:  "v2",
+		ReportId:    randId(time.Now().Unix()),
+		ReportDate:  time.Now().Format(GITRFC),
+		Timestamp:   time.Now(),
+		Throughput:  float64(indexCount) / result.Elapsed.Seconds(),
+		Labels:      labels,
+		ElasticHost: host(esUrl),
+		ApmHost:     host(apmUrl),
+		NumApm:      numApm,
+		ApmVersion:  apmVersion,
+		ActualDocs:  int64(indexCount),
+		TestResult:  result,
 	}
 
 	if r.Cancelled {
