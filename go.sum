@@ -3,12 +3,13 @@ github.com/armon/go-radix v1.0.0/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgI
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/elastic/go-elasticsearch/v7 v7.1.1-0.20190426115714-473dd20bb8cb/go.mod h1:OJ4wdbtDNk5g503kvlHLyErCgQwwzmDtaFC4XyOxXA4=
+github.com/elastic/go-elasticsearch/v7 v7.1.1 h1:cTeK9FOWH1i20JJgpeqZyk+xqKoxDAm3K1ouv6Ko/MQ=
+github.com/elastic/go-elasticsearch/v7 v7.1.1/go.mod h1:OJ4wdbtDNk5g503kvlHLyErCgQwwzmDtaFC4XyOxXA4=
 github.com/elastic/go-sysinfo v0.0.0-20190103140604-e68552284485 h1:k9Ac5c19ZDF7XOktjJP50LTn3a9+HPUONWXyqT6Xt7M=
 github.com/elastic/go-sysinfo v0.0.0-20190103140604-e68552284485/go.mod h1:5kYRMF9nitZzZ4odJqSHV1DddYPTJ+QB4YsyWmNyJzA=
 github.com/elastic/go-windows v0.0.0-20180831131045-bb1581babc04 h1:6iBgytvH10GM0SRPYDAfFLV5Lx43a063hCi4GWil98I=
 github.com/elastic/go-windows v0.0.0-20180831131045-bb1581babc04/go.mod h1:jgPEIvw0E137UFC4zfkcjyM9T9shDL+JIfqFXQQhVwc=
-github.com/fortytw2/leaktest v1.3.0 h1:u8491cBMTQ8ft8aeV+adlcytMZylmA5nnwwkRZjI8vw=
-github.com/fortytw2/leaktest v1.3.0/go.mod h1:jDsjWgpAGjm2CA7WthBh/CdZYEPF31XHquHwclZch5g=
 github.com/google/go-cmp v0.2.0 h1:+dTQ8DZQJz0Mb/HjFlkptS1FeQ4cWSnN941F8aEG4SQ=
 github.com/google/go-cmp v0.2.0/go.mod h1:oXzfMopK8JAjlY9xF4vHSVASa0yLyX7SntLO5aqRK0M=
 github.com/heptio/workgroup v0.8.0-beta.1 h1:7o1B3CsesQFRHFxWRWB19a6E3PfhIj2CdXLYdFhN2Yg=
@@ -19,10 +20,6 @@ github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901/go.mod h1:Z86h9
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
-github.com/mailru/easyjson v0.0.0-20190312143242-1de009706dbe h1:W/GaMY0y69G4cFlmsC6B9sbuo2fP8OFP1ABjt4kPz+w=
-github.com/mailru/easyjson v0.0.0-20190312143242-1de009706dbe/go.mod h1:C1wdFJiN94OJF2b5HbByQZoLdCWB1Yqtg26g4irojpc=
-github.com/olivere/elastic v6.2.16+incompatible h1:+mQIHbkADkOgq9tFqnbyg7uNFVV6swGU07EoK1u0nEQ=
-github.com/olivere/elastic v6.2.16+incompatible/go.mod h1:J+q1zQJTgAz9woqsbVRqGeB5G1iqDKVBWLNSYW8yfJ8=
 github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/errors v0.8.1 h1:iURUrRGxPUNPdy5/HRSm+Yj6okJ6UtLINN0Q9M4+h3I=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
