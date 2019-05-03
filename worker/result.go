@@ -10,7 +10,7 @@ import (
 	"go.elastic.co/apm"
 )
 
-type Report struct {
+type Result struct {
 	apm.TracerStats
 	agent.TransportStats
 	Start   time.Time
@@ -18,43 +18,43 @@ type Report struct {
 	Flushed time.Time
 }
 
-func (r Report) TransactionSuccess() float64 {
+func (r Result) TransactionSuccess() float64 {
 	return numbers.Perct(r.TransactionsSent, r.TransactionsDropped)
 }
 
-func (r Report) SpanSuccess() float64 {
+func (r Result) SpanSuccess() float64 {
 	return numbers.Perct(r.SpansSent, r.SpansDropped)
 }
 
-func (r Report) ErrorSuccess() float64 {
+func (r Result) ErrorSuccess() float64 {
 	return numbers.Perct(r.ErrorsSent, r.ErrorsDropped)
 }
 
-func (r Report) EventsSent() uint64 {
+func (r Result) EventsSent() uint64 {
 	return r.ErrorsSent + r.SpansSent + r.TransactionsSent
 }
 
-func (r Report) ElapsedSeconds() float64 {
+func (r Result) ElapsedSeconds() float64 {
 	return r.Flushed.Sub(r.Start).Seconds()
 }
 
-func (r Report) EventsSentPerSecond() float64 {
+func (r Result) EventsSentPerSecond() float64 {
 	return float64(r.EventsSent()) / r.ElapsedSeconds()
 }
 
-func (r Report) EventsAcceptedPerSecond() float64 {
+func (r Result) EventsAcceptedPerSecond() float64 {
 	return float64(r.Accepted) / r.ElapsedSeconds()
 }
 
-func (r Report) EventSuccess() float64 {
+func (r Result) EventSuccess() float64 {
 	return numbers.Perct(r.Accepted, r.EventsSent())
 }
 
-func (r Report) SpansPerTransaction() float64 {
+func (r Result) SpansPerTransaction() float64 {
 	return numbers.Div(r.SpansSent, r.TransactionsSent)
 }
 
-func (r Report) String() string {
+func (r Result) String() string {
 	metrics := strcoll.NewTuples()
 
 	metrics.Add("transactions sent", r.TransactionsSent)

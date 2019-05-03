@@ -1,4 +1,4 @@
-package commands
+package reports
 
 import (
 	"errors"
@@ -9,37 +9,53 @@ import (
 	s "strings"
 	"time"
 
-	"github.com/elastic/hey-apm/conv"
+	"github.com/elastic/hey-apm/out"
 
 	"github.com/elastic/hey-apm/strcoll"
 )
 
+// filters and sorts `reports` and for each result and returns a digest matrix
+// each row is the digest of a report with all user-entered attributes equal but one
+// for more details check out the Readme and the `reports.collate` function
+// TODO add validation and return error
+func Collate(size int, since time.Duration, sort string, args []string, reports []Report) string {
+	variable := strcoll.Get(0, args)
+	bw := out.NewBufferWriter()
+	digests, err := collate(since, size, variable, sort, strcoll.From(1, args), reports)
+	if err != nil {
+		out.ReplyEitherNL(bw, err)
+	} else {
+		for _, group := range digests {
+			for _, line := range group {
+				out.ReplyNL(bw, s.Join(line, "\t"))
+			}
+			out.Reply(bw, "\n")
+		}
+		if len(digests) == 0 {
+			out.Reply(bw, "\n")
+		}
+	}
+	return bw.String()
+}
+
 // functions of this type map a subset of attribute names to their (stringified) values
 // queries are performed against such maps
-type data func(TestReport) map[string]string
+type data func(Report) map[string]string
 
 // returns a map of attributes provided by the user, excluding labels
-func inputAttributes(r TestReport) map[string]string {
+func inputAttributes(r Report) map[string]string {
 	return map[string]string{
-		// TODO add labels
-		"duration":     r.Duration.String(),
-		"errors":       strconv.Itoa(r.Errors),
-		"transactions": strconv.Itoa(r.Transactions),
-		"spans":        strconv.Itoa(r.Spans),
-		"frames":       strconv.Itoa(r.Frames),
-		"agents":       strconv.Itoa(r.Agents),
-		"throttle":     strconv.Itoa(r.Throttle),
-		"stream":       strconv.FormatBool(r.Stream),
-		"timeout":      r.ReqTimeout.String(),
-		"apm_host":     r.ApmHost,
-		"apms":         strconv.Itoa(r.NumApm),
-		"apm_version":  r.ApmVersion,
-		"es_host":      r.ElasticHost,
+		// TODO
+		"duration":    fmt.Sprintf("%.2f", r.RunTimeout),
+		"apm_host":    r.ApmHost,
+		"apms":        strconv.Itoa(r.NumApms),
+		"apm_version": r.ApmVersion,
+		"es_host":     r.ElasticHost,
 	}
 }
 
 // attributes that makes sense to filter by, but not breakdown by
-func metadata(r TestReport) map[string]string {
+func metadata(r Report) map[string]string {
 	return map[string]string{
 		"report_id":   r.ReportId,
 		"report_date": r.ReportDate,
@@ -92,7 +108,7 @@ func queryFilters(expressions []string) ([]queryFilter, error) {
 // `filtersExpr` must include all the independent variables except apm_host
 // `all` must not be empty
 // TODO needs build_date
-func verify(since time.Duration, filtersExpr []string, all []TestReport) (bool, error) {
+func verify(since time.Duration, filtersExpr []string, all []Report) (bool, error) {
 	if len(all) == 0 {
 		return false, errors.New("no reports")
 	}
@@ -124,19 +140,19 @@ func verify(since time.Duration, filtersExpr []string, all []TestReport) (bool, 
 
 // applies the given filters to `all`, and returns the top reports sorted by `sortCriteria`
 // then, for each report it finds other reports with the same test parameters values except for `variable`
-func collate(since time.Duration, size int, variable, sortCriteria string, filtersExpr []string, all []TestReport) ([][][]string, error) {
+func collate(since time.Duration, size int, variable, sortCriteria string, filtersExpr []string, all []Report) ([][][]string, error) {
 	ret := make([][][]string, 0)
 	// keep track of observed reports to avoid duplicated in results
 	ids := make([]string, 0)
-	var newReports []TestReport
+	var newReports []Report
 	filters, err := queryFilters(filtersExpr)
 	all = unique(all)
 	reports, err := top(since, size, sortCriteria, filters, all, err)
 	for _, report := range reports {
-		var variants []TestReport
+		var variants []Report
 		variants, err = values(findVariants(variable, report, all, err))
 		variants, ids = seen(variants, ids)
-		newReports, ids = seen([]TestReport{report}, ids)
+		newReports, ids = seen([]Report{report}, ids)
 		if len(newReports) == 0 {
 			continue
 		}
@@ -153,7 +169,7 @@ func collate(since time.Duration, size int, variable, sortCriteria string, filte
 	return ret, err
 }
 
-func top(since time.Duration, size int, criteria string, filters []queryFilter, reports []TestReport, err error) ([]TestReport, error) {
+func top(since time.Duration, size int, criteria string, filters []queryFilter, reports []Report, err error) ([]Report, error) {
 	reports = sortBy(criteria, reports)
 	// TODO add labelsMap
 	query := query{combine(inputAttributes, metadata), -1, filters}
@@ -161,9 +177,9 @@ func top(since time.Duration, size int, criteria string, filters []queryFilter, 
 	return head(since, size, ret), err
 }
 
-func labelsMap(r TestReport) map[string]string {
+func labelsMap(r Report) map[string]string {
 	ret := make(map[string]string)
-	for _, label := range r.labels() {
+	for _, label := range r.Labels {
 		split := s.Split(label, "=")
 		ret[s.TrimSpace(split[0])] = s.TrimSpace(split[1])
 	}
@@ -172,7 +188,7 @@ func labelsMap(r TestReport) map[string]string {
 
 // returns a subset of `bs` with the same inputAttributes values as `a` except for `variable`, which must be different
 // returned reports are keyed by their index in the original `bs` slice
-func findVariants(attribute string, a TestReport, bs []TestReport, err error) (map[int]TestReport, error) {
+func findVariants(attribute string, a Report, bs []Report, err error) (map[int]Report, error) {
 	filters := make([]queryFilter, 0)
 	var data data
 	if _, ok := inputAttributes(a)[attribute]; ok {
@@ -197,8 +213,8 @@ func findVariants(attribute string, a TestReport, bs []TestReport, err error) (m
 // returns the `reports` matching the filters specified by the `query`
 // filters are AND'ed
 // returned reports are keyed by their index in the original slice
-func filter(query query, reports []TestReport, err error) (map[int]TestReport, error) {
-	ret := make(map[int]TestReport)
+func filter(query query, reports []Report, err error) (map[int]Report, error) {
+	ret := make(map[int]Report)
 OuterLoop:
 	for idx, report := range reports {
 		data := query.data(report)
@@ -273,7 +289,7 @@ func compare(s1, s2 string, op string) (bool, error) {
 	return false, errors.New(fmt.Sprintf("comparator %s not valid with attribute %s", op, s1))
 }
 
-func sortBy(criteria string, reports []TestReport) []TestReport {
+func sortBy(criteria string, reports []Report) []Report {
 	switch criteria {
 	case "report_date":
 		sort.Sort(descByReportDate{reports})
@@ -281,22 +297,18 @@ func sortBy(criteria string, reports []TestReport) []TestReport {
 	//	sort.Sort(descByRevDate{reports})
 	case "duration":
 		sort.Sort(descByDuration{reports})
-	case "pushed_volume":
-		sort.Sort(descByPushedVolume{reports})
-	case "throughput":
-		sort.Sort(descByThroughput{reports})
 	}
 	return reports
 }
 
 // if 2 reports have the same independent variables, return the one that showed better performance
 // reports are sorted by their date, most recent first
-func unique(reports []TestReport) []TestReport {
+func unique(reports []Report) []Report {
 	return uniq(sortBy("report_date", reports))
 }
 
-func uniq(reports []TestReport) []TestReport {
-	uniques := make([]TestReport, 0)
+func uniq(reports []Report) []Report {
+	uniques := make([]Report, 0)
 	if len(reports) == 0 {
 		return uniques
 	}
@@ -304,7 +316,7 @@ func uniq(reports []TestReport) []TestReport {
 	variant, _ := findVariants("", first, rest, nil)
 	isUnique := true
 	for _, k := range intKeys(variant, true) {
-		if first.Throughput > variant[k].Throughput {
+		if *first.EventIndexRate > *variant[k].EventIndexRate {
 			rest = append(rest[:k], rest[k+1:]...)
 		} else {
 			isUnique = false
@@ -317,8 +329,8 @@ func uniq(reports []TestReport) []TestReport {
 }
 
 // return the first `size` reports within the given time frame
-func head(since time.Duration, size int, reports []TestReport) []TestReport {
-	ret := make([]TestReport, 0)
+func head(since time.Duration, size int, reports []Report) []Report {
+	ret := make([]Report, 0)
 	for _, report := range reports {
 		if report.date().Add(since).After(time.Now()) {
 			ret = append(ret, report)
@@ -328,8 +340,8 @@ func head(since time.Duration, size int, reports []TestReport) []TestReport {
 }
 
 // returns the values of the given map in order
-func values(m map[int]TestReport, err error) ([]TestReport, error) {
-	ret := make([]TestReport, len(m))
+func values(m map[int]Report, err error) ([]Report, error) {
+	ret := make([]Report, len(m))
 	for idx, k := range intKeys(m, false) {
 		ret[idx] = m[k]
 	}
@@ -337,7 +349,7 @@ func values(m map[int]TestReport, err error) ([]TestReport, error) {
 }
 
 // returns the intKeys of the given map in ascending or descending order
-func intKeys(m map[int]TestReport, desc bool) []int {
+func intKeys(m map[int]Report, desc bool) []int {
 	keys := make([]int, 0)
 	for k := range m {
 		keys = append(keys, k)
@@ -352,8 +364,8 @@ func intKeys(m map[int]TestReport, desc bool) []int {
 
 // returns a subset of `reports` whose ids's are not contained in `ids`
 // the returned `ids` have appended the ids's of such reports
-func seen(reports []TestReport, ids []string) ([]TestReport, []string) {
-	ret := make([]TestReport, 0)
+func seen(reports []Report, ids []string) ([]Report, []string) {
+	ret := make([]Report, 0)
 	for _, report := range reports {
 		if !strcoll.Contains(report.ReportId, ids) {
 			ids = append(ids, report.ReportId)
@@ -364,7 +376,7 @@ func seen(reports []TestReport, ids []string) ([]TestReport, []string) {
 }
 
 //// a digest describes the most informative performance data
-func digest(r TestReport, variable string) ([]string, []string) {
+func digest(r Report, variable string) ([]string, []string) {
 	header := make([]string, 0)
 	data := make([]string, 0)
 	if val, ok := combine(inputAttributes, labelsMap)(r)[variable]; ok {
@@ -379,14 +391,13 @@ func digest(r TestReport, variable string) ([]string, []string) {
 	}
 	header = append(header, "throughput")
 	header = append(header, "pushed")
-	data = append(data, fmt.Sprintf("%.1fdps", r.Throughput))
-	data = append(data, conv.ByteCountDecimal(int64(r.PushedBps))+"ps")
+	data = append(data, fmt.Sprintf("%.1fdps", r.EventIndexRate))
 	return header, data
 }
 
 // combines all the functions in the argument list into one that returns the same report as calling them in order
 func combine(fns ...data) data {
-	return func(report TestReport) map[string]string {
+	return func(report Report) map[string]string {
 		ms := make([]map[string]string, 0)
 		for _, fn := range fns {
 			ms = append(ms, fn(report))
@@ -398,16 +409,16 @@ func combine(fns ...data) data {
 const MARGIN = 1.33
 
 // returns the slice index of the best performing report, if significant
-func best(reports []TestReport) int {
+func best(reports []Report) int {
 	if len(reports) < 2 {
 		return -1
 	}
-	sorted := make([]TestReport, len(reports))
+	sorted := make([]Report, len(reports))
 	copy(sorted, reports)
 	sorted = sortBy("throughput", sorted)
-	if x := sorted[0].Throughput; x > sorted[1].Throughput*MARGIN && sorted[1].Throughput > 0 {
+	if x := *sorted[0].EventIndexRate; x > *sorted[1].EventIndexRate*MARGIN && *sorted[1].EventIndexRate > 0 {
 		for idx, report := range reports {
-			if report.Throughput == x {
+			if *report.EventIndexRate == x {
 				return idx
 			}
 		}

@@ -30,7 +30,7 @@ type Worker struct {
 	workgroup.Group
 }
 
-func (w *Worker) Work() (Report, error) {
+func (w *Worker) Work() (Result, error) {
 	if w.RunTimeout > 0 {
 		w.Add(func(done <-chan struct{}) error {
 			select {
@@ -42,16 +42,16 @@ func (w *Worker) Work() (Report, error) {
 		})
 	}
 
-	report := Report{}
-	report.Start = time.Now()
+	result := Result{}
+	result.Start = time.Now()
 	err := w.Run()
-	report.End = time.Now()
+	result.End = time.Now()
 	w.flush()
-	report.Flushed = time.Now()
-	report.TracerStats = w.Stats()
-	report.TransportStats = *w.TransportStats
+	result.Flushed = time.Now()
+	result.TracerStats = w.Stats()
+	result.TransportStats = *w.TransportStats
 
-	return report, err
+	return result, err
 }
 
 func (w *Worker) flush() {
