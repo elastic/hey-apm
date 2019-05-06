@@ -8,6 +8,10 @@
 #
 set -euo pipefail
 
+RED='\033[31;49m'
+GREEN='\033[32;49m'
+NC='\033[0m' # No Color
+
 export GOPATH=$WORKSPACE/build
 export PATH=$PATH:$GOPATH/bin
 
@@ -16,8 +20,6 @@ if [ ! -d "$APM_SERVER_DIR" ] ; then
   exit 1
 fi
 
-# https://github.com/moovweb/gvm/issues/188
-[[ -s "$GVM_ROOT/scripts/gvm" ]] && source "$GVM_ROOT/scripts/gvm"
 eval "$(gvm use ${GO_VERSION})"
 
 echo "Installing hey-apm dependencies"
@@ -35,7 +37,6 @@ mkdir -p "${COV_DIR}"
   ELASTICSEARCH_USR=$CLOUD_USERNAME \
   ELASTICSEARCH_PWD=$CLOUD_PASSWORD \
   go test -timeout 2h  -v github.com/elastic/hey-apm/server/client 2>&1 | tee ${OUT_FILE}) \
-  && echo -e "\033[31;49mTests PASSED\033[0m" \
-  || echo -e "\033[31;49mTests FAILED\033[0m"
+  && echo -e "${GREEN}Tests PASSED${NC}" || echo -e "${RED}Tests FAILED${NC}"
 
 go-junit-report < ${OUT_FILE} > build/junit-hey-apm-stress-test-report.xml

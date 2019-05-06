@@ -24,19 +24,39 @@ To run hey-apm in interactive shell mode pass the `cli` flag without additional 
 
 ```
 ./hey-apm -cli
-``` 
+```
 
-You then can connect to the port 8234 and start sending commands. It is recommended to use a readline wrapper. 
+You then can connect to the port 8234 and start sending commands. It is recommended to use a readline wrapper.
 
 ```
 rlwrap telnet localhost 8234
-``` 
- 
+```
+
 ### help
 
-The `help` command describes the full semantics of the commands outlined above and some more things that hey-apm can do, like tail apm-server logs, etc. 
- 
+The `help` command describes the full semantics of the commands outlined above and some more things that hey-apm can do, like tail apm-server logs, etc.
+
+# CI
+
+The `Jenkinsfile` triggers sequentially:
+
+- `unit-test.sh`
+
+## Requirements
+- [gvm](https://github.com/moovweb/gvm)
+
+## Run scripts locally
+
+```bash
+  export WORKSPACE=`pwd`
+  export APM_SERVER_DIR=<Path of the apm-server.git source code>
+  export GO_VERSION=1.12.1
+  # https://github.com/moovweb/gvm/issues/188
+  [[ -s "$GVM_ROOT/scripts/gvm" ]] && source "$GVM_ROOT/scripts/gvm" || true
+  ./scripts/jenkins/unit-test.sh
+```
+
 # Known issues
 
-* Documentation and functionality is WIP 
+* Documentation and functionality is WIP
 * Requires Elasticsearch 6.x
