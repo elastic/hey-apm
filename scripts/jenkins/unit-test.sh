@@ -9,6 +9,10 @@ RED='\033[31;49m'
 GREEN='\033[32;49m'
 NC='\033[0m' # No Color
 
+echo "Update go gvm"
+cd ~/.gvm/archive/go
+git pull --tags
+
 echo "Setup Go ${GO_VERSION}"
 export GOPATH=${WORKSPACE}/build
 export PATH=$PATH:$GOPATH/bin
