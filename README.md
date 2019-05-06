@@ -43,7 +43,7 @@ The `Jenkinsfile` triggers sequentially:
 - `unit-test.sh`
 
 ## Requirements
-- [gvm](https://github.com/moovweb/gvm)
+- [gvm](https://github.com/andrewkroh/gvm)
 
 ## Run scripts locally
 
@@ -51,8 +51,6 @@ The `Jenkinsfile` triggers sequentially:
   export WORKSPACE=`pwd`
   export APM_SERVER_DIR=<Path of the apm-server.git source code>
   export GO_VERSION=1.12.1
-  # https://github.com/moovweb/gvm/issues/188
-  [[ -s "$GVM_ROOT/scripts/gvm" ]] && source "$GVM_ROOT/scripts/gvm" || true
   ./scripts/jenkins/unit-test.sh
 ```
 

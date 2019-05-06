@@ -14,9 +14,6 @@ export GOPATH=${WORKSPACE}/build
 export PATH=$PATH:$GOPATH/bin
 eval "$(gvm ${GO_VERSION})"
 
-GO_OUTPUT=$(go version)
-echo "Go ${GO_OUTPUT} is enabled"
-
 echo "Installing hey-apm dependencies"
 go get -v -u github.com/t-yuki/gocover-cobertura
 go get -v -u github.com/jstemmer/go-junit-report
