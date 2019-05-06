@@ -66,7 +66,7 @@ pipeline {
               coverageReport("${BASE_DIR}/build/coverage")
               junit(allowEmptyResults: true,
                 keepLongStdio: true,
-                testResults: "${BASE_DIR}/build/junit-report.xml,${BASE_DIR}/build/*.xml")
+                testResults: "${BASE_DIR}/build/*.xml")
             }
           }
         }
