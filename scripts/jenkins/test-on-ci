@@ -1,7 +1,5 @@
 #!/usr/bin/env groovy
 
-@Library('apm@current') _
-
 pipeline {
   agent any
   environment {
@@ -13,6 +11,9 @@ pipeline {
     NOTIFY_TO = credentials('notify-to')
     JOB_GCS_BUCKET = credentials('gcs-bucket')
   }
+  triggers {
+    cron('H 3 * * 1-5')
+  }
   options {
     timeout(time: 1, unit: 'HOURS') 
     buildDiscarder(logRotator(numToKeepStr: '20', artifactNumToKeepStr: '20', daysToKeepStr: '30'))
@@ -20,15 +21,11 @@ pipeline {
     ansiColor('xterm')
     disableResume()
     durabilityHint('PERFORMANCE_OPTIMIZED')
-    rateLimitBuilds(throttle: [count: 60, durationName: 'hour', userBoost: true])
-    quietPeriod(10)
-  }
-  triggers {
-    cron('H H(3-5) * * 1-5')
   }
   parameters {
-    string(name: 'GO_VERSION', defaultValue: "1.12.1", description: "Go version to use.")
-    string(name: 'APM_SERVER_VERSION', defaultValue: "6.7", description: "APM Server Git branch/tag to use")
+    string(name: 'branch_specifier', defaultValue: "v1", description: "Hey APM Branch/Tag/commit project to use.")
+    string(name: 'GO_VERSION', defaultValue: "1.11.2", description: "Go version to use.")
+    string(name: 'APM_SERVER_VERSION', defaultValue: "master", description: "APM Server Git branch/tag to use")
   }
   stages {
     stage('Initializing'){
@@ -46,28 +43,10 @@ pipeline {
         stage('Checkout') {
           steps {
             deleteDir()
-            gitCheckout(basedir: "${BASE_DIR}")
+            gitCheckout(basedir: "${BASE_DIR}", branch: params.branch_specifier, 
+              repo: 'git@github.com:elastic/hey-apm.git', 
+              credentialsId: "${JOB_GIT_CREDENTIALS}")
             stash allowEmpty: true, name: 'source', useDefaultExcludes: false
-          }
-        }
-        /**
-          Unit tests.
-        */
-        stage('Test') { 
-          steps {
-            deleteDir()
-            unstash 'source'
-            dir("${BASE_DIR}"){
-              sh './scripts/jenkins/unit-test.sh'
-            }
-          }
-          post {
-            always {
-              coverageReport("${BASE_DIR}/build/coverage")
-              junit(allowEmptyResults: true, 
-                keepLongStdio: true, 
-                testResults: "${BASE_DIR}/build/junit-report.xml,${BASE_DIR}/build/TEST-*.xml")
-            }
           }
         }
         /**
