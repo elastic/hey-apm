@@ -9,10 +9,14 @@ RED='\033[31;49m'
 GREEN='\033[32;49m'
 NC='\033[0m' # No Color
 
-echo "Setup Go"
+echo "Setup Go ${GO_VERSION}"
 export GOPATH=${WORKSPACE}/build
 export PATH=$PATH:$GOPATH/bin
-eval "$(gvm use ${GO_VERSION})"
+gvm install go${GO_VERSION}
+gvm use go${GO_VERSION}
+
+GO_OUTPUT=$(go version)
+echo "Go ${GO_OUTPUT} is enabled"
 
 echo "Installing hey-apm dependencies"
 go get -v -u github.com/t-yuki/gocover-cobertura
