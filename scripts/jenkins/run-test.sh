@@ -20,8 +20,7 @@ if [ ! -d "$APM_SERVER_DIR" ] ; then
   exit 1
 fi
 
-gvm install go${GO_VERSION}
-gvm use go${GO_VERSION}
+eval "$(gvm ${GO_VERSION})"
 
 echo "Installing hey-apm dependencies"
 go get -v -u github.com/t-yuki/gocover-cobertura

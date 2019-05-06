@@ -16,8 +16,7 @@ git pull --tags
 echo "Setup Go ${GO_VERSION}"
 export GOPATH=${WORKSPACE}/build
 export PATH=$PATH:$GOPATH/bin
-gvm install go${GO_VERSION}
-gvm use go${GO_VERSION}
+eval "$(gvm ${GO_VERSION})"
 
 GO_OUTPUT=$(go version)
 echo "Go ${GO_OUTPUT} is enabled"
