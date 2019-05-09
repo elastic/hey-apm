@@ -6,10 +6,13 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"net/url"
 	"os"
 	"time"
 
 	"github.com/elastic/hey-apm/agent"
+	"github.com/elastic/hey-apm/es"
+	"github.com/elastic/hey-apm/reports"
 	"github.com/elastic/hey-apm/worker"
 
 	"github.com/elastic/hey-apm/out"
@@ -24,8 +27,14 @@ func main() {
 
 	// apm-server options
 	// convenience for https://www.elastic.co/guide/en/apm/agent/go/current/configuration.html
-	apmServerSecret := flag.String("secret", "", "")                // ELASTIC_APM_SECRET_TOKEN
-	apmServerUrl := flag.String("url", "http://localhost:8200", "") // ELASTIC_APM_SERVER_URL
+	apmServerSecret := flag.String("apm-secret", "", "apm server secret token")       // ELASTIC_APM_SECRET_TOKEN
+	apmServerUrl := flag.String("apm-url", "http://localhost:8200", "apm server url") // ELASTIC_APM_SERVER_URL
+
+	elasticsearchUrl := flag.String("es-url", "http://localhost:9200", "elasticsearch url for reporting")
+	elasticsearchAuth := flag.String("es-auth", "", "elasticsearch username:password reporting")
+
+	apmElasticsearchUrl := flag.String("apm-es-url", "http://localhost:9200", "elasticsearch output host for apm-server under load")
+	apmElasticsearchAuth := flag.String("apm-es-auth", "", "elasticsearch output username:password for apm-server under load")
 
 	// payload options
 	errorLimit := flag.Int("e", math.MaxInt64, "max errors to generate")
@@ -44,51 +53,170 @@ func main() {
 		spanMaxLimit = spanMinLimit
 	}
 
-	// configure tracer
-	logger := out.NewApmLogger(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile))
 	rand.Seed(*seed)
-	logger.Debugf("random seed: %d", *seed)
 
-	tracer := agent.NewTracer(logger, *apmServerUrl, *apmServerSecret, *spanMaxLimit)
+	input := Input{
+		ApmServerUrl:         *apmServerUrl,
+		ApmServerSecret:      *apmServerSecret,
+		ElasticsearchUrl:     *elasticsearchUrl,
+		ElasticsearchAuth:    *elasticsearchAuth,
+		ApmElasticsearchUrl:  *apmElasticsearchUrl,
+		ApmElasticsearchAuth: *apmElasticsearchAuth,
+		RunTimeout:           *runTimeout,
+		FlushTimeout:         *flushTimeout,
+		TransactionFrequency: *transactionFrequency,
+		TransactionLimit:     *transactionLimit,
+		SpanMaxLimit:         *spanMaxLimit,
+		SpanMinLimit:         *spanMinLimit,
+		ErrorFrequency:       *errorFrequency,
+		ErrorLimit:           *errorLimit,
+		ErrorFrameMaxLimit:   *errorFrameMaxLimit,
+		ErrorFrameMinLimit:   *errorFrameMinLimit,
+	}
+
+	testNode := es.NewConnection(*elasticsearchUrl, *elasticsearchAuth)
+	worker, initialStatus := prepareWork(input, testNode)
+	logger := worker.Logger
+
+	result, err := worker.Work()
+	if err != nil {
+		logger.Println(err.Error())
+	}
+	logger.Printf("%s elapsed since event generation completed", result.Flushed.Sub(result.End))
+	fmt.Println(result)
+
+	finalStatus := server.GetStatus(logger, input.ApmServerSecret, input.ApmServerUrl, testNode)
+	report := createReport(logger, input, result, initialStatus, finalStatus)
+
+	if *elasticsearchUrl == "" {
+		logger.Println("es-url unset: not indexing report")
+
+	} else {
+		reportNode := es.NewConnection(*elasticsearchUrl, *elasticsearchAuth)
+		if ierr := es.IndexReport(reportNode, "hey-bench", report); ierr != nil {
+			logger.Println(ierr.Error())
+		} else {
+			logger.Println("report indexed")
+		}
+	}
+}
+
+type Input struct {
+	ApmServerUrl    string
+	ApmServerSecret string
+
+	ElasticsearchUrl  string
+	ElasticsearchAuth string
+
+	ApmElasticsearchUrl  string
+	ApmElasticsearchAuth string
+
+	RunTimeout   time.Duration
+	FlushTimeout time.Duration
+
+	TransactionFrequency time.Duration
+	TransactionLimit     int
+
+	SpanMaxLimit int
+	SpanMinLimit int
+
+	ErrorFrequency     time.Duration
+	ErrorLimit         int
+	ErrorFrameMaxLimit int
+	ErrorFrameMinLimit int
+}
+
+func host(urlStr string) string {
+	url, err := url.Parse(urlStr)
+	if err != nil {
+		return urlStr
+	}
+	return url.Hostname()
+}
+
+// not UUID
+func shortId() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return fmt.Sprintf("%x", b[0:4])
+}
+
+func prepareWork(input Input, connection es.Connection) (worker.Worker, server.Status) {
+
+	logger := out.NewApmLogger(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile))
+	tracer := agent.NewTracer(logger, input.ApmServerUrl, input.ApmServerSecret, input.SpanMaxLimit)
 
 	w := worker.Worker{
 		ApmLogger:    logger,
 		Tracer:       tracer,
-		RunTimeout:   *runTimeout,
-		FlushTimeout: *flushTimeout,
+		RunTimeout:   input.RunTimeout,
+		FlushTimeout: input.FlushTimeout,
 	}
-	w.AddErrors(*errorFrequency, *errorLimit, *errorFrameMinLimit, *errorFrameMaxLimit)
-	w.AddTransactions(*transactionFrequency, *transactionLimit, *spanMinLimit, *spanMaxLimit)
+	w.AddErrors(input.ErrorFrequency, input.ErrorLimit, input.ErrorFrameMinLimit, input.ErrorFrameMaxLimit)
+	w.AddTransactions(input.TransactionFrequency, input.TransactionLimit, input.SpanMinLimit, input.SpanMaxLimit)
 	w.AddSignalHandling()
 
-	logger.Debugf("start")
-	defer logger.Debugf("finish")
+	return w, server.GetStatus(logger.Logger, input.ApmServerSecret, input.ApmServerUrl, connection)
+}
 
-	metricsBefore, merr1 := server.QueryExpvar(*apmServerSecret, *apmServerUrl)
+func createReport(logger *log.Logger, input Input, result worker.Result, initialStatus, finalStatus server.Status) reports.Report {
 
-	report, err := w.Work()
-	if err != nil {
-		logger.Errorf(err.Error())
+	this, _ := os.Hostname()
+	r := reports.Report{
+		ReportId:                       shortId(),
+		ReportDate:                     time.Now().Format(reports.GITRFC),
+		ReporterHost:                   this,
+		Timestamp:                      time.Now(),
+		ElasticHost:                    host(input.ApmElasticsearchUrl),
+		ApmHost:                        host(input.ApmServerUrl),
+		NumApms:                        1,
+		RunTimeout:                     input.RunTimeout.Seconds(),
+		Elapsed:                        result.Flushed.Sub(result.Start).Seconds(),
+		Requests:                       result.NumRequests,
+		FailedRequests:                 result.Errors.SendStream,
+		ErrorsGenerated:                result.ErrorsSent + result.ErrorsDropped,
+		ErrorsSent:                     result.ErrorsSent,
+		ErrorGenerationFrequency:       input.ErrorFrequency,
+		TransactionsGenerated:          result.TransactionsSent + result.TransactionsDropped,
+		TransactionsSent:               result.TransactionsSent,
+		TransactionGenerationFrequency: input.TransactionFrequency,
+		SpansGenerated:                 result.SpansSent + result.SpansDropped,
+		SpansSent:                      result.SpansSent,
+		EventsAccepted:                 result.Accepted,
 	}
-	logger.Debugf("%s elapsed since event generation completed", report.Flushed.Sub(report.End))
 
-	fmt.Println()
-	fmt.Println(report)
+	info, ierr := server.QueryInfo(input.ApmServerSecret, input.ApmServerUrl)
+	if ierr == nil {
+		logger.Println(info)
 
-	metricsAfter, merr2 := server.QueryExpvar(*apmServerSecret, *apmServerUrl)
-	if merr2 == nil {
-		if merr1 == nil {
-			fmt.Println()
-			fmt.Println(metricsAfter.Memstats.Sub(metricsBefore.Memstats))
-		}
-	} else {
-		logger.Errorf("could not get expvar metrics: %s", merr2.Error())
+		r.ApmBuild = info.BuildSha
+		r.ApmBuildDate = info.BuildDate
+		r.ApmVersion = info.Version
 	}
 
-	info, err := server.QueryInfo(*apmServerSecret, *apmServerUrl)
-	if err != nil {
-		logger.Errorf("apm-server health error: %s", err.Error())
-	} else {
-		fmt.Println(out.Bold + "\n*** " + info.String() + " ***\n" + out.Reset)
+	if initialStatus.SpanIndexCount != nil && finalStatus.SpanIndexCount != nil {
+		r.SpansIndexed = *finalStatus.SpanIndexCount - *initialStatus.SpanIndexCount
 	}
+
+	if initialStatus.TransactionIndexCount != nil && finalStatus.TransactionIndexCount != nil {
+		r.TransactionsIndexed = *finalStatus.TransactionIndexCount - *initialStatus.TransactionIndexCount
+	}
+
+	if initialStatus.ErrorIndexCount != nil && finalStatus.ErrorIndexCount != nil {
+		r.ErrorsIndexed = *finalStatus.ErrorIndexCount - *initialStatus.ErrorIndexCount
+	}
+
+	if initialStatus.Metrics != nil && finalStatus.Metrics != nil {
+		memstats := finalStatus.Metrics.Memstats.Sub(initialStatus.Metrics.Memstats)
+		logger.Println(memstats)
+
+		r.TotalAlloc = &memstats.TotalAlloc
+		r.HeapAlloc = &memstats.HeapAlloc
+		r.Mallocs = &memstats.Mallocs
+		r.NumGC = &memstats.NumGC
+
+		r.ApmSettings = initialStatus.Metrics.Cmdline.Parse()
+	}
+
+	return reports.WithDerivedAttributes(r)
 }

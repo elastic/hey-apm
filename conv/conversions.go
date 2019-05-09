@@ -55,6 +55,21 @@ func StringOf(v interface{}) string {
 	}
 }
 
+func ToFloat64(i interface{}) float64 {
+	switch x := i.(type) {
+	case float64:
+		return x
+	case float32:
+		return float64(x)
+	default:
+		f, err := strconv.ParseFloat(fmt.Sprintf("%d", x), 64)
+		if err != nil {
+			panic(err)
+		}
+		return f
+	}
+}
+
 func AsFloat64(m interface{}, k string) float64 {
 	return asType(m, k, float64(0)).(float64)
 }
