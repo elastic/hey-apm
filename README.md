@@ -48,7 +48,6 @@ The `Jenkinsfile` triggers sequentially:
 ## Run scripts locally
 
 ```bash
-  export APM_SERVER_DIR=<Path of the apm-server.git source code>
   ./scripts/jenkins/unit-test.sh 1.12.1
 ```
 
