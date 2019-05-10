@@ -15,7 +15,7 @@ NC='\033[0m' # No Color
 echo "Setup Go ${GO_VERSION}"
 export GOPATH=$WORKSPACE/build
 export PATH=$PATH:$GOPATH/bin
-eval "$(gvm ${GO_VERSION})"
+eval "$(gvm "${GO_VERSION}")"
 
 export COV_DIR="build/coverage"
 export COV_FILE="${COV_DIR}/hey-apm-stress-test.cov"
