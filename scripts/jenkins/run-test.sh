@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
+# Stress testing the given Go version and APM server
+#
+# NOTE: It's required to be launched inside the root of the project.
+#
+# Usage: ./scripts/jenkins/run-test.sh 1.12.1 /src/apm-server
+#
 # Requirements
-#   env variable WORKSPACE
-#   env variable APM_SERVER_DIR
 #   env variable CLOUD_ADDR
 #   env variable CLOUD_USERNAME
 #   env variable CLOUD_PASSWORD
@@ -12,8 +16,11 @@ RED='\033[31;49m'
 GREEN='\033[32;49m'
 NC='\033[0m' # No Color
 
+GO_VERSION=${1:?Please specify the Go version}
+APM_SERVER_DIR=${2:?Please specify the path pointing to the APM server source code}
+
 echo "Setup Go ${GO_VERSION}"
-export GOPATH=$WORKSPACE/build
+GOPATH=$(pwd)/build
 export PATH=$PATH:$GOPATH/bin
 eval "$(gvm "${GO_VERSION}")"
 
@@ -22,13 +29,7 @@ export COV_FILE="${COV_DIR}/hey-apm-stress-test.cov"
 export OUT_FILE="build/stress-test.out"
 mkdir -p "${COV_DIR}"
 
-if [ ! -d "$APM_SERVER_DIR" ] ; then
-  echo "you need to define APM_SERVER_DIR environment variable pointing to the APM server source code"
-  exit 1
-fi
-
 echo "Running apm-server stress tests..."
-
 (ELASTICSEARCH_URL=$CLOUD_ADDR \
   ELASTICSEARCH_USR=$CLOUD_USERNAME \
   ELASTICSEARCH_PWD=$CLOUD_PASSWORD \
