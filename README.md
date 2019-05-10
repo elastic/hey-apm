@@ -48,10 +48,8 @@ The `Jenkinsfile` triggers sequentially:
 ## Run scripts locally
 
 ```bash
-  export WORKSPACE=`pwd`
   export APM_SERVER_DIR=<Path of the apm-server.git source code>
-  export GO_VERSION=1.12.1
-  ./scripts/jenkins/unit-test.sh
+  ./scripts/jenkins/unit-test.sh 1.12.1
 ```
 
 # Known issues

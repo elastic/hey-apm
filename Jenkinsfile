@@ -58,7 +58,7 @@ pipeline {
             deleteDir()
             unstash 'source'
             dir("${BASE_DIR}"){
-              sh './scripts/jenkins/unit-test.sh'
+              sh "./scripts/jenkins/unit-test.sh ${GO_VERSION}"
             }
           }
           post {

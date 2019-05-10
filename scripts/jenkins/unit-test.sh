@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
-# Requirements
-#   env variable WORKSPACE
-#   env variable GO_VERSION
-
+#
+# Test the given Go version.
+#
+# NOTE: It's required to be launched inside the root of the project.
+#
+# Usage: ./scripts/jenkins/unit-test.sh 1.12.1
+#
 set -exuo pipefail
 
 RED='\033[31;49m'
 GREEN='\033[32;49m'
 NC='\033[0m' # No Color
+
+GO_VERSION=${1:?Please specify the Go version}
 
 echo "Setup Go ${GO_VERSION}"
 GOPATH=$(pwd)/build
