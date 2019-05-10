@@ -25,10 +25,13 @@ export COV_FILE="${COV_DIR}/hey-apm.cov"
 export OUT_FILE="build/test-report.out"
 mkdir -p "${COV_DIR}"
 
+echo "Installing hey-apm dependencies for Jenkins..."
+go get -v -u github.com/t-yuki/gocover-cobertura
+go get -v -u github.com/jstemmer/go-junit-report
+
 echo "Running unit tests..."
 (SKIP_EXTERNAL=1 SKIP_STRESS=1 go test -v ./... -coverprofile="${COV_FILE}" 2>&1 | tee ${OUT_FILE}) \
   && echo -e "${GREEN}Tests PASSED${NC}" || echo -e "${RED}Tests FAILED${NC}"
-ls -l "${GOPATH}/bin"
 go-junit-report < ${OUT_FILE} > build/junit-hey-apm-report.xml
 
 echo "Running cobertura"

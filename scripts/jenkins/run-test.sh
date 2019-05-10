@@ -29,6 +29,10 @@ export COV_FILE="${COV_DIR}/hey-apm-stress-test.cov"
 export OUT_FILE="build/stress-test.out"
 mkdir -p "${COV_DIR}"
 
+echo "Installing hey-apm dependencies for Jenkins..."
+go get -v -u github.com/t-yuki/gocover-cobertura
+go get -v -u github.com/jstemmer/go-junit-report
+
 echo "Running apm-server stress tests..."
 (ELASTICSEARCH_URL=$CLOUD_ADDR \
   ELASTICSEARCH_USR=$CLOUD_USERNAME \
