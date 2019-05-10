@@ -14,7 +14,7 @@ pipeline {
     JOB_GCS_BUCKET = credentials('gcs-bucket')
   }
   options {
-    timeout(time: 1, unit: 'HOURS') 
+    timeout(time: 1, unit: 'HOURS')
     buildDiscarder(logRotator(numToKeepStr: '20', artifactNumToKeepStr: '20', daysToKeepStr: '30'))
     timestamps()
     ansiColor('xterm')
@@ -53,20 +53,20 @@ pipeline {
         /**
           Unit tests.
         */
-        stage('Test') { 
+        stage('Test') {
           steps {
             deleteDir()
             unstash 'source'
             dir("${BASE_DIR}"){
-              sh './scripts/jenkins/unit-test.sh'
+              sh "./scripts/jenkins/unit-test.sh ${GO_VERSION}"
             }
           }
           post {
             always {
               coverageReport("${BASE_DIR}/build/coverage")
-              junit(allowEmptyResults: true, 
-                keepLongStdio: true, 
-                testResults: "${BASE_DIR}/build/junit-report.xml,${BASE_DIR}/build/TEST-*.xml")
+              junit(allowEmptyResults: true,
+                keepLongStdio: true,
+                testResults: "${BASE_DIR}/build/*.xml")
             }
           }
         }
@@ -82,17 +82,17 @@ pipeline {
             unstash 'source'
             /*
             dir("${APM_SERVER_BASE_DIR}"){
-              checkout([$class: 'GitSCM', branches: [[name: "${APM_SERVER_VERSION}"]], 
-                doGenerateSubmoduleConfigurations: false, 
-                extensions: [], 
-                submoduleCfg: [], 
-                userRemoteConfigs: [[credentialsId: "${JOB_GIT_CREDENTIALS}", 
+              checkout([$class: 'GitSCM', branches: [[name: "${APM_SERVER_VERSION}"]],
+                doGenerateSubmoduleConfigurations: false,
+                extensions: [],
+                submoduleCfg: [],
+                userRemoteConfigs: [[credentialsId: "${JOB_GIT_CREDENTIALS}",
                 url: "git@github.com:elastic/apm-server.git"]]])
             }
             dir("${BASE_DIR}"){
               withEsEnv(secret: 'apm-server-benchmark-cloud'){
                 sh './scripts/jenkins/run-test.sh'
-                
+
               }
             }*/
             echo "NOOP"
@@ -115,11 +115,11 @@ pipeline {
     aborted {
       echoColor(text: '[ABORTED]', colorfg: 'magenta', colorbg: 'default')
     }
-    failure { 
+    failure {
       echoColor(text: '[FAILURE]', colorfg: 'red', colorbg: 'default')
       step([$class: 'Mailer', notifyEveryUnstableBuild: true, recipients: "${NOTIFY_TO}", sendToIndividuals: false])
     }
-    unstable { 
+    unstable {
       echoColor(text: '[UNSTABLE]', colorfg: 'yellow', colorbg: 'default')
       step([$class: 'Mailer', notifyEveryUnstableBuild: true, recipients: "${NOTIFY_TO}", sendToIndividuals: false])
     }
