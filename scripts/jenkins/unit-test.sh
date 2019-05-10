@@ -3,7 +3,7 @@
 #   env variable WORKSPACE
 #   env variable GO_VERSION
 
-set -euo pipefail
+set -exuo pipefail
 
 RED='\033[31;49m'
 GREEN='\033[32;49m'
@@ -13,6 +13,7 @@ echo "Setup Go ${GO_VERSION}"
 export GOPATH=${WORKSPACE}/build
 export PATH=$PATH:$GOPATH/bin
 eval "$(gvm ${GO_VERSION})"
+env | sort
 
 export COV_DIR="build/coverage"
 export COV_FILE="${COV_DIR}/hey-apm.cov"
@@ -22,6 +23,7 @@ mkdir -p "${COV_DIR}"
 echo "Running unit tests..."
 (SKIP_EXTERNAL=1 SKIP_STRESS=1 go test -v ./... -coverprofile="${COV_FILE}" 2>&1 | tee ${OUT_FILE}) \
   && echo -e "${GREEN}Tests PASSED${NC}" || echo -e "${RED}Tests FAILED${NC}"
+ls -l ${GOPATH}/bin
 go-junit-report < ${OUT_FILE} > build/junit-hey-apm-report.xml
 
 echo "Running cobertura"
