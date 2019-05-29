@@ -13,11 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/elastic/hey-apm/worker"
-
 	"github.com/elastic/hey-apm/cli/fileio"
-	"github.com/elastic/hey-apm/commands"
-	"github.com/elastic/hey-apm/es"
 	"github.com/elastic/hey-apm/out"
 	"github.com/pkg/errors"
 
@@ -93,7 +89,7 @@ func eval(cmd []string, env *env) string {
 		return help()
 
 	case fn == "status":
-		return status(env.reportEs, env.testEs, env.apm, len(env.ch))
+		//return status(env.reportEs, env.testEs, env.apm, len(env.ch))
 
 	case fn == "define" && strcoll.Get(2, cmd) == "":
 		return nameDefinitions(env.nameDefs, strcoll.Get(1, cmd))
@@ -113,18 +109,6 @@ func eval(cmd []string, env *env) string {
 		return out.Grey + "ok/n"
 
 	case fn == "collate":
-		if env.reportEs.Err != nil {
-			return out.Red + env.reportEs.Err.Error()
-		}
-		args, size := ParseCmdIntOption(cmd[1:], "-n", 20)
-		args, since := ParseCmdDurationOption(cmd[1:], "--since", time.Hour*24*7)
-		args, sort := ParseCmdStringOption(args, "--sort", "report_date")
-		reports, err := env.reportEs.FetchReports()
-		if err == nil {
-			return commands.Collate(size, since, sort, args, reports)
-		} else {
-			return out.Red + err.Error()
-		}
 
 	default:
 		env.ch <- cmd
@@ -135,6 +119,7 @@ func eval(cmd []string, env *env) string {
 			return ""
 		}
 	}
+	return ""
 }
 
 type env struct {
@@ -148,9 +133,9 @@ type env struct {
 	// connected client IP
 	usr string
 	// elasticsearch cluster for querying and reporting data
-	reportEs es.ReportNode
+	//reportEs
 	// elasticsearch cluster for indexing apm data
-	testEs es.TestNode
+	// testEs
 	// apm-server data
 	apm apm
 	// user name definitions for grouping commands, aliases, etc
@@ -168,8 +153,6 @@ func newEnv(conn net.Conn) *env {
 		wg:              &sync.WaitGroup{},
 		cancel:          &sync.Cond{L: &sync.Mutex{}},
 		usr:             usr,
-		reportEs:        es.ReportNode{Err: errors.New("report node not specified")},
-		testEs:          es.TestNode{Err: errors.New("test node not specified")},
 		apm:             apm{},
 		nameDefs:        fileio.LoadDefs(usr),
 	}
@@ -208,15 +191,10 @@ func (env *env) evalAsyncLoop() {
 			env.nameDefs, err = define(fw, args1, env.names())
 
 		case fn == "es" && arg1 == "report" && arg2 == "use":
-			env.reportEs = es.NewReportNode(args3...)
-			err = env.reportEs.Err
 
 		case fn == "es" && arg1 == "test" && arg2 == "use":
-			env.testEs = es.NewTestNode(args3...)
-			err = env.testEs.Err
 
 		case fn == "es" && arg1 == "test" && arg2 == "reset":
-			err = env.testEs.Reset()
 
 		case fn == "apm" && arg1 == "use":
 			env.apm = newApm(env, arg2, args3...)
@@ -256,36 +234,6 @@ func (env *env) evalAsyncLoop() {
 				err = errors.New("apm server not started")
 				break
 			}
-			if _, err = env.testEs.Health(); err != nil {
-				break
-			}
-			if err = env.reportEs.Err; err != nil {
-				break
-			}
-
-			docsBefore := env.testEs.Count()
-			args1, labels := ParseCmdStringOption(args1, "--labels", "")
-			args1, cooldown := ParseCmdDurationOption(args1, "--cooldown", time.Second)
-
-			result := commands.LoadTest(env.ReadWriteCloser, env.wait, cooldown, worker.Worker{})
-
-			report := commands.NewReport(
-				result,
-				labels,
-				env.testEs.Url,
-				strcoll.Get(0, env.apm.urls),
-				env.apm.version,
-				len(env.apm.urls),
-				env.testEs.Count()-docsBefore,
-			)
-
-			if report.Error == nil {
-				report.Error = env.reportEs.IndexReport(report)
-			}
-
-			bw := out.NewBufferWriter()
-			out.ReplyEitherNL(bw, report.Error, "saved report to Elasticsearch")
-			res = bw.String()
 
 		default:
 			err = errors.New(fmt.Sprintf("nothing done for %s", s.Join(cmd, " ")))
@@ -295,38 +243,6 @@ func (env *env) evalAsyncLoop() {
 		out.Prompt(env)
 		env.wg.Wait()
 	}
-}
-
-func status(esReportClient es.ReportNode, esTestClient es.TestNode, apm apm, cmds int) string {
-	w := out.NewBufferWriter()
-	if esReportClient.Url == "" {
-		out.ReplyNL(w, out.Red+"ElasticSearch report URL not specified")
-	} else {
-		out.ReplyNL(w, out.Green+fmt.Sprintf("ElasticSearch report URL: %s", esReportClient.Url))
-	}
-
-	if esTestClient.Url == "" {
-		out.ReplyNL(w, out.Red+"ElasticSearch test URL not specified")
-	} else {
-		health, err := esTestClient.Health()
-		out.ReplyEitherNL(w, err, out.Green+fmt.Sprintf("ElasticSearch test URL: %s [%s, %d docs]",
-			esTestClient.Url, health, esTestClient.Count()))
-	}
-
-	if apm.managed == true {
-		running := "not"
-		if apm.proc != nil {
-			running = ""
-		}
-		out.ReplyNL(w, out.Green+fmt.Sprintf("APM Server managed, version: %s [%s running]", apm.version, running))
-	} else if len(apm.urls) == 0 {
-		out.ReplyNL(w, out.Red+"APM Server URL not specified")
-	} else {
-		out.ReplyEitherNL(w, apm.err, out.Green+fmt.Sprintf("APM Server URL: %s [%s]", apm.urls, apm.version))
-	}
-
-	out.ReplyNL(w, out.Cyan+fmt.Sprintf("%d commands in the queue", cmds))
-	return w.String()
 }
 
 func help() string {

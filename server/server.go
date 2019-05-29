@@ -5,13 +5,49 @@ import (
 	errs "errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
+
+	"github.com/elastic/hey-apm/es"
 
 	"github.com/elastic/hey-apm/conv"
 	"github.com/elastic/hey-apm/strcoll"
 )
+
+type Status struct {
+	Metrics               *ExpvarMetrics
+	SpanIndexCount        *uint64
+	TransactionIndexCount *uint64
+	ErrorIndexCount       *uint64
+}
+
+func GetStatus(logger *log.Logger, secret, url string, connection es.Connection) Status {
+	status := Status{}
+
+	metrics, err := QueryExpvar(secret, url)
+	if err == nil {
+		status.Metrics = &metrics
+	} else {
+		logger.Println(err.Error())
+	}
+
+	if connection.Err == nil {
+		spans := es.Count(connection, "apm*span*")
+		transactions := es.Count(connection, "apm*transaction*")
+		errors := es.Count(connection, "apm*error*")
+
+		status.SpanIndexCount = &spans
+		status.TransactionIndexCount = &transactions
+		status.ErrorIndexCount = &errors
+	} else {
+		logger.Println(connection.Err.Error())
+	}
+
+	return status
+}
 
 type Info struct {
 	BuildDate time.Time `json:"build_date"`
@@ -19,8 +55,10 @@ type Info struct {
 	Version   string    `json:"version"`
 }
 
+type Cmdline []string
+
 type ExpvarMetrics struct {
-	Cmdline  []string `json:"cmdline"`
+	Cmdline  Cmdline  `json:"cmdline"`
 	Memstats Memstats `json:"memstats"`
 }
 
@@ -60,6 +98,24 @@ func (info Info) String() string {
 	}
 	return fmt.Sprintf("apm-server version %s built on %d %s [%s]",
 		info.Version, info.BuildDate.Day(), info.BuildDate.Month().String(), info.BuildSha[:7])
+}
+
+func (cmd Cmdline) Parse() map[string]string {
+	ret := make(map[string]string)
+	var lookup bool
+	for idx, arg := range cmd {
+		switch {
+		case arg == "-E":
+			lookup = true
+		case lookup:
+			k, v := strcoll.SplitKV(cmd[idx], "=")
+			if !strings.Contains(strings.ToLower(k), "password") {
+				ret[k] = v
+			}
+			lookup = false
+		}
+	}
+	return ret
 }
 
 func QueryInfo(secret, url string) (Info, error) {

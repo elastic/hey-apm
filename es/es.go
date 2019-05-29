@@ -1,121 +1,87 @@
 package es
 
 import (
-	"context"
 	"encoding/json"
-	"math"
-	"strings"
 
-	"github.com/elastic/hey-apm/commands"
+	"github.com/elastic/go-elasticsearch/v7/esutil"
+
+	"github.com/elastic/go-elasticsearch/v7"
+	"github.com/elastic/hey-apm/reports"
 	"github.com/elastic/hey-apm/strcoll"
-	"github.com/olivere/elastic"
+	"github.com/pkg/errors"
 )
 
-type es struct {
-	*elastic.Client
-	Url          string
-	username     string
-	password     string
-	indexPattern string
-	Err          error
+type Connection struct {
+	*elasticsearch.Client
+	Url      string
+	username string
+	password string
+	Err      error
 }
 
 // returns a client connected to an ElasticSearch node with given `params`
 // "local" is short for http://localhost:9200
-func elasticsearch(params ...string) es {
-	url := strcoll.Get(0, params)
+func NewConnection(url, auth string) Connection {
 	if url == "local" {
 		url = "http://localhost:9200"
 	}
-	username := strcoll.Get(1, params)
-	password := strcoll.Get(2, params)
-	client, err := elastic.NewClient(
-		elastic.SetURL(url),
-		elastic.SetBasicAuth(username, password),
-		elastic.SetSniff(false),
-	)
-	es := es{client, url, username, password, "hey-bench", err}
-	return es
-}
+	username, password := strcoll.SplitKV(auth, ":")
 
-type ReportNode es
-
-func NewReportNode(params ...string) ReportNode {
-	es := elasticsearch(params...)
-	return ReportNode{es.Client, es.Url, es.username, es.password, "hey-bench", es.Err}
-}
-
-func (es ReportNode) FetchReports() ([]commands.TestReport, error) {
-	ret := make([]commands.TestReport, 0)
-
-	search, err := es.Search(es.indexPattern).
-		Sort("@timestamp", false).
-		Size(1000).
-		Do(context.Background())
-	if err != nil {
-		return ret, err
+	cfg := elasticsearch.Config{
+		Addresses: []string{url},
+		Username:  username,
+		Password:  password,
 	}
 
-	for _, hit := range search.Hits.Hits {
-		if err == nil {
-			var report commands.TestReport
-			err = json.Unmarshal(*hit.Source, &report)
-			ret = append(ret, report)
-		}
+	client, err := elasticsearch.NewClient(cfg)
+	return Connection{client, url, username, password, err}
+}
+
+func FetchReports(conn Connection, index string) ([]reports.Report, error) {
+	ret := make([]reports.Report, 0)
+	res, err := conn.Search(
+		conn.Search.WithIndex(index),
+		conn.Search.WithSort("@timestamp:desc"),
+	)
+	parsed := SearchResult{}
+	json.NewDecoder(res.Body).Decode(&parsed)
+	for _, hit := range parsed.Hits.Hits {
+		ret = append(ret, hit.Source)
 	}
 	return ret, err
 }
 
-func (es ReportNode) IndexReport(r commands.TestReport) error {
-	_, err := es.Index().
-		Index(es.indexPattern).
-		Type("_doc").
-		BodyJson(r).
-		Do(context.Background())
-	es.Refresh(es.indexPattern).Do(context.Background())
-	return err
-}
-
-type TestNode es
-
-func NewTestNode(params ...string) TestNode {
-	es := elasticsearch(params...)
-	return TestNode{es.Client, es.Url, es.username, es.password, "apm-*", es.Err}
-}
-
-func (es TestNode) Count() int {
-	if es.Err != nil {
-		return -1
+func IndexReport(conn Connection, index string, report reports.Report) error {
+	if conn.Err != nil {
+		return conn.Err
 	}
-	es.Flush(es.indexPattern).Do(context.Background())
-	ret, err := es.Search(es.indexPattern).Do(context.Background())
+	res, err := conn.Index(index, esutil.NewJSONReader(report),
+		conn.Index.WithRefresh("true"),
+		conn.Index.WithDocumentID(report.ReportId),
+	)
 	if err != nil {
-		return -1
-	} else {
-		// exclude onboarding doc
-		return int(math.Max(0, float64(ret.Hits.TotalHits-1)))
+		return err
 	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		return errors.New(res.String())
+	}
+	return nil
 }
 
-func (es TestNode) Health() (string, error) {
-	if es.Err != nil {
-		return "", es.Err
+func Count(conn Connection, index string) uint64 {
+	if conn.Err != nil {
+		return 0
 	}
-	status, err := es.ClusterHealth().Do(context.Background())
+	res, err := conn.Search(
+		conn.Search.WithIndex(index),
+		conn.Search.WithRestTotalHitsAsInt(true),
+	)
 	if err != nil {
-		return "", err
+		return 0
 	}
-	return strings.TrimSpace(status.Status), nil
-}
-
-// deletes all apm-* indices
-func (es TestNode) Reset() error {
-	if es.Err != nil {
-		return es.Err
-	}
-	_, err := es.Client.DeleteIndex(es.indexPattern).Do(context.Background())
-	if err == nil {
-		_, err = es.Client.Flush(es.indexPattern).Do(context.Background())
-	}
-	return err
+	var m map[string]interface{}
+	json.NewDecoder(res.Body).Decode(&m)
+	return uint64(m["hits"].(map[string]interface{})["total"].(float64))
 }
