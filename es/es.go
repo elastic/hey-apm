@@ -74,14 +74,13 @@ func Count(conn Connection, index string) uint64 {
 	if conn.Err != nil {
 		return 0
 	}
-	res, err := conn.Search(
-		conn.Search.WithIndex(index),
-		conn.Search.WithRestTotalHitsAsInt(true),
+	res, err := conn.Count(
+		conn.Count.WithIndex(index),
 	)
 	if err != nil {
 		return 0
 	}
 	var m map[string]interface{}
 	json.NewDecoder(res.Body).Decode(&m)
-	return uint64(m["hits"].(map[string]interface{})["total"].(float64))
+	return uint64(m["count"].(float64))
 }
