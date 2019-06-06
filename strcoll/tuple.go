@@ -19,7 +19,7 @@ func NewTuples() Tuples {
 }
 
 func (ts *Tuples) Add(first string, second interface{}) {
-	ts.data = append(ts.data, Tuple{first, conv.StringOf(second)})
+	ts.data = append(ts.data, Tuple{first, conv.ToString(second)})
 }
 
 func (ts Tuples) Format(padding int) string {

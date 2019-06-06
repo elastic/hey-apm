@@ -19,11 +19,12 @@ import (
 
 type Status struct {
 	Metrics               *ExpvarMetrics
-	SpanIndexCount        *uint64
-	TransactionIndexCount *uint64
-	ErrorIndexCount       *uint64
+	SpanIndexCount        uint64
+	TransactionIndexCount uint64
+	ErrorIndexCount       uint64
 }
 
+// GetStatus returns apm-server info and memory stats, plus elasticsearch counts of apm documents.
 func GetStatus(logger *log.Logger, secret, url string, connection es.Connection) Status {
 	status := Status{}
 
@@ -33,19 +34,9 @@ func GetStatus(logger *log.Logger, secret, url string, connection es.Connection)
 	} else {
 		logger.Println(err.Error())
 	}
-
-	if connection.Err == nil {
-		spans := es.Count(connection, "apm*span*")
-		transactions := es.Count(connection, "apm*transaction*")
-		errors := es.Count(connection, "apm*error*")
-
-		status.SpanIndexCount = &spans
-		status.TransactionIndexCount = &transactions
-		status.ErrorIndexCount = &errors
-	} else {
-		logger.Println(connection.Err.Error())
-	}
-
+	status.SpanIndexCount = es.Count(connection, "apm*span*")
+	status.TransactionIndexCount = es.Count(connection, "apm*transaction*")
+	status.ErrorIndexCount = es.Count(connection, "apm*error*")
 	return status
 }
 
@@ -71,6 +62,7 @@ type Memstats struct {
 	HeapAllocDiff  int64
 }
 
+// Sub subtracts some memory stats from another
 func (ms Memstats) Sub(ms2 Memstats) Memstats {
 	return Memstats{
 		TotalAlloc:     ms.TotalAlloc,
@@ -100,6 +92,7 @@ func (info Info) String() string {
 		info.Version, info.BuildDate.Day(), info.BuildDate.Month().String(), info.BuildSha[:7])
 }
 
+// Parse returns all the -E arguments passed to an apm-server except passwords
 func (cmd Cmdline) Parse() map[string]string {
 	ret := make(map[string]string)
 	var lookup bool
@@ -118,6 +111,7 @@ func (cmd Cmdline) Parse() map[string]string {
 	return ret
 }
 
+// QueryInfo sends a request to an apm-server health-check endpoint and parses the result.
 func QueryInfo(secret, url string) (Info, error) {
 	body, err := request(secret, url)
 	info := Info{}
@@ -127,6 +121,7 @@ func QueryInfo(secret, url string) (Info, error) {
 	return info, err
 }
 
+// QueryExpvar sends a request to an apm-server /debug/vars endpoint and parses the result.
 func QueryExpvar(secret, raw string) (ExpvarMetrics, error) {
 	u, _ := url.Parse(raw)
 	u.Path = "/debug/vars"

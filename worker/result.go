@@ -10,6 +10,7 @@ import (
 	"go.elastic.co/apm"
 )
 
+// Result holds stats captured from a Go agent plus timing information.
 type Result struct {
 	apm.TracerStats
 	agent.TransportStats
