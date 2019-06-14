@@ -55,10 +55,12 @@ pipeline {
         */
         stage('Test') {
           steps {
-            deleteDir()
-            unstash 'source'
-            dir("${BASE_DIR}"){
-              sh "./scripts/jenkins/unit-test.sh ${GO_VERSION}"
+            withGithubNotify(context: 'Test', tab: 'tests') {
+              deleteDir()
+              unstash 'source'
+              dir("${BASE_DIR}"){
+                sh "./scripts/jenkins/unit-test.sh ${GO_VERSION}"
+              }
             }
           }
           post {
@@ -78,21 +80,23 @@ pipeline {
             APM_SERVER_DIR = "${env.WORKSPACE}/${env.APM_SERVER_BASE_DIR}"
           }
           steps {
-            deleteDir()
-            unstash 'source'
             /*
-            dir("${APM_SERVER_BASE_DIR}"){
-              checkout([$class: 'GitSCM', branches: [[name: "${APM_SERVER_VERSION}"]],
-                doGenerateSubmoduleConfigurations: false,
-                extensions: [],
-                submoduleCfg: [],
-                userRemoteConfigs: [[credentialsId: "${JOB_GIT_CREDENTIALS}",
-                url: "git@github.com:elastic/apm-server.git"]]])
-            }
-            dir("${BASE_DIR}"){
-              withEsEnv(secret: 'apm-server-benchmark-cloud'){
-                sh './scripts/jenkins/run-test.sh'
+            withGithubNotify(context: 'Hey APM test', tab: 'tests') {
+              deleteDir()
+              unstash 'source'
+              dir("${APM_SERVER_BASE_DIR}"){
+                checkout([$class: 'GitSCM', branches: [[name: "${APM_SERVER_VERSION}"]],
+                  doGenerateSubmoduleConfigurations: false,
+                  extensions: [],
+                  submoduleCfg: [],
+                  userRemoteConfigs: [[credentialsId: "${JOB_GIT_CREDENTIALS}",
+                  url: "git@github.com:elastic/apm-server.git"]]])
+              }
+              dir("${BASE_DIR}"){
+                withEsEnv(secret: 'apm-server-benchmark-cloud'){
+                  sh './scripts/jenkins/run-test.sh'
 
+                }
               }
             }*/
             echo "NOOP"
@@ -109,19 +113,8 @@ pipeline {
     }
   }
   post {
-    success {
-      echoColor(text: '[SUCCESS]', colorfg: 'green', colorbg: 'default')
-    }
-    aborted {
-      echoColor(text: '[ABORTED]', colorfg: 'magenta', colorbg: 'default')
-    }
-    failure {
-      echoColor(text: '[FAILURE]', colorfg: 'red', colorbg: 'default')
-      step([$class: 'Mailer', notifyEveryUnstableBuild: true, recipients: "${NOTIFY_TO}", sendToIndividuals: false])
-    }
-    unstable {
-      echoColor(text: '[UNSTABLE]', colorfg: 'yellow', colorbg: 'default')
-      step([$class: 'Mailer', notifyEveryUnstableBuild: true, recipients: "${NOTIFY_TO}", sendToIndividuals: false])
+    always {
+      notifyBuildResult()
     }
   }
 }
