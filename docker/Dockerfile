@@ -18,4 +18,4 @@ COPY --from=0 /build/hey-apm /hey-apm
 
 USER hey
 ENTRYPOINT ["/hey-apm"]
-CMD ["-url", "http://apm-server:8200/"]
+CMD ["-apm-url", "http://apm-server:8200", "-es-url", "http://elasticsearch:9200"]
