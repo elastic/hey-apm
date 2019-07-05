@@ -1,6 +1,13 @@
 [![Build Status](https://apm-ci.elastic.co/buildStatus/icon?job=apm-server/apm-hey-test-mbp/master)](https://apm-ci.elastic.co/job/apm-server/job/apm-hey-test-mbp/job/master)
 
-Basic load generation for apm-server built on [hey](https://github.com/rakyll/hey).
+# Overview
+
+hey-apm is a basic load generation tool for apm-server simulating different workloads. 
+Back in the intake V1 days it was based on [hey](https://github.com/rakyll/hey),
+but now it uses the Go APM agent to generate events.
+
+hey-apm generates performance reports that can be indexed in Elasticsearch.
+It can be used manually or automatically (ie. in a CI environment)
 
 # Requirements
 
@@ -18,23 +25,9 @@ go get github.com/elastic/hey-apm
 docker build -t hey-apm -f docker/Dockerfile .
 ```
 
-# Interactive shell mode
+### Usage
 
-To run hey-apm in interactive shell mode pass the `cli` flag without additional arguments.
-
-```
-./hey-apm -cli
-```
-
-You then can connect to the port 8234 and start sending commands. It is recommended to use a readline wrapper.
-
-```
-rlwrap telnet localhost 8234
-```
-
-### help
-
-The `help` command describes the full semantics of the commands outlined above and some more things that hey-apm can do, like tail apm-server logs, etc.
+Run `./hey-apm -help` or see `main.go`
 
 # CI
 
@@ -53,5 +46,5 @@ The `Jenkinsfile` triggers sequentially:
 
 # Known issues
 
-* Documentation and functionality is WIP
-* Requires Elasticsearch 6.x
+* A single Go agent (as hey-apm uses) can't push enough load to overwhelm the apm-server, 
+as it will drop data too conservatively for benchmarking purposes. 

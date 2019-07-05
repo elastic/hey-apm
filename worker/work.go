@@ -12,16 +12,14 @@ import (
 	"time"
 
 	"github.com/elastic/hey-apm/agent"
-	"github.com/elastic/hey-apm/out"
-
 	"github.com/heptio/workgroup"
 
 	"go.elastic.co/apm"
 	"go.elastic.co/apm/stacktrace"
 )
 
-type Worker struct {
-	*out.ApmLogger
+type worker struct {
+	*apmLogger
 	*agent.Tracer
 	RunTimeout   time.Duration
 	FlushTimeout time.Duration
@@ -30,7 +28,8 @@ type Worker struct {
 	workgroup.Group
 }
 
-func (w *Worker) Work() (Result, error) {
+// work uses the Go agent API to generate events and send them to apm-server.
+func (w *worker) work() (Result, error) {
 	if w.RunTimeout > 0 {
 		w.Add(func(done <-chan struct{}) error {
 			select {
@@ -54,7 +53,8 @@ func (w *Worker) Work() (Result, error) {
 	return result, err
 }
 
-func (w *Worker) flush() {
+// flush ensures that the entire workload defined is pushed to the apm-server, within the worker timeout limit.
+func (w *worker) flush() {
 	flushed := make(chan struct{})
 	go func() {
 		w.Flush(nil)
@@ -86,7 +86,7 @@ func (e *generatedErr) Error() string {
 	return fmt.Sprintf("Generated error with %d stacktrace frame%s", e.frames, plural)
 }
 
-func (e *generatedErr) StackTrace() []stacktrace.Frame {
+func (e *generatedErr) stackTrace() []stacktrace.Frame {
 	st := make([]stacktrace.Frame, e.frames)
 	for i := 0; i < e.frames; i++ {
 		st[i] = stacktrace.Frame{
@@ -98,7 +98,7 @@ func (e *generatedErr) StackTrace() []stacktrace.Frame {
 	return st
 }
 
-func (w *Worker) AddErrors(frequency time.Duration, limit, framesMin, framesMax int) {
+func (w *worker) addErrors(frequency time.Duration, limit, framesMin, framesMax int) {
 	if limit <= 0 {
 		return
 	}
@@ -119,7 +119,7 @@ func (w *Worker) AddErrors(frequency time.Duration, limit, framesMin, framesMax 
 	})
 }
 
-func (w *Worker) AddTransactions(frequency time.Duration, limit, spanMin, spanMax int) {
+func (w *worker) addTransactions(frequency time.Duration, limit, spanMin, spanMax int) {
 	if limit <= 0 {
 		return
 	}
@@ -159,7 +159,7 @@ func (w *Worker) AddTransactions(frequency time.Duration, limit, spanMin, spanMa
 	w.Add(generator)
 }
 
-func (w *Worker) AddSignalHandling() {
+func (w *worker) addSignalHandling() {
 	w.Add(func(done <-chan struct{}) error {
 		c := make(chan os.Signal, 1)
 		signal.Notify(c, os.Interrupt)
@@ -172,7 +172,7 @@ func (w *Worker) AddSignalHandling() {
 	})
 }
 
-// throttle converts a time ticker to a channel of things
+// throttle converts a time ticker to a channel of things.
 func throttle(c <-chan time.Time) chan interface{} {
 	throttle := make(chan interface{})
 	go func() {

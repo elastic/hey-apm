@@ -21,6 +21,7 @@ type Tracer struct {
 	TransportStats *TransportStats
 }
 
+// TransportStats are captured by reading apm-server responses.
 type TransportStats struct {
 	Accepted    uint64
 	TopErrors   []string
@@ -34,9 +35,10 @@ func (t Tracer) Close() {
 	close(rt.c)
 }
 
+// NewTracer returns a wrapper with a new Go agent instance and its transport stats.
 func NewTracer(logger apm.Logger, serverUrl, serverSecret string, maxSpans int) *Tracer {
 
-	goTracer := apm.DefaultTracer
+	goTracer, _ := apm.NewTracer("hey-service", "beta")
 	goTracer.SetLogger(logger)
 	goTracer.SetMetricsInterval(0) // disable metrics
 	goTracer.SetSpanFramesMinDuration(1 * time.Nanosecond)
