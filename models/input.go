@@ -19,6 +19,8 @@ type Input struct {
 	RunTimeout   time.Duration `json:"run_timeout"`
 	FlushTimeout time.Duration `json:"flush_timeout"`
 
+	ServiceName    string `json:"service_name"`
+
 	TransactionFrequency time.Duration `json:"transaction_generation_frequency"`
 	TransactionLimit     int           `json:"transaction_generation_limit"`
 
