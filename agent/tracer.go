@@ -37,8 +37,8 @@ func (t Tracer) Close() {
 
 // NewTracer returns a wrapper with a new Go agent instance and its transport stats.
 func NewTracer(logger apm.Logger, serverUrl, serverSecret string, maxSpans int) *Tracer {
-
-	goTracer, _ := apm.NewTracer("hey-service", "beta")
+	// configure name, version with standard env vars: ELASTIC_APM_SERVICE_NAME, ELASTIC_APM_SERVICE_VERSION
+	goTracer, _ := apm.NewTracer("", "")
 	goTracer.SetLogger(logger)
 	goTracer.SetMetricsInterval(0) // disable metrics
 	goTracer.SetSpanFramesMinDuration(1 * time.Nanosecond)
