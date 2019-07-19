@@ -86,7 +86,8 @@ func (e *generatedErr) Error() string {
 	return fmt.Sprintf("Generated error with %d stacktrace frame%s", e.frames, plural)
 }
 
-func (e *generatedErr) stackTrace() []stacktrace.Frame {
+// must be public for apm agent to use it - https://www.elastic.co/guide/en/apm/agent/go/current/api.html#error-api
+func (e *generatedErr) StackTrace() []stacktrace.Frame {
 	st := make([]stacktrace.Frame, e.frames)
 	for i := 0; i < e.frames; i++ {
 		st[i] = stacktrace.Frame{
