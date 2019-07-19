@@ -20,8 +20,9 @@ func main() {
 	flushTimeout := flag.Duration("flush", 10*time.Second, "wait timeout for agent flush")
 	seed := flag.Int64("seed", time.Now().Unix(), "random seed")
 
-	// apm-server options
 	// convenience for https://www.elastic.co/guide/en/apm/agent/go/current/configuration.html
+	serviceName := flag.String("service-name", "", "service name") // ELASTIC_APM_SERVICE_NAME
+	// apm-server options
 	apmServerSecret := flag.String("apm-secret", "", "apm server secret token")       // ELASTIC_APM_SECRET_TOKEN
 	apmServerUrl := flag.String("apm-url", "http://localhost:8200", "apm server url") // ELASTIC_APM_SERVER_URL
 
@@ -61,6 +62,7 @@ func main() {
 		ElasticsearchAuth:    *elasticsearchAuth,
 		ApmElasticsearchUrl:  *apmElasticsearchUrl,
 		ApmElasticsearchAuth: *apmElasticsearchAuth,
+		ServiceName:          *serviceName,
 		RunTimeout:           *runTimeout,
 		FlushTimeout:         *flushTimeout,
 	}
@@ -68,7 +70,6 @@ func main() {
 	var err error
 	if *isBench {
 		err = benchmark.Run(input, *regressionMargin, *regressionDays)
-
 	} else {
 		input.TransactionFrequency = *transactionFrequency
 		input.TransactionLimit = *transactionLimit
