@@ -28,7 +28,7 @@ pipeline {
   }
   parameters {
     string(name: 'GO_VERSION', defaultValue: "1.12.1", description: "Go version to use.")
-    string(name: 'APM_SERVER_VERSION', defaultValue: "6.7", description: "APM Server Git branch/tag to use")
+    string(name: 'APM_SERVER_VERSION', defaultValue: "7.3.0-SNAPSHOT", description: "APM Server Git branch/tag to use")
   }
   stages {
     stage('Initializing'){
@@ -76,36 +76,21 @@ pipeline {
           APM server benchmark.
         */
         stage('Benchmark') {
-          stages {
-            stage('Start APM Server') {
-              agent { label 'metal' }
-              steps {
-                echo 'Prepare APM Server'
+          agent { label 'metal' }
+          steps {
+            withGithubNotify(context: 'Benchmark', tab: 'tests') {
+              deleteDir()
+              unstash 'source'
+              dir("${BASE_DIR}"){
+                sh 'scripts/jenkins/run-bench-in-docker.sh'
               }
             }
-            stage('Hey APM test') {
-              agent { label 'linux && immutable' }
-              options {
-                warnError('Hey APM test failed')
-              }
-              steps {
-                withGithubNotify(context: 'Benchmark', tab: 'tests') {
-                  echo './hey-apm -bench -run 5m -apm-url <url> -apm-secret <secret> -es-url <url> -es-auth <auth> -apm-es-url <url> -apm-es-auth <auth>'
-                }
-              }
-              post {
-                always {
-                  junit(allowEmptyResults: true,
-                    keepLongStdio: true,
-                    testResults: "${BASE_DIR}/build/junit-*.xml,${BASE_DIR}/build/TEST-*.xml")
-                }
-              }
-            }
-            stage('Stop APM Server') {
-              agent { label 'metal' }
-              steps {
-                echo 'Stop APM Server'
-              }
+          }
+          post {
+            always {
+              junit(allowEmptyResults: true,
+                keepLongStdio: true,
+                testResults: "${BASE_DIR}/build/junit-*.xml,${BASE_DIR}/build/TEST-*.xml")
             }
           }
         }

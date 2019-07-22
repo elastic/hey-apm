@@ -5,7 +5,7 @@
     description: APM Hey Tests
     project-type: multibranch
     view: APM-CI
-    concurrent: true
+    concurrent: false
     node: linux
     script-path: Jenkinsfile
     scm:

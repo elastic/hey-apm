@@ -1,0 +1,89 @@
+version: "2.4"
+services:
+  apm-server:
+    image: docker.elastic.co/apm/apm-server:${STACK_VERSION:-8.0.0-SNAPSHOT}
+    ports:
+      - "127.0.0.1:8200:8200"
+      - "127.0.0.1:6060:6060"
+    command: >
+      apm-server -e
+        -E apm-server.expvar.enabled=true
+        -E apm-server.frontend.enabled=true
+        -E apm-server.frontend.rate_limit=100000
+        -E apm-server.host=0.0.0.0:8200
+        -E apm-server.read_timeout=1m
+        -E apm-server.shutdown_timeout=2m
+        -E apm-server.write_timeout=1m
+        -E setup.template.settings.index.number_of_replicas=0
+        -E xpack.monitoring.elasticsearch=true
+        -E output.elasticsearch.enabled=${APM_SERVER_ELASTICSEARCH_OUTPUT_ENABLED:-true}
+        -E output.elasticsearch.hosts=["elasticsearch:9200"]
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    logging:
+      driver: 'json-file'
+      options:
+          max-size: '2m'
+          max-file: '5'
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--write-out", "'HTTP %{http_code}'", "--silent", "--output", "/dev/null", "http://apm-server:8200/healthcheck"]
+      retries: 10
+      interval: 10s
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION:-8.0.0-SNAPSHOT}
+    environment:
+      - bootstrap.memory_lock=true
+      - cluster.name=docker-cluster
+      - cluster.routing.allocation.disk.threshold_enabled=false
+      - discovery.type=single-node
+      - path.repo=/usr/share/elasticsearch/data/backups
+      - "ES_JAVA_OPTS=-XX:UseAVX=2 -Xms1g -Xmx1g"
+      - "path.data=/usr/share/elasticsearch/data/${STACK_VERSION:-8.0.0-SNAPSHOT}"
+      - xpack.security.enabled=false
+      - xpack.license.self_generated.type=trial
+      - xpack.monitoring.collection.enabled=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    mem_limit: 5g
+    logging:
+      driver: 'json-file'
+      options:
+          max-size: '2m'
+          max-file: '5'
+    ports:
+      - "127.0.0.1:9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -vq '\"status\":\"red\"'"]
+      retries: 10
+      interval: 20s
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+
+  hey-apm:
+    build:
+      context: ./
+      dockerfile: docker/Dockerfile-bench
+    working_dir: /app
+    volumes:
+      - ${PWD}:/app
+    user: ${USER_ID}
+    depends_on:
+      apm-server:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+
+volumes:
+  esdata:
+    driver: local
