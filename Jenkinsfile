@@ -73,39 +73,39 @@ pipeline {
           }
         }
         /**
-          APM server stress tests.
+          APM server benchmark.
         */
-        stage('Hey APM test') {
-          environment {
-            APM_SERVER_DIR = "${env.WORKSPACE}/${env.APM_SERVER_BASE_DIR}"
-          }
-          steps {
-            /*
-            withGithubNotify(context: 'Hey APM test', tab: 'tests') {
-              deleteDir()
-              unstash 'source'
-              dir("${APM_SERVER_BASE_DIR}"){
-                checkout([$class: 'GitSCM', branches: [[name: "${APM_SERVER_VERSION}"]],
-                  doGenerateSubmoduleConfigurations: false,
-                  extensions: [],
-                  submoduleCfg: [],
-                  userRemoteConfigs: [[credentialsId: "${JOB_GIT_CREDENTIALS}",
-                  url: "git@github.com:elastic/apm-server.git"]]])
+        stage('Benchmark') {
+          stages {
+            stage('Start APM Server') {
+              agent { label 'metal' }
+              steps {
+                echo 'Prepare APM Server'
               }
-              dir("${BASE_DIR}"){
-                withEsEnv(secret: 'apm-server-benchmark-cloud'){
-                  sh './scripts/jenkins/run-test.sh'
-
+            }
+            stage('Hey APM test') {
+              agent { label 'linux && immutable' }
+              options {
+                warnError('Hey APM test failed')
+              }
+              steps {
+                withGithubNotify(context: 'Benchmark', tab: 'tests') {
+                  echo './hey-apm -bench -run 5m -apm-url <url> -apm-secret <secret> -es-url <url> -es-auth <auth> -apm-es-url <url> -apm-es-auth <auth>'
                 }
               }
-            }*/
-            echo "NOOP"
-          }
-          post {
-            always {
-              junit(allowEmptyResults: true,
-                keepLongStdio: true,
-                testResults: "${BASE_DIR}/build/junit-*.xml,${BASE_DIR}/build/TEST-*.xml")
+              post {
+                always {
+                  junit(allowEmptyResults: true,
+                    keepLongStdio: true,
+                    testResults: "${BASE_DIR}/build/junit-*.xml,${BASE_DIR}/build/TEST-*.xml")
+                }
+              }
+            }
+            stage('Stop APM Server') {
+              agent { label 'metal' }
+              steps {
+                echo 'Stop APM Server'
+              }
             }
           }
         }
