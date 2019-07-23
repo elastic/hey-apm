@@ -2,10 +2,9 @@
 set -xeo pipefail
 
 docker-compose version
+docker-compose up --help
 
 STACK_VERSION=${STACK_VERSION} USER_ID="$(id -u):$(id -g)" docker-compose \
-  --no-ansi \
-  --log-level ERROR \
   up \
   --exit-code-from hey-apm \
   --build \
@@ -13,7 +12,4 @@ STACK_VERSION=${STACK_VERSION} USER_ID="$(id -u):$(id -g)" docker-compose \
   --abort-on-container-exit \
   hey-apm
 
-docker-compose \
-  --no-ansi \
-  --log-level ERROR \
-  down -v
+docker-compose down -v
