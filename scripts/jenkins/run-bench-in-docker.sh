@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -eo pipefail
+set -xeo pipefail
+
+docker-compose version
 
 STACK_VERSION=${STACK_VERSION} USER_ID="$(id -u):$(id -g)" docker-compose \
   --no-ansi \
