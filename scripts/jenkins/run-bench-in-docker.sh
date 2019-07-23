@@ -6,6 +6,7 @@ docker-compose up --help
 
 STACK_VERSION=${STACK_VERSION} USER_ID="$(id -u):$(id -g)" docker-compose \
   up \
+  --no-color \
   --exit-code-from hey-apm \
   --build \
   --remove-orphans \

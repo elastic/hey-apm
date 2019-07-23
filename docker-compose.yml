@@ -1,4 +1,4 @@
-version: "2.4"
+version: "2.1"
 services:
   apm-server:
     image: docker.elastic.co/apm/apm-server:${STACK_VERSION:-8.0.0-SNAPSHOT}
