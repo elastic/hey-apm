@@ -107,6 +107,7 @@ pipeline {
   }
 }
 
+// TODO: move to the shared library
 def sendBenchmark(String secretPath, Closure body) {
   def props = getVaultSecret(secret: secretPath)
   if(props?.errors){
@@ -130,4 +131,17 @@ def sendBenchmark(String secretPath, Closure body) {
         body()
     }
   }
+}
+
+def getProtocol(url){
+  def protocol = 'https://'
+  if(url.startsWith('https://')){
+    protocol = 'https://'
+  } else if (url.startsWith('http://')){
+    log(level: 'INFO', text: "Benchmarks: you are using 'http' protocol to access to the service.")
+    protocol = 'http://'
+  } else {
+    error 'sendBenchmark: unknow protocol, the url is not http(s).'
+  }
+  return protocol
 }
