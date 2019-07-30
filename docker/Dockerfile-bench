@@ -18,4 +18,4 @@ COPY --from=0 /build/hey-apm /hey-apm
 
 USER hey
 ENTRYPOINT ["/hey-apm"]
-CMD ["-bench", "-apm-url", "http://apm-server:8200", "-es-url", "${ES_URL}", "-es-auth", "${ES_AUTH}", "-apm-es-url", "http://elasticsearch:9200"]
+CMD ["-bench", "-apm-url", "http://apm-server:8200", "-es-url", "${ES_URL}", "-es-auth", "${ES_USER}:${ES_PASS}", "-apm-es-url", "http://elasticsearch:9200"]

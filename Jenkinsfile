@@ -111,24 +111,28 @@ pipeline {
 def sendBenchmark(String secretPath, Closure body) {
   def props = getVaultSecret(secret: secretPath)
   if(props?.errors){
-     error "sendBenchmark: Unable to get credentials from the vault: ${props.errors.toString()}"
+     error "sendBenchmark: Unable to get credentials from the vault: " + props.errors.toString()
   }
-  def url = props?.data?.url
-  def user = props?.data?.user
-  def password = props?.data?.password
 
-  if(props?.data == null || user == null || password == null || url == null){
+  def data = props?.data
+  def url = data?.url
+  def user = data?.user
+  def password = data?.password
+
+  if(data == null || user == null || password == null || url == null){
     error 'sendBenchmark: was not possible to get authentication info to send benchmarks'
   }
+
   def protocol = getProtocol(url)
 
   log(level: 'INFO', text: 'sendBenchmark: run script...')
   wrap([$class: 'MaskPasswordsBuildWrapper', varPasswordPairs: [
     [var: 'ES_URL', password: "${protocol}${url}"],
-    [var: 'ES_AUTH', password: "${user}:${password}"]
+    [var: 'ES_USER', password: "${user}"],
+    [var: 'ES_PASS', password: "${password}"]
     ]]) {
-    withEnv(["ES_URL=${protocol}${url}", "ES_AUTH=${user}:${password}"]){
-        body()
+    withEnv(["ES_URL=${protocol}${url}", "ES_USER=${user}", "ES_PASS=${password}"]){
+      body()
     }
   }
 }
@@ -138,7 +142,7 @@ def getProtocol(url){
   if(url.startsWith('https://')){
     protocol = 'https://'
   } else if (url.startsWith('http://')){
-    log(level: 'INFO', text: "Benchmarks: you are using 'http' protocol to access to the service.")
+    log(level: 'INFO', text: "sendBenchmark: you are using 'http' protocol to access to the service.")
     protocol = 'http://'
   } else {
     error 'sendBenchmark: unknow protocol, the url is not http(s).'
