@@ -69,7 +69,8 @@ services:
     working_dir: /app
     environment:
       - ES_URL=${ES_URL}
-      - ES_AUTH=${ES_AUTH}
+      - ES_USER=${ES_USER}
+      - ES_PASS=${ES_PASS}
     volumes:
       - ${PWD}:/app
     user: ${USER_ID}
