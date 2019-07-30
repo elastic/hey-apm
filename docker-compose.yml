@@ -67,6 +67,9 @@ services:
       context: ./
       dockerfile: docker/Dockerfile-bench
     working_dir: /app
+    environment:
+      - ES_URL=${ES_URL}
+      - ES_AUTH=${ES_AUTH}
     volumes:
       - ${PWD}:/app
     user: ${USER_ID}
