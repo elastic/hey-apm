@@ -15,8 +15,7 @@ MAINTAINER Elastic APM Team <docker@elastic.co>
 COPY --from=0 /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=0 /etc/passwd /etc/passwd
 COPY --from=0 /build/hey-apm /hey-apm
-
 USER hey
 ENTRYPOINT ["/hey-apm"]
-
-CMD ["sh", "-c", "-bench -apm-url http://apm-server:8200 -es-url ${ES_URL} -es-auth ${ES_USER}:${ES_PASS} -apm-es-url http://elasticsearch:9200"]
+## env variable interpolation does not work with arrays in docker. and sh is not available in the scratch image
+CMD -bench -apm-url http://apm-server:8200 -es-url ${ES_URL} -es-auth ${ES_USER}:${ES_PASS} -apm-es-url http://elasticsearch:9200
