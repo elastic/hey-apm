@@ -6,6 +6,7 @@ function finish {
   mkdir -p build
   {
     echo "curl -v ${ES_URL}"
+    curl -v --user "${ES_USER}:${ES_PASS}" "${ES_URL}"
     docker-compose version
     docker system info
     docker ps -a
