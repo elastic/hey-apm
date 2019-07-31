@@ -6,6 +6,8 @@ function finish {
   docker-compose version
   docker-compose up --help
   echo "***********************************************************"
+  docker system info
+  echo "***********************************************************"
   docker ps -a
   docker-compose logs
 }
