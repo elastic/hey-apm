@@ -82,18 +82,14 @@ pipeline {
             withGithubNotify(context: 'Benchmark', tab: 'tests') {
               deleteDir()
               unstash 'source'
-              dir("${BASE_DIR}"){
-                sendBenchmark(env.BENCHMARK_SECRET) {
-                  sh 'scripts/jenkins/run-bench-in-docker.sh'
+              script {
+                dir(BASE_DIR){
+                  sendBenchmarks.prepareAndRun(secret: env.BENCHMARK_SECRET, url_var: 'ES_URL',
+                                               user_var: 'ES_USER', pass_var: 'ES_PASS') {
+                    sh 'scripts/jenkins/run-bench-in-docker.sh'
+                  }
                 }
               }
-            }
-          }
-          post {
-            always {
-              junit(allowEmptyResults: true,
-                keepLongStdio: true,
-                testResults: "${BASE_DIR}/build/junit-*.xml,${BASE_DIR}/build/TEST-*.xml")
             }
           }
         }
@@ -105,47 +101,4 @@ pipeline {
       notifyBuildResult()
     }
   }
-}
-
-// TODO: move to the shared library
-def sendBenchmark(String secretPath, Closure body) {
-  def props = getVaultSecret(secret: secretPath)
-  if(props?.errors){
-     error "sendBenchmark: Unable to get credentials from the vault: " + props.errors.toString()
-  }
-
-  def data = props?.data
-  def url = data?.url
-  def user = data?.user
-  def password = data?.password
-
-  if(data == null || user == null || password == null || url == null){
-    error 'sendBenchmark: was not possible to get authentication info to send benchmarks'
-  }
-
-  def protocol = getProtocol(url)
-
-  log(level: 'INFO', text: 'sendBenchmark: run script...')
-  wrap([$class: 'MaskPasswordsBuildWrapper', varPasswordPairs: [
-    [var: 'ES_URL', password: "${protocol}${url}"],
-    [var: 'ES_USER', password: "${user}"],
-    [var: 'ES_PASS', password: "${password}"]
-    ]]) {
-    withEnv(["ES_URL=${protocol}${url}", "ES_USER=${user}", "ES_PASS=${password}"]){
-      body()
-    }
-  }
-}
-
-def getProtocol(url){
-  def protocol = 'https://'
-  if(url.startsWith('https://')){
-    protocol = 'https://'
-  } else if (url.startsWith('http://')){
-    log(level: 'INFO', text: "sendBenchmark: you are using 'http' protocol to access to the service.")
-    protocol = 'http://'
-  } else {
-    error 'sendBenchmark: unknow protocol, the url is not http(s).'
-  }
-  return protocol
 }
