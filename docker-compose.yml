@@ -10,6 +10,7 @@ services:
         -E setup.template.settings.index.number_of_replicas=0
         -E xpack.monitoring.elasticsearch=true
         -E output.elasticsearch.hosts=["elasticsearch:9200"]
+        -E apm-server.expvar.enabled=true
     cap_drop:
       - ALL
     cap_add:
