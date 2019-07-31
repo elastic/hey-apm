@@ -39,7 +39,7 @@ services:
       - cluster.routing.allocation.disk.threshold_enabled=false
       - discovery.type=single-node
       - path.repo=/usr/share/elasticsearch/data/backups
-      - "ES_JAVA_OPTS=-XX:UseAVX=2 -Xms2g -Xmx4g"
+      - "ES_JAVA_OPTS=-XX:UseAVX=2 -Xms1g -Xmx4g"
       - "path.data=/usr/share/elasticsearch/data/${STACK_VERSION:-8.0.0-SNAPSHOT}"
       - xpack.security.enabled=false
       - xpack.license.self_generated.type=trial
@@ -77,6 +77,7 @@ services:
     volumes:
       - ${PWD}:/app
     user: ${USER_ID}
+    mem_limit: 200m
     depends_on:
       apm-server:
         condition: service_healthy
