@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 set -xeo pipefail
 
-USER_ID="$(id -u):$(id -g)"
-STACK_VERSION=${STACK_VERSION}
-ES_URL=${ES_URL}
-ES_USER=${ES_USER}
-ES_PASS=${ES_PASS}
-export USER_ID STACK_VERSION ES_URL ES_USER ES_PASS
-
 function finish {
   set +e
   mkdir -p build
@@ -27,11 +20,16 @@ function finish {
 trap finish EXIT INT TERM
 
 ## Validate whether the ES_URL is reachable
-curl --user "${ES_USER}:${ES_PASS}" "${ES_URL}"
+curl -v --user "${ES_USER}:${ES_PASS}" "${ES_URL}"
 
-docker-compose up \
+STACK_VERSION=${STACK_VERSION} \
+ES_URL=${ES_URL} \
+ES_USER=${ES_USER} \
+ES_PASS=${ES_PASS} \
+USER_ID="$(id -u):$(id -g)" docker-compose up \
   --no-color \
   --exit-code-from hey-apm \
+  --build \
   --remove-orphans \
   --abort-on-container-exit \
   hey-apm
