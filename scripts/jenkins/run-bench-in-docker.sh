@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
 set -xeo pipefail
 
-docker-compose version
-docker-compose up --help
+function finish {
+  echo "***********************************************************"
+  docker-compose version
+  docker-compose up --help
+  echo "***********************************************************"
+  docker ps -a
+  docker-compose logs
+}
+trap finish EXIT
 
 STACK_VERSION=${STACK_VERSION} \
 ES_URL=${ES_URL} \
