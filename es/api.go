@@ -48,7 +48,6 @@ func IndexReport(conn Connection, report models.Report) error {
 		conn.Index.WithRefresh("true"),
 		conn.Index.WithDocumentID(report.ReportId),
 	)
-	defer resp.Body.Close()
 	if err != nil {
 		return err
 	}
@@ -69,6 +68,7 @@ func FetchReports(conn Connection, body interface{}) ([]models.Report, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if resp.IsError() {
 		return nil, errors.New(resp.String())
 	}
