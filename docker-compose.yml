@@ -67,6 +67,8 @@ services:
       context: ./
       dockerfile: docker/Dockerfile-bench
     working_dir: /app
+    command: >
+      /hey-apm -bench -apm-url http://apm-server:8200 -es-url ${ES_URL} -es-auth "${ES_USER}:${ES_PASS}" -apm-es-url http://elasticsearch:9200
     environment:
       - ES_URL=${ES_URL}
       - ES_USER=${ES_USER}
