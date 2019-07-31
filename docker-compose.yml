@@ -83,6 +83,14 @@ services:
         condition: service_healthy
       elasticsearch:
         condition: service_healthy
+      validate-es-url:
+        condition: service_started
+
+  validate-es-url:
+    image: pstauffer/curl
+    command: curl -v ${ES_URL}
+    environment:
+      - ES_URL=${ES_URL}
 
 volumes:
   esdata:

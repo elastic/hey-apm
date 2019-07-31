@@ -33,7 +33,8 @@ Run `./hey-apm -help` or see `main.go`
 
 The `Jenkinsfile` triggers sequentially:
 
-- `unit-test.sh`
+- `scripts/jenkins/unit-test.sh`
+- `scripts/jenkins/run-bench-in-docker.sh`
 
 ## Requirements
 - [gvm](https://github.com/andrewkroh/gvm)
@@ -51,6 +52,10 @@ Run `scripts/jenkins/run-bench-in-docker.sh`
 ## Configure the ES stack
 
 Run `ELASTIC_STACK=<version> scripts/jenkins/run-bench-in-docker.sh`
+
+## Configure the ES stack where to send the metrics to
+
+Run `ELASTIC_STACK=<version> ES_URL=<url> ES_USER=<user> ES_PASS=<password> scripts/jenkins/run-bench-in-docker.sh`
 
 # Known issues
 

@@ -2,16 +2,14 @@
 set -xeo pipefail
 
 function finish {
+  mkdir -p build
+  {
+    docker-compose version
+    docker system info
+    docker ps -a
+    docker-compose logs apm-server hey-apm elasticsearch wait
+  } > build/environment.txt
   docker-compose down -v
-  echo "***********************************************************"
-  docker-compose version
-  docker-compose up --help
-  echo "***********************************************************"
-  docker system info
-  echo "***********************************************************"
-  docker ps -a
-  # list the services explicitly to report the logs by service for easy reading
-  docker-compose logs apm-server  hey-apm elasticsearch
 }
 trap finish EXIT INT TERM
 

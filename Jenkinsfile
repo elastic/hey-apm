@@ -92,6 +92,11 @@ pipeline {
               }
             }
           }
+          post {
+            always {
+              archiveArtifacts "${BASE_DIR}/build/environment.txt"
+            }
+          }
         }
       }
     }
