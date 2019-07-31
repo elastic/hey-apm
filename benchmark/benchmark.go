@@ -87,7 +87,7 @@ func runner(conn es.Connection, margin float64, days string) func(name string, i
 func warmUp(input models.Input) {
 	input = models.Wrap{input}.WithErrors(math.MaxInt16, time.Millisecond).Input
 	input.RunTimeout = warm
-	input.ElasticsearchUrl = ""
+	input.SkipIndexReport = true
 	fmt.Println(fmt.Sprintf("warming up %.1f seconds...", warm.Seconds()))
 	worker.Run(input)
 	coolDown()
