@@ -2,6 +2,7 @@ version: "2.1"
 services:
   apm-server:
     image: docker.elastic.co/apm/apm-server:${STACK_VERSION:-8.0.0-SNAPSHOT}
+    container_name: apm-server
     ports:
       - "127.0.0.1:8200:8200"
       - "127.0.0.1:6060:6060"
@@ -33,6 +34,7 @@ services:
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION:-8.0.0-SNAPSHOT}
+    container_name: elasticsearch
     environment:
       - bootstrap.memory_lock=true
       - cluster.name=docker-cluster
@@ -70,6 +72,7 @@ services:
     working_dir: /app
     command: >
       /hey-apm -bench -run 5m -apm-url http://apm-server:8200 -es-url ${ES_URL} -es-auth "${ES_USER}:${ES_PASS}" -apm-es-url http://elasticsearch:9200
+    container_name: hey-apm
     environment:
       - ES_URL=${ES_URL}
       - ES_USER=${ES_USER}
@@ -88,9 +91,12 @@ services:
 
   validate-es-url:
     image: pstauffer/curl
-    command: curl -v ${ES_URL}
+    command: curl --user "${ES_USER}:${ES_PASS}" "${ES_URL}"
+    container_name: validate-es-url
     environment:
       - ES_URL=${ES_URL}
+      - ES_USER=${ES_USER}
+      - ES_PASS=${ES_PASS}
 
 volumes:
   esdata:
