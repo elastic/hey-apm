@@ -29,7 +29,7 @@ pipeline {
   }
   parameters {
     string(name: 'GO_VERSION', defaultValue: "1.12.1", description: "Go version to use.")
-    string(name: 'APM_SERVER_VERSION', defaultValue: "7.3.0-SNAPSHOT", description: "APM Server Git branch/tag to use")
+    string(name: 'STACK_VERSION', defaultValue: "7.3.0-SNAPSHOT", description: "Stack version Git branch/tag to use")
   }
   stages {
     stage('Initializing'){
