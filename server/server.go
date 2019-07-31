@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/elastic/hey-apm/es"
 
 	"github.com/elastic/hey-apm/conv"
@@ -130,7 +132,8 @@ func QueryExpvar(secret, raw string) (ExpvarMetrics, error) {
 	if err == nil {
 		err = json.Unmarshal(body, &metrics)
 	}
-	return metrics, err
+	return metrics, errors.Wrap(err, fmt.Sprintf("error querying %s, ensure to start apm-server"+
+		" with -E apm-server.expvar.enabled=true", u.Path))
 }
 
 func request(secret, url string) ([]byte, error) {

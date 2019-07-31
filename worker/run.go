@@ -37,7 +37,11 @@ func Run(input models.Input) (models.Report, error) {
 	fmt.Println(result)
 
 	finalStatus := server.GetStatus(logger, input.ApmServerSecret, input.ApmServerUrl, testNode)
-	report := createReport(logger, input, result, initialStatus, finalStatus)
+	report := createReport(input, result, initialStatus, finalStatus)
+
+	if input.SkipIndexReport {
+		return report, err
+	}
 
 	if input.ElasticsearchUrl == "" {
 		logger.Println("es-url unset: not indexing report")
@@ -71,7 +75,7 @@ func prepareWork(input models.Input) worker {
 	return w
 }
 
-func createReport(logger *log.Logger, input models.Input, result Result, initialStatus, finalStatus server.Status) models.Report {
+func createReport(input models.Input, result Result, initialStatus, finalStatus server.Status) models.Report {
 	this, _ := os.Hostname()
 	r := models.Report{
 		Input: input,
@@ -103,7 +107,7 @@ func createReport(logger *log.Logger, input models.Input, result Result, initial
 
 	info, ierr := server.QueryInfo(input.ApmServerSecret, input.ApmServerUrl)
 	if ierr == nil {
-		logger.Println(info)
+		fmt.Println(info)
 
 		r.ApmBuild = info.BuildSha
 		r.ApmBuildDate = info.BuildDate
@@ -112,7 +116,7 @@ func createReport(logger *log.Logger, input models.Input, result Result, initial
 
 	if initialStatus.Metrics != nil && finalStatus.Metrics != nil {
 		memstats := finalStatus.Metrics.Memstats.Sub(initialStatus.Metrics.Memstats)
-		logger.Println(memstats)
+		fmt.Println(memstats)
 
 		r.TotalAlloc = &memstats.TotalAlloc
 		r.HeapAlloc = &memstats.HeapAlloc
