@@ -5,6 +5,7 @@ function finish {
   set +e
   mkdir -p build
   {
+    echo "curl -v ${ES_URL}"
     docker-compose version
     docker system info
     docker ps -a
@@ -20,6 +21,7 @@ function finish {
 trap finish EXIT INT TERM
 
 ## Validate whether the ES_URL is reachable
+env | sort
 curl -v --user "${ES_USER}:${ES_PASS}" "${ES_URL}"
 
 STACK_VERSION=${STACK_VERSION} \
