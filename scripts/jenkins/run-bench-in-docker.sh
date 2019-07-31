@@ -2,6 +2,7 @@
 set -xeo pipefail
 
 function finish {
+  docker-compose down -v
   echo "***********************************************************"
   docker-compose version
   docker-compose up --help
@@ -12,7 +13,7 @@ function finish {
   # list the services explicitly to report the logs by service for easy reading
   docker-compose logs apm-server  hey-apm elasticsearch
 }
-trap finish EXIT
+trap finish EXIT INT TERM
 
 STACK_VERSION=${STACK_VERSION} \
 ES_URL=${ES_URL} \
@@ -26,5 +27,3 @@ USER_ID="$(id -u):$(id -g)" docker-compose \
   --remove-orphans \
   --abort-on-container-exit \
   hey-apm
-
-docker-compose down -v
