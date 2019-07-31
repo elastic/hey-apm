@@ -9,7 +9,8 @@ function finish {
   docker system info
   echo "***********************************************************"
   docker ps -a
-  docker-compose logs
+  # list the services explicitly to report the logs by service for easy reading
+  docker-compose logs apm-server  hey-apm elasticsearch
 }
 trap finish EXIT
 
