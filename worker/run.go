@@ -39,6 +39,10 @@ func Run(input models.Input) (models.Report, error) {
 	finalStatus := server.GetStatus(logger, input.ApmServerSecret, input.ApmServerUrl, testNode)
 	report := createReport(input, result, initialStatus, finalStatus)
 
+	if input.SkipIndexReport {
+		return report, err
+	}
+
 	if input.ElasticsearchUrl == "" {
 		logger.Println("es-url unset: not indexing report")
 	} else {

@@ -5,11 +5,12 @@ import (
 )
 
 // Input holds all the parameters given to a load test work.
-// Most parameters describe a workload pattern, other are required to create performance reports.
+// Most parameters describe a workload pattern, others are required to create performance reports.
 type Input struct {
 	ApmServerUrl    string `json:"apm_url"`
 	ApmServerSecret string `json:"-"`
 
+	SkipIndexReport   bool   `json:"-"`
 	ElasticsearchUrl  string `json:"-"`
 	ElasticsearchAuth string `json:"-"`
 
@@ -19,7 +20,7 @@ type Input struct {
 	RunTimeout   time.Duration `json:"run_timeout"`
 	FlushTimeout time.Duration `json:"flush_timeout"`
 
-	ServiceName    string `json:"service_name"`
+	ServiceName string `json:"service_name"`
 
 	TransactionFrequency time.Duration `json:"transaction_generation_frequency"`
 	TransactionLimit     int           `json:"transaction_generation_limit"`
