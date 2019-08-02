@@ -12,6 +12,7 @@ pipeline {
     APM_SERVER_VERSION = "${params.APM_SERVER_VERSION}"
     NOTIFY_TO = credentials('notify-to')
     JOB_GCS_BUCKET = credentials('gcs-bucket')
+    BENCHMARK_SECRET  = 'secret/apm-team/ci/apm-server-benchmark-cloud'
   }
   options {
     timeout(time: 1, unit: 'HOURS')
@@ -28,7 +29,7 @@ pipeline {
   }
   parameters {
     string(name: 'GO_VERSION', defaultValue: "1.12.1", description: "Go version to use.")
-    string(name: 'APM_SERVER_VERSION', defaultValue: "6.7", description: "APM Server Git branch/tag to use")
+    string(name: 'STACK_VERSION', defaultValue: "7.3.0-SNAPSHOT", description: "Stack version Git branch/tag to use")
   }
   stages {
     stage('Initializing'){
@@ -73,39 +74,27 @@ pipeline {
           }
         }
         /**
-          APM server stress tests.
+          APM server benchmark.
         */
-        stage('Hey APM test') {
-          environment {
-            APM_SERVER_DIR = "${env.WORKSPACE}/${env.APM_SERVER_BASE_DIR}"
-          }
+        stage('Benchmark') {
+          agent { label 'metal' }
           steps {
-            /*
-            withGithubNotify(context: 'Hey APM test', tab: 'tests') {
+            withGithubNotify(context: 'Benchmark', tab: 'tests') {
               deleteDir()
               unstash 'source'
-              dir("${APM_SERVER_BASE_DIR}"){
-                checkout([$class: 'GitSCM', branches: [[name: "${APM_SERVER_VERSION}"]],
-                  doGenerateSubmoduleConfigurations: false,
-                  extensions: [],
-                  submoduleCfg: [],
-                  userRemoteConfigs: [[credentialsId: "${JOB_GIT_CREDENTIALS}",
-                  url: "git@github.com:elastic/apm-server.git"]]])
-              }
-              dir("${BASE_DIR}"){
-                withEsEnv(secret: 'apm-server-benchmark-cloud'){
-                  sh './scripts/jenkins/run-test.sh'
-
+              script {
+                dir(BASE_DIR){
+                  sendBenchmarks.prepareAndRun(secret: env.BENCHMARK_SECRET, url_var: 'ES_URL',
+                                               user_var: 'ES_USER', pass_var: 'ES_PASS') {
+                    sh 'scripts/jenkins/run-bench-in-docker.sh'
+                  }
                 }
               }
-            }*/
-            echo "NOOP"
+            }
           }
           post {
             always {
-              junit(allowEmptyResults: true,
-                keepLongStdio: true,
-                testResults: "${BASE_DIR}/build/junit-*.xml,${BASE_DIR}/build/TEST-*.xml")
+              archiveArtifacts "${BASE_DIR}/build/environment.txt"
             }
           }
         }

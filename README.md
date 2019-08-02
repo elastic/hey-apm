@@ -2,7 +2,7 @@
 
 # Overview
 
-hey-apm is a basic load generation tool for apm-server simulating different workloads. 
+hey-apm is a basic load generation tool for apm-server simulating different workloads.
 Back in the intake V1 days it was based on [hey](https://github.com/rakyll/hey),
 but now it uses the Go APM agent to generate events.
 
@@ -33,7 +33,8 @@ Run `./hey-apm -help` or see `main.go`
 
 The `Jenkinsfile` triggers sequentially:
 
-- `unit-test.sh`
+- `scripts/jenkins/unit-test.sh`
+- `scripts/jenkins/run-bench-in-docker.sh`
 
 ## Requirements
 - [gvm](https://github.com/andrewkroh/gvm)
@@ -44,7 +45,19 @@ The `Jenkinsfile` triggers sequentially:
   ./scripts/jenkins/unit-test.sh 1.12.1
 ```
 
+# How to run locally the hey-apm using a docker-compose services
+
+Run `scripts/jenkins/run-bench-in-docker.sh`
+
+## Configure the ES stack
+
+Run `ELASTIC_STACK=<version> scripts/jenkins/run-bench-in-docker.sh`
+
+## Configure the ES stack where to send the metrics to
+
+Run `ELASTIC_STACK=<version> ES_URL=<url> ES_USER=<user> ES_PASS=<password> scripts/jenkins/run-bench-in-docker.sh`
+
 # Known issues
 
-* A single Go agent (as hey-apm uses) can't push enough load to overwhelm the apm-server, 
-as it will drop data too conservatively for benchmarking purposes. 
+* A single Go agent (as hey-apm uses) can't push enough load to overwhelm the apm-server,
+as it will drop data too conservatively for benchmarking purposes.
