@@ -78,6 +78,10 @@ pipeline {
         */
         stage('Benchmark') {
           agent { label 'metal' }
+          when {
+            beforeAgent true
+            not { changeRequest() }
+          }
           steps {
             withGithubNotify(context: 'Benchmark', tab: 'tests') {
               deleteDir()
