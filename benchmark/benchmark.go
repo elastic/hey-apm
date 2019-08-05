@@ -40,27 +40,32 @@ func Run(input models.Input, margin float64, days string) error {
 
 	run := runner(conn, margin, days)
 	run("transactions only", models.Wrap{input}.
-		WithTransactions(math.MaxInt32, time.Millisecond*100).
+		WithTransactions(math.MaxInt32, time.Millisecond*5).
 		Input)
 	run("small transactions", models.Wrap{input}.
-		WithTransactions(math.MaxInt32, time.Millisecond*100).
+		WithTransactions(math.MaxInt32, time.Millisecond*5).
 		WithSpans(10).
 		Input)
 	run("large transactions", models.Wrap{input}.
-		WithTransactions(math.MaxInt32, time.Millisecond*100).
+		WithTransactions(math.MaxInt32, time.Millisecond*5).
 		WithSpans(40).
 		Input)
 	run("small errors only", models.Wrap{input}.
-		WithErrors(math.MaxInt32, time.Millisecond*100).
+		WithErrors(math.MaxInt32, time.Millisecond).
 		WithFrames(10).
 		Input)
 	run("very large errors only", models.Wrap{input}.
-		WithErrors(math.MaxInt32, time.Millisecond*100).
-		WithFrames(100).
+		WithErrors(math.MaxInt32, time.Millisecond).
+		WithFrames(500).
 		Input)
-	err = run("high load", models.Wrap{input}.
-		WithTransactions(math.MaxInt32, time.Millisecond).
+	run("transactions only very high load", models.Wrap{input}.
+		WithTransactions(math.MaxInt32, time.Nanosecond*50).
+		Input)
+	err = run("transactions, spans and errors high load", models.Wrap{input}.
+		WithTransactions(math.MaxInt32, time.Millisecond*5).
 		WithSpans(10).
+		WithErrors(math.MaxInt32, time.Millisecond).
+		WithFrames(50).
 		Input)
 
 	return err
