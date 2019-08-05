@@ -20,7 +20,8 @@
 pipeline {
   agent any
   environment {
-    BASE_DIR="src/github.com/elastic/hey-apm"
+    BASE_DIR = 'src/github.com/elastic/hey-apm'
+    VERSION_FILE = 'https://raw.githubusercontent.com/elastic/apm-server/master/vendor/github.com/elastic/beats/libbeat/version/version.go'
     JOB_GIT_CREDENTIALS = "f6c7695a-671e-4f4f-a331-acdce44ff9ba"
     GO_VERSION = "${params.GO_VERSION}"
     STACK_VERSION = "${params.STACK_VERSION}"
@@ -40,8 +41,8 @@ pipeline {
     cron('H H(3-5) * * 1-5')
   }
   parameters {
-    string(name: 'GO_VERSION', defaultValue: "1.12.1", description: "Go version to use.")
-    string(name: 'STACK_VERSION', defaultValue: "7.3.0-SNAPSHOT", description: "Stack version Git branch/tag to use")
+    string(name: 'GO_VERSION', defaultValue: '1.12.1', description: 'Go version to use.')
+    string(name: 'STACK_VERSION', defaultValue: '', description: 'Stack version Git branch/tag to use. Default behavior uses the apm-server@master version.')
   }
   stages {
     stage('Initializing'){
@@ -61,6 +62,11 @@ pipeline {
             deleteDir()
             gitCheckout(basedir: "${BASE_DIR}")
             stash allowEmpty: true, name: 'source', useDefaultExcludes: false
+            script {
+              if (params.STACK_VERSION.trim()) {
+                env.STACK_VERSION = getVersion()
+              }
+            }
           }
         }
         /**
@@ -118,4 +124,8 @@ pipeline {
       notifyBuildResult()
     }
   }
+}
+
+def getVersion() {
+  return sh(script: """curl -s ${VERSION_FILE}  | grep defaultBeatVersion | cut -d'=' -f2 | sed 's#"##g'""", returnStdout: true).trim()
 }
