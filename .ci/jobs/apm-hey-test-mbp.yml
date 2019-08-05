@@ -7,7 +7,7 @@
     view: APM-CI
     concurrent: false
     node: linux
-    script-path: Jenkinsfile
+    script-path: .ci/Jenkinsfile
     scm:
     - github:
         branch-discovery: all
