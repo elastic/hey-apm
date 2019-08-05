@@ -12,7 +12,7 @@ pipeline {
     APM_SERVER_VERSION = "${params.APM_SERVER_VERSION}"
     NOTIFY_TO = credentials('notify-to')
     JOB_GCS_BUCKET = credentials('gcs-bucket')
-    BENCHMARK_SECRET  = 'secret/apm-team/ci/apm-server-benchmark-cloud'
+    BENCHMARK_SECRET  = 'secret/apm-team/ci/java-agent-benchmark-cloud'
   }
   options {
     timeout(time: 1, unit: 'HOURS')
