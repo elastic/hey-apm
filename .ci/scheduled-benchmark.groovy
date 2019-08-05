@@ -64,7 +64,7 @@ pipeline {
             stash allowEmpty: true, name: 'source', useDefaultExcludes: false
             script {
               if (params.STACK_VERSION.trim()) {
-                env.STACK_VERSION = getVersion()
+                env.STACK_VERSION = getVersion() + '-SNAPSHOT'
               }
             }
           }
