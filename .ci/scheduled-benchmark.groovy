@@ -60,12 +60,10 @@ pipeline {
         */
         stage('Test') {
           steps {
-            withGithubNotify(context: 'Test', tab: 'tests') {
-              deleteDir()
-              unstash 'source'
-              dir("${BASE_DIR}"){
-                sh "./scripts/jenkins/unit-test.sh ${GO_VERSION}"
-              }
+            deleteDir()
+            unstash 'source'
+            dir("${BASE_DIR}"){
+              sh "./scripts/jenkins/unit-test.sh ${GO_VERSION}"
             }
           }
           post {
@@ -83,15 +81,13 @@ pipeline {
         stage('Benchmark') {
           agent { label 'metal' }
           steps {
-            withGithubNotify(context: 'Benchmark', tab: 'tests') {
-              deleteDir()
-              unstash 'source'
-              script {
-                dir(BASE_DIR){
-                  sendBenchmarks.prepareAndRun(secret: env.BENCHMARK_SECRET, url_var: 'ES_URL',
-                                               user_var: 'ES_USER', pass_var: 'ES_PASS') {
-                    sh 'scripts/jenkins/run-bench-in-docker.sh'
-                  }
+            deleteDir()
+            unstash 'source'
+            script {
+              dir(BASE_DIR){
+                sendBenchmarks.prepareAndRun(secret: env.BENCHMARK_SECRET, url_var: 'ES_URL',
+                                             user_var: 'ES_USER', pass_var: 'ES_PASS') {
+                  sh 'scripts/jenkins/run-bench-in-docker.sh'
                 }
               }
             }
