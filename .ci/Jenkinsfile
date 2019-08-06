@@ -6,13 +6,10 @@ pipeline {
   agent any
   environment {
     BASE_DIR="src/github.com/elastic/hey-apm"
-    APM_SERVER_BASE_DIR = "src/github.com/elastic/apm-server"
     JOB_GIT_CREDENTIALS = "f6c7695a-671e-4f4f-a331-acdce44ff9ba"
     GO_VERSION = "${params.GO_VERSION}"
-    APM_SERVER_VERSION = "${params.APM_SERVER_VERSION}"
     NOTIFY_TO = credentials('notify-to')
     JOB_GCS_BUCKET = credentials('gcs-bucket')
-    BENCHMARK_SECRET  = 'secret/apm-team/ci/java-agent-benchmark-cloud'
   }
   options {
     timeout(time: 1, unit: 'HOURS')
@@ -24,12 +21,8 @@ pipeline {
     rateLimitBuilds(throttle: [count: 60, durationName: 'hour', userBoost: true])
     quietPeriod(10)
   }
-  triggers {
-    cron('H H(3-5) * * 1-5')
-  }
   parameters {
     string(name: 'GO_VERSION', defaultValue: "1.12.1", description: "Go version to use.")
-    string(name: 'STACK_VERSION', defaultValue: "7.3.0-SNAPSHOT", description: "Stack version Git branch/tag to use")
   }
   stages {
     stage('Initializing'){
@@ -70,35 +63,6 @@ pipeline {
               junit(allowEmptyResults: true,
                 keepLongStdio: true,
                 testResults: "${BASE_DIR}/build/*.xml")
-            }
-          }
-        }
-        /**
-          APM server benchmark.
-        */
-        stage('Benchmark') {
-          agent { label 'metal' }
-          when {
-            beforeAgent true
-            not { changeRequest() }
-          }
-          steps {
-            withGithubNotify(context: 'Benchmark', tab: 'tests') {
-              deleteDir()
-              unstash 'source'
-              script {
-                dir(BASE_DIR){
-                  sendBenchmarks.prepareAndRun(secret: env.BENCHMARK_SECRET, url_var: 'ES_URL',
-                                               user_var: 'ES_USER', pass_var: 'ES_PASS') {
-                    sh 'scripts/jenkins/run-bench-in-docker.sh'
-                  }
-                }
-              }
-            }
-          }
-          post {
-            always {
-              archiveArtifacts "${BASE_DIR}/build/environment.txt"
             }
           }
         }

@@ -1,0 +1,22 @@
+---
+- job:
+    name: apm-server/apm-hey-test-benchmark
+    display-name: Hey apm test benchmark pipeline scheduled daily
+    description: Hey apm test benchmark pipeline scheduled daily from Monday to Friday
+    view: APM-CI
+    project-type: pipeline
+    pipeline-scm:
+      script-path: .ci/scheduled-benchmark.groovy
+      scm:
+      - git:
+          url: git@github.com:elastic/hey-apm.git
+          refspec: +refs/heads/*:refs/remotes/origin/* +refs/pull/*/head:refs/remotes/origin/pr/*
+          wipe-workspace: 'True'
+          name: origin
+          shallow-clone: true
+          credentials-id: f6c7695a-671e-4f4f-a331-acdce44ff9ba
+          reference-repo: /var/lib/jenkins/.git-references/hey-apm.git
+          branches:
+          - master
+    triggers:
+    - timed: 'H H(3-5) * * 1-5'
