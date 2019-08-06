@@ -45,7 +45,8 @@ pipeline {
         stage('Checkout') {
           steps {
             deleteDir()
-            gitCheckout(basedir: "${BASE_DIR}")
+            gitCheckout(basedir: env.BASE_DIR, repo: 'git@github.com:elastic/hey-apm.git',
+                        branch: 'master', credentialsId: env.JOB_GIT_CREDENTIALS)
             stash allowEmpty: true, name: 'source', useDefaultExcludes: false
             script {
               if (params.STACK_VERSION.trim()) {
