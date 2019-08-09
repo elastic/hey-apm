@@ -126,9 +126,18 @@ func verify(conn es.Connection, report models.Report, margin float64, days strin
 			},
 		},
 	}
+
 	for k, v := range inputMap {
+		switch val := v.(type) {
+		case string:
+			if val == ""{
+				filters = append(filters, types.M{"match": types.M{k+".keyword": v}})
+				continue
+			}
+		}
 		filters = append(filters, types.M{"match": types.M{k: v}})
 	}
+
 	body := types.M{
 		"query": types.M{
 			"bool": types.M{
@@ -140,6 +149,10 @@ func verify(conn es.Connection, report models.Report, margin float64, days strin
 	savedReports, fetchErr := es.FetchReports(conn, body)
 	if fetchErr != nil {
 		return fetchErr
+	}
+	if len(savedReports) == 0{
+		// if not even the newly created report is found, something is wrong
+		return errors.New(fmt.Sprintf("no saved reports for query parameters +%v", body))
 	}
 
 	var regression error
