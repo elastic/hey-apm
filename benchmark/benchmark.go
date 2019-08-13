@@ -27,7 +27,7 @@ const (
 //
 // Regression checks accept an error margin and are not aware of apm-server versions, only URLs.
 // apm-server must be started independently with -E apm-server.expvar.enabled=true
-func Run(input models.Input, margin float64, days string) error {
+func Run(input models.Input) error {
 	// prevent send on closed chan error
 	apm.DefaultTracer.Close()
 
@@ -38,7 +38,7 @@ func Run(input models.Input, margin float64, days string) error {
 
 	warmUp(input)
 
-	run := runner(conn, margin, days)
+	run := runner(conn, input.RegressionMargin, input.RegressionDays)
 	run("transactions only", models.Wrap{input}.
 		WithTransactions(math.MaxInt32, time.Millisecond*5).
 		Input)
