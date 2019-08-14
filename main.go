@@ -38,7 +38,10 @@ func parseFlags() models.Input {
 	seed := flag.Int64("seed", time.Now().Unix(), "random seed")
 
 	// convenience for https://www.elastic.co/guide/en/apm/agent/go/current/configuration.html
-	serviceName := flag.String("service-name", "hey-service", "service name") // ELASTIC_APM_SERVICE_NAME
+	serviceName := os.Getenv("ELASTIC_APM_SERVICE_NAME")
+	if serviceName == "" {
+		serviceName = *flag.String("service-name", "hey-service", "service name") // ELASTIC_APM_SERVICE_NAME
+	}
 	// apm-server options
 	apmServerSecret := flag.String("apm-secret", "", "apm server secret token")       // ELASTIC_APM_SECRET_TOKEN
 	apmServerUrl := flag.String("apm-url", "http://localhost:8200", "apm server url") // ELASTIC_APM_SERVER_URL
@@ -80,7 +83,7 @@ func parseFlags() models.Input {
 		ElasticsearchAuth:    *elasticsearchAuth,
 		ApmElasticsearchUrl:  *apmElasticsearchUrl,
 		ApmElasticsearchAuth: *apmElasticsearchAuth,
-		ServiceName:          *serviceName,
+		ServiceName:          serviceName,
 		RunTimeout:           *runTimeout,
 		FlushTimeout:         *flushTimeout,
 	}
