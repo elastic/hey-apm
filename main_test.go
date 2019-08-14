@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 
 // All JSON fields in Input are required, with zero values being meaningful.
 func TestDefaultInput(t *testing.T) {
+	os.Args[1] = "-bench"
 	expectedZeroValues := []string{
 		"transaction_generation_limit",
 		"transaction_generation_frequency",
@@ -24,6 +26,7 @@ func TestDefaultInput(t *testing.T) {
 	}
 
 	input := parseFlags()
+	assert.True(t, input.IsBenchmark)
 	for k, v := range conv.ToMap(input) {
 		if strcoll.Contains(k, expectedZeroValues) {
 			continue
