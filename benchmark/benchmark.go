@@ -59,7 +59,7 @@ func Run(input models.Input) error {
 		WithFrames(500).
 		Input)
 	run("transactions only very high load", models.Wrap{input}.
-		WithTransactions(math.MaxInt32, time.Nanosecond*50).
+		WithTransactions(math.MaxInt32, time.Microsecond*100).
 		Input)
 	err = run("transactions, spans and errors high load", models.Wrap{input}.
 		WithTransactions(math.MaxInt32, time.Millisecond*5).
