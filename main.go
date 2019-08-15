@@ -5,6 +5,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/elastic/hey-apm/benchmark"
@@ -15,13 +16,32 @@ import (
 )
 
 func main() {
+
+	var err error
+
+	input := parseFlags()
+	if input.IsBenchmark {
+		err = benchmark.Run(input)
+	} else {
+		_, err = worker.Run(input)
+	}
+
+	if err != nil {
+		os.Exit(1)
+	}
+}
+
+func parseFlags() models.Input {
 	// run options
 	runTimeout := flag.Duration("run", 30*time.Second, "stop run after this duration")
 	flushTimeout := flag.Duration("flush", 10*time.Second, "wait timeout for agent flush")
 	seed := flag.Int64("seed", time.Now().Unix(), "random seed")
 
 	// convenience for https://www.elastic.co/guide/en/apm/agent/go/current/configuration.html
-	serviceName := flag.String("service-name", "", "service name") // ELASTIC_APM_SERVICE_NAME
+	serviceName := os.Getenv("ELASTIC_APM_SERVICE_NAME")
+	if serviceName == "" {
+		serviceName = *flag.String("service-name", "hey-service", "service name") // ELASTIC_APM_SERVICE_NAME
+	}
 	// apm-server options
 	apmServerSecret := flag.String("apm-secret", "", "apm server secret token")       // ELASTIC_APM_SECRET_TOKEN
 	apmServerUrl := flag.String("apm-url", "http://localhost:8200", "apm server url") // ELASTIC_APM_SERVER_URL
@@ -56,34 +76,35 @@ func main() {
 	rand.Seed(*seed)
 
 	input := models.Input{
+		IsBenchmark:          *isBench,
 		ApmServerUrl:         *apmServerUrl,
 		ApmServerSecret:      *apmServerSecret,
 		ElasticsearchUrl:     *elasticsearchUrl,
 		ElasticsearchAuth:    *elasticsearchAuth,
 		ApmElasticsearchUrl:  *apmElasticsearchUrl,
 		ApmElasticsearchAuth: *apmElasticsearchAuth,
-		ServiceName:          *serviceName,
+		ServiceName:          serviceName,
 		RunTimeout:           *runTimeout,
 		FlushTimeout:         *flushTimeout,
 	}
 
-	var err error
 	if *isBench {
-		err = benchmark.Run(input, *regressionMargin, *regressionDays)
-	} else {
-		input.TransactionFrequency = *transactionFrequency
-		input.TransactionLimit = *transactionLimit
-		input.SpanMaxLimit = *spanMaxLimit
-		input.SpanMinLimit = *spanMinLimit
-		input.ErrorFrequency = *errorFrequency
-		input.ErrorLimit = *errorLimit
-		input.ErrorFrameMaxLimit = *errorFrameMaxLimit
-		input.ErrorFrameMinLimit = *errorFrameMinLimit
-
-		_, err = worker.Run(input)
+		if _, err := strconv.Atoi(*regressionDays); err != nil {
+			panic(err)
+		}
+		input.RegressionDays = *regressionDays
+		input.RegressionMargin = *regressionMargin
+		return input
 	}
 
-	if err != nil {
-		os.Exit(1)
-	}
+	input.TransactionFrequency = *transactionFrequency
+	input.TransactionLimit = *transactionLimit
+	input.SpanMaxLimit = *spanMaxLimit
+	input.SpanMinLimit = *spanMinLimit
+	input.ErrorFrequency = *errorFrequency
+	input.ErrorLimit = *errorLimit
+	input.ErrorFrameMaxLimit = *errorFrameMaxLimit
+	input.ErrorFrameMinLimit = *errorFrameMinLimit
+
+	return input
 }
