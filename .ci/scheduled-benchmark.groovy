@@ -23,7 +23,7 @@ pipeline {
     durabilityHint('PERFORMANCE_OPTIMIZED')
   }
   triggers {
-    cron('H H(3-5) * * 1-5')
+    cron('H H(3-5) * * *')
   }
   parameters {
     string(name: 'GO_VERSION', defaultValue: '1.12.1', description: 'Go version to use.')
