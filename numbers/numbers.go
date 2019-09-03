@@ -39,7 +39,13 @@ func Divp(i1, i2 interface{}, p int) *float64 {
 
 func truncate(f float64, p int) float64 {
 	m := math.Pow10(p)
-	return math.Round(f*m) / m
+	ret := math.Round(f*m) / m
+	// workaround lack of elasticsearch mapping
+	// don't tell this anyone
+	if ret == float64(int64(ret)) {
+		ret += 0.01
+	}
+	return ret
 }
 
 // Sum sums all its arguments.
@@ -49,4 +55,29 @@ func Sum(xs ...uint64) uint64 {
 		i += x
 	}
 	return i
+}
+
+// SumPt sums 2 pointers and returns a pointer to the result
+func SumPt(i1 *int64, i2 *int64) *int64 {
+	if i1 == nil && i2 == nil {
+		return nil
+	}
+	if i1 == nil {
+		return i2
+	}
+	if i2 == nil {
+		return i1
+	}
+	i := *i1 + *i2
+	return &i
+}
+
+// IntDivPt makes an integer division where the numerator is a pointer,
+// and returns a pointer to the result
+func IntDivPt(n *int64, d int) *int64 {
+	if n == nil || d == 0 {
+		return nil
+	}
+	i := *n / int64(d)
+	return &i
 }
