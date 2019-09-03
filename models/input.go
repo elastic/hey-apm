@@ -11,6 +11,7 @@ type Input struct {
 	// Whether or not this object will be processed by the `benchmark` package
 	IsBenchmark bool `json:"-"`
 	// Number of days to look back for regressions (only if IsBenchmark is true)
+	// Empty string disables regression check
 	RegressionDays string `json:"-"`
 	// Acceptable performance decrease without being considered as regressions, as a percentage
 	// (only if IsBenchmark is true)

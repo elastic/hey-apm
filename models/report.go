@@ -1,6 +1,7 @@
 package models
 
 import (
+	"sort"
 	"time"
 
 	"github.com/elastic/hey-apm/numbers"
@@ -38,6 +39,8 @@ type Report struct {
 
 	// total elapsed (timeout + flush)
 	Elapsed float64 `json:"elapsed"`
+	// if this report is an aggregation of others, this value indicates how many
+	Aggregated int `json:"aggregated"`
 
 	// number of total requests to apm-server
 	Requests uint64 `json:"requests"`
@@ -184,4 +187,77 @@ func (r Report) WithDerivedAttributes() Report {
 	r.EventLossRatio = numbers.CPerct(r.EventsIndexed, r.EventsGenerated)
 
 	return r
+}
+
+// Aggregates reports by rounded timestamp and combines metrics as follows:
+// - Memory stats are averaged
+// - Event counts are summed
+// Reports are sorted by date (most recent first)
+func Aggregate(reports []Report, roundBy time.Duration) []Report {
+	ret := make([]Report, 0)
+	aggs := make(map[string][]Report)
+	for _, r := range reports {
+		k := r.Timestamp.Round(time.Second * roundBy).String()
+		rs, ok := aggs[k]
+		if ok {
+			aggs[k] = append(rs, r)
+		} else {
+			aggs[k] = []Report{r}
+		}
+	}
+	for k, agg := range aggs {
+		ret = append(ret, combineMetrics(k, agg))
+	}
+	sort.Sort(byDate(ret))
+	return ret
+}
+
+func combineMetrics(reportId string, reports []Report) Report {
+	size := len(reports)
+	if size == 0 {
+		return Report{}
+	}
+	ret := reports[0]
+	ret.ReportId = reportId
+	ret.Aggregated = len(reports)
+	for _, r := range reports[1:] {
+		if ret.Elapsed < r.Elapsed {
+			ret.Elapsed = r.Elapsed
+		}
+		ret.Requests += r.Requests
+		ret.FailedRequests += r.FailedRequests
+
+		ret.ErrorsGenerated += r.ErrorsGenerated
+		ret.ErrorsSent += r.ErrorsSent
+		ret.TransactionsGenerated += r.TransactionsGenerated
+		ret.TransactionsSent += r.TransactionsSent
+		ret.SpansGenerated += r.SpansGenerated
+		ret.SpansSent += r.SpansSent
+		ret.EventsAccepted += r.EventsAccepted
+
+		ret.TotalAlloc = numbers.SumPt(ret.TotalAlloc, r.TotalAlloc)
+		ret.HeapAlloc = numbers.SumPt(ret.HeapAlloc, r.HeapAlloc)
+		ret.Mallocs = numbers.SumPt(ret.Mallocs, r.Mallocs)
+		ret.NumGC = numbers.SumPt(ret.NumGC, r.NumGC)
+	}
+	ret.TotalAlloc = numbers.IntDivPt(ret.TotalAlloc, size)
+	ret.HeapAlloc = numbers.IntDivPt(ret.HeapAlloc, size)
+	ret.Mallocs = numbers.IntDivPt(ret.Mallocs, size)
+	ret.NumGC = numbers.IntDivPt(ret.NumGC, size)
+
+	return ret.WithDerivedAttributes()
+}
+
+type byDate []Report
+
+func (r byDate) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
+}
+
+func (r byDate) Len() int {
+	return len(r)
+}
+
+func (r byDate) Less(i, j int) bool {
+	return r[i].date().After(r[j].date())
 }

@@ -77,8 +77,12 @@ func runner(conn es.Connection, margin float64, days string) func(name string, i
 	return func(name string, input models.Input) error {
 		fmt.Println("running benchmark with " + name)
 		report, e := worker.Run(input)
-		if e == nil {
-			e = verify(conn, report, margin, days)
+		coolDown()
+		if e == nil && days != "" {
+			report, e = verify(conn, report, margin, days)
+			if report.Aggregated > 0 {
+				es.IndexReport(conn, report)
+			}
 		}
 		if e != nil {
 			fmt.Println(e)
@@ -109,10 +113,9 @@ func coolDown() {
 // compares the given report with saved reports with the same input indexed in the last specified days
 // returns an error if connection can't be established,
 // or performance decreased by a margin larger than specified
-func verify(conn es.Connection, report models.Report, margin float64, days string) error {
-	coolDown()
+func verify(conn es.Connection, report models.Report, margin float64, days string) (models.Report, error) {
 	if report.EventsIndexed < 100 {
-		return errors.New(fmt.Sprintf("not enough events indexed: %d", report.EventsIndexed))
+		return report, errors.New(fmt.Sprintf("not enough events indexed: %d", report.EventsIndexed))
 	}
 
 	inputMap := conv.ToMap(report.Input)
@@ -139,20 +142,30 @@ func verify(conn es.Connection, report models.Report, margin float64, days strin
 
 	savedReports, fetchErr := es.FetchReports(conn, body)
 	if fetchErr != nil {
-		return fetchErr
+		return report, fetchErr
 	}
 
+	last, previous := split(models.Aggregate(savedReports, time.Second*2))
+
 	var regression error
-	for _, sr := range savedReports {
-		if report.ReportId != sr.ReportId && report.Performance()*margin < sr.Performance() {
-			regression = newRegression(report, sr)
+	// todo index meta reports
+	for _, prev := range previous {
+		if last.Performance()*margin < prev.Performance() {
+			regression = newRegression(last, prev)
 		}
 	}
-	return regression
+	return last, regression
 }
 
 func newRegression(r1, r2 models.Report) error {
 	return errors.New(fmt.Sprintf(`test report with doc id %s was expected to show same or better 
 performance as %s, however %.2f is lower than %.2f`,
 		r1.ReportId, r2.ReportId, r1.Performance(), r2.Performance()))
+}
+
+func split(reports []models.Report) (models.Report, []models.Report) {
+	if len(reports) == 0 {
+		panic("No reports found - expected at least one")
+	}
+	return reports[0], reports[1:]
 }

@@ -89,7 +89,7 @@ func parseFlags() models.Input {
 	}
 
 	if *isBench {
-		if _, err := strconv.Atoi(*regressionDays); err != nil {
+		if _, err := strconv.Atoi(*regressionDays); *regressionDays != "" && err != nil {
 			panic(err)
 		}
 		input.RegressionDays = *regressionDays
