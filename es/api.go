@@ -2,6 +2,7 @@ package es
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/elastic/go-elasticsearch/v7/esutil"
 
@@ -97,4 +98,15 @@ func Count(conn Connection, index string) uint64 {
 	var m map[string]interface{}
 	json.NewDecoder(res.Body).Decode(&m)
 	return uint64(m["count"].(float64))
+}
+
+func Delete(conn Connection, indices ...string) error {
+	resp, err := conn.Indices.Delete(indices)
+	if err != nil {
+		return err
+	}
+	if resp.IsError() {
+		return errors.New(fmt.Sprintf("%s: %s", resp.Status(), resp.String()))
+	}
+	return nil
 }
