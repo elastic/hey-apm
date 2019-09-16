@@ -11,6 +11,9 @@ function finish {
     docker-compose logs apm-server validate-es-url hey-apm
     docker inspect --format "{{json .State }}" apm-server validate-es-url hey-apm
   } > build/environment.txt
+  # Ensure all the sensitive details are obfuscated
+  sed -i.bck -e "s#${ES_USER}#********#g" -e "s#${ES_PASS}#********#g" -e "s#${ES_URL}#********#g" build/environment.txt
+  rm build/*.bck || true
   docker-compose down -v
   # To avoid running twice the same function and therefore override the environment.txt file.
   trap - INT QUIT TERM EXIT
@@ -23,7 +26,7 @@ trap finish EXIT INT TERM
 curl -v --user "${ES_USER}:${ES_PASS}" "${ES_URL}"
 
 ## Report ES stack health
-curl --user "${ES_USER}:${ES_PASS}" "${ES_URL}/_cluster/health"
+curl -s --user "${ES_USER}:${ES_PASS}" "${ES_URL}/_cluster/health"
 
 STACK_VERSION=${STACK_VERSION} \
 ES_URL=${ES_URL} \
