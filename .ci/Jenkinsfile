@@ -10,7 +10,6 @@ pipeline {
     GO_VERSION = "${params.GO_VERSION}"
     NOTIFY_TO = credentials('notify-to')
     JOB_GCS_BUCKET = credentials('gcs-bucket')
-    BENCHMARK_SECRET  = 'secret/apm-team/ci/benchmark-cloud'
   }
   options {
     timeout(time: 1, unit: 'HOURS')
@@ -64,30 +63,6 @@ pipeline {
               junit(allowEmptyResults: true,
                 keepLongStdio: true,
                 testResults: "${BASE_DIR}/build/*.xml")
-            }
-          }
-        }
-        /**
-          APM server benchmark.
-        */
-        stage('Benchmark') {
-          agent { label 'metal' }
-          options { skipDefaultCheckout() }
-          steps {
-            deleteDir()
-            unstash 'source'
-            script {
-              dir(BASE_DIR){
-                sendBenchmarks.prepareAndRun(secret: env.BENCHMARK_SECRET, url_var: 'ES_URL',
-                                             user_var: 'ES_USER', pass_var: 'ES_PASS') {
-                  sh 'scripts/jenkins/run-bench-in-docker.sh'
-                }
-              }
-            }
-          }
-          post {
-            always {
-              archiveArtifacts "${BASE_DIR}/build/environment.txt"
             }
           }
         }
