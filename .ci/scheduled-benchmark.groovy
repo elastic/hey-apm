@@ -12,7 +12,7 @@ pipeline {
     STACK_VERSION = "${params.STACK_VERSION}"
     NOTIFY_TO = credentials('notify-to')
     JOB_GCS_BUCKET = credentials('gcs-bucket')
-    BENCHMARK_SECRET  = 'secret/apm-team/ci/java-agent-benchmark-cloud'
+    BENCHMARK_SECRET  = 'secret/apm-team/ci/benchmark-cloud'
   }
   options {
     timeout(time: 1, unit: 'HOURS')
