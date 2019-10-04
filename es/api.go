@@ -97,7 +97,10 @@ func Count(conn Connection, index string) uint64 {
 	}
 	var m map[string]interface{}
 	json.NewDecoder(res.Body).Decode(&m)
-	return uint64(m["count"].(float64))
+	if ct, ok := m["count"]; ok && ct != nil{
+		return uint64(m["count"].(float64))
+	}
+	return 0
 }
 
 func Delete(conn Connection, indices ...string) error {
