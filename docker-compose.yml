@@ -9,9 +9,10 @@ services:
     command: >
       apm-server -e
         -E setup.template.settings.index.number_of_replicas=0
-        -E xpack.monitoring.elasticsearch=true
+        -E monitoring.enabled=true
         -E apm-server.expvar.enabled=true
         -E apm-server.ilm.enabled=false
+        -E apm-server.instrumentation.enabled=true
         -E output.elasticsearch.hosts=["${ES_URL}"]
         -E output.elasticsearch.username=${ES_USER}
         -E output.elasticsearch.password=${ES_PASS}
@@ -42,7 +43,7 @@ services:
       dockerfile: docker/Dockerfile-bench
     working_dir: /app
     command: >
-      /hey-apm -bench -run 5m -apm-url http://apm-server:8200 -es-url ${ES_URL} -es-auth "${ES_USER}:${ES_PASS}" -apm-es-url ${ES_URL} -apm-es-auth "${ES_USER}:${ES_PASS}"
+      /hey-apm -bench -run 5m -rm 1.2 -apm-url http://apm-server:8200 -es-url ${ES_URL} -es-auth "${ES_USER}:${ES_PASS}" -apm-es-url ${ES_URL} -apm-es-auth "${ES_USER}:${ES_PASS}"
     container_name: hey-apm
     environment:
       - ES_URL=${ES_URL}
