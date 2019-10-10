@@ -11,8 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/elastic/hey-apm/internal/heptio/workgroup"
+
 	"github.com/elastic/hey-apm/agent"
-	"github.com/heptio/workgroup"
 
 	"go.elastic.co/apm"
 	"go.elastic.co/apm/stacktrace"
