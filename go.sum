@@ -12,8 +12,6 @@ github.com/elastic/go-windows v0.0.0-20180831131045-bb1581babc04 h1:6iBgytvH10GM
 github.com/elastic/go-windows v0.0.0-20180831131045-bb1581babc04/go.mod h1:jgPEIvw0E137UFC4zfkcjyM9T9shDL+JIfqFXQQhVwc=
 github.com/google/go-cmp v0.2.0 h1:+dTQ8DZQJz0Mb/HjFlkptS1FeQ4cWSnN941F8aEG4SQ=
 github.com/google/go-cmp v0.2.0/go.mod h1:oXzfMopK8JAjlY9xF4vHSVASa0yLyX7SntLO5aqRK0M=
-github.com/heptio/workgroup v0.8.0-beta.1 h1:7o1B3CsesQFRHFxWRWB19a6E3PfhIj2CdXLYdFhN2Yg=
-github.com/heptio/workgroup v0.8.0-beta.1/go.mod h1:IuHqolPhhQFt9b9b/qu8XpcadoQD3QCr4WjqrOleypc=
 github.com/jessevdk/go-flags v1.4.0/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=
 github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901 h1:rp+c0RAYOWj8l6qbCUTSiRLG/iKnW3K3/QfPPuSsBt4=
 github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901/go.mod h1:Z86h9688Y0wesXCyonoVr47MasHilkuLMqGhRZ4Hpak=

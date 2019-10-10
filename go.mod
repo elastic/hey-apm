@@ -4,7 +4,6 @@ go 1.12
 
 require (
 	github.com/elastic/go-elasticsearch/v7 v7.1.1
-	github.com/heptio/workgroup v0.8.0-beta.1
 	github.com/pkg/errors v0.8.1
 	github.com/prometheus/procfs v0.0.0-20190328153300-af7bedc223fb // indirect
 	github.com/stretchr/testify v1.3.0
