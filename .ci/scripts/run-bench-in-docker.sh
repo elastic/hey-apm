@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -xeo pipefail
+set -eo pipefail
+set +x
 
 function finish {
   set +e
@@ -22,12 +23,13 @@ function finish {
 
 trap finish EXIT INT TERM
 
-## Validate whether the ES_URL is reachable
-curl -v --user "${ES_USER}:${ES_PASS}" "${ES_URL}"
+echo "Validate whether the ES_URL is reachable"
+curl --user "${ES_USER}:${ES_PASS}" "${ES_URL}"
 
-## Report ES stack health
+echo "Report ES stack health"
 curl -s --user "${ES_USER}:${ES_PASS}" "${ES_URL}/_cluster/health"
 
+echo "Launch test"
 STACK_VERSION=${STACK_VERSION} \
 ES_URL=${ES_URL} \
 ES_USER=${ES_USER} \

@@ -63,7 +63,7 @@ pipeline {
             deleteDir()
             unstash 'source'
             dir("${BASE_DIR}"){
-              sh "./scripts/jenkins/unit-test.sh ${GO_VERSION}"
+              sh "./.ci/scripts/unit-test.sh ${GO_VERSION}"
             }
           }
           post {
@@ -90,7 +90,7 @@ pipeline {
               dir(BASE_DIR){
                 sendBenchmarks.prepareAndRun(secret: env.BENCHMARK_SECRET, url_var: 'ES_URL',
                                              user_var: 'ES_USER', pass_var: 'ES_PASS') {
-                  sh 'scripts/jenkins/run-bench-in-docker.sh'
+                  sh '.ci/scripts/run-bench-in-docker.sh'
                 }
               }
             }
