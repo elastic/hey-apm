@@ -80,6 +80,9 @@ pipeline {
         */
         stage('Benchmark') {
           agent { label 'metal' }
+          when {
+            expresion { return false }
+          }
           steps {
             deleteDir()
             unstash 'source'
