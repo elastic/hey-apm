@@ -4,7 +4,7 @@
 #
 # NOTE: It's required to be launched inside the root of the project.
 #
-# Usage: ./scripts/jenkins/unit-test.sh 1.12.1
+# Usage: ./.ci/scripts/unit-test.sh 1.12.1
 #
 set -exuo pipefail
 
