@@ -40,7 +40,7 @@ pipeline {
         stage('Checkout') {
           steps {
             deleteDir()
-            gitCheckout(basedir: "${BASE_DIR}")
+            gitCheckout(basedir: "${BASE_DIR}", reference: '/var/lib/jenkins/.git-references/hey-apm.git')
             stash allowEmpty: true, name: 'source', useDefaultExcludes: false
           }
         }
