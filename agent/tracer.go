@@ -110,8 +110,8 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	b, rerr := ioutil.ReadAll(resp.Body)
 	if rerr == nil {
-		rt.c <- b
 		rt.wg.Add(1)
+		rt.c <- b
 		resp.Body = ioutil.NopCloser(bytes.NewReader(b))
 	}
 
