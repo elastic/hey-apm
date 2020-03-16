@@ -13,6 +13,7 @@ pipeline {
     NOTIFY_TO = credentials('notify-to')
     JOB_GCS_BUCKET = credentials('gcs-bucket')
     BENCHMARK_SECRET  = 'secret/apm-team/ci/benchmark-cloud'
+    APM_SERVER_BRANCH = "${params.APM_SERVER_BRANCH}"
   }
   options {
     timeout(time: 1, unit: 'HOURS')
@@ -26,6 +27,7 @@ pipeline {
     cron('H H(3-5) * * *')
   }
   parameters {
+    string(name: 'APM_SERVER_BRANCH', defaultValue: 'master', description: 'The apm-server branch to clone from.')
     string(name: 'GO_VERSION', defaultValue: '1.12.1', description: 'Go version to use.')
     string(name: 'STACK_VERSION', defaultValue: '', description: 'Stack version Git branch/tag to use. Default behavior uses the apm-server@master version.')
   }
@@ -46,7 +48,7 @@ pipeline {
           steps {
             deleteDir()
             gitCheckout(basedir: env.BASE_DIR, repo: 'git@github.com:elastic/hey-apm.git',
-                        branch: 'master', credentialsId: env.JOB_GIT_CREDENTIALS)
+                        branch: env.APM_SERVER_BRANCH, credentialsId: env.JOB_GIT_CREDENTIALS)
             stash allowEmpty: true, name: 'source', useDefaultExcludes: false
             script {
               if (params.STACK_VERSION.trim()) {
@@ -85,8 +87,13 @@ pipeline {
             unstash 'source'
             script {
               dir(BASE_DIR){
-                sendBenchmarks.prepareAndRun(secret: env.BENCHMARK_SECRET, url_var: 'ES_URL',
-                                             user_var: 'ES_USER', pass_var: 'ES_PASS') {
+                // Only send benchmark stats with the master branch.
+                if (env.APM_SERVER_BRANCH.equals('master')) {
+                  sendBenchmarks.prepareAndRun(secret: env.BENCHMARK_SECRET, url_var: 'ES_URL',
+                                              user_var: 'ES_USER', pass_var: 'ES_PASS') {
+                    sh '.ci/scripts/run-bench-in-docker.sh'
+                  }
+                } else {
                   sh '.ci/scripts/run-bench-in-docker.sh'
                 }
               }
