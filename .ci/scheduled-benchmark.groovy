@@ -82,7 +82,7 @@ pipeline {
             script {
               dir(BASE_DIR){
                 sendBenchmarks.prepareAndRun(secret: env.BENCHMARK_SECRET, url_var: 'ES_URL',
-                                            user_var: 'ES_USER', pass_var: 'ES_PASS') {
+                                             user_var: 'ES_USER', pass_var: 'ES_PASS') {
                   sh '.ci/scripts/run-bench-in-docker.sh'
                 }
               }
