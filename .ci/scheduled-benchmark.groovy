@@ -9,6 +9,7 @@ pipeline {
     JOB_GIT_CREDENTIALS = "f6c7695a-671e-4f4f-a331-acdce44ff9ba"
     GO_VERSION = "${params.GO_VERSION}"
     STACK_VERSION = "${params.STACK_VERSION}"
+    APM_DOCKER_IMAGE = "${params.APM_DOCKER_IMAGE}"
     NOTIFY_TO = credentials('notify-to')
     JOB_GCS_BUCKET = credentials('gcs-bucket')
     BENCHMARK_SECRET  = 'secret/apm-team/ci/benchmark-cloud'
@@ -26,7 +27,8 @@ pipeline {
   }
   parameters {
     string(name: 'GO_VERSION', defaultValue: '1.12.1', description: 'Go version to use.')
-    string(name: 'STACK_VERSION', defaultValue: '8.0.0-SNAPSHOT', description: 'Stack version Git branch/tag to use. Default behavior uses the apm-server@master version.')
+    string(name: 'STACK_VERSION', defaultValue: '8.0.0-SNAPSHOT', description: 'Stack version Git branch/tag to use.')
+    string(name: 'APM_DOCKER_IMAGE', defaultValue: 'docker.elastic.co/apm/apm-server', description: 'The docker image to be used.')
   }
   stages {
     stage('Initializing'){

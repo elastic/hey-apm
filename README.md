@@ -49,9 +49,13 @@ The `Jenkinsfile` triggers sequentially:
 
 Run `.ci/scripts/run-bench-in-docker.sh`
 
-## Configure the ES stack
+## Configure the ES stack version
 
 Run `ELASTIC_STACK=<version> .ci/scripts/run-bench-in-docker.sh`
+
+## Configure the docker image for the ES stack
+
+Run `APM_DOCKER_IMAGE=<docker-image> .ci/scripts/run-bench-in-docker.sh`
 
 ## Configure the ES stack where to send the metrics to
 
