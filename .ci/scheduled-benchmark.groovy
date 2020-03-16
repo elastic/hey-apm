@@ -6,14 +6,12 @@ pipeline {
   agent any
   environment {
     BASE_DIR = 'src/github.com/elastic/hey-apm'
-    VERSION_FILE = 'https://raw.githubusercontent.com/elastic/apm-server/master/vendor/github.com/elastic/beats/libbeat/version/version.go'
     JOB_GIT_CREDENTIALS = "f6c7695a-671e-4f4f-a331-acdce44ff9ba"
     GO_VERSION = "${params.GO_VERSION}"
     STACK_VERSION = "${params.STACK_VERSION}"
     NOTIFY_TO = credentials('notify-to')
     JOB_GCS_BUCKET = credentials('gcs-bucket')
     BENCHMARK_SECRET  = 'secret/apm-team/ci/benchmark-cloud'
-    APM_SERVER_BRANCH = "${params.APM_SERVER_BRANCH}"
   }
   options {
     timeout(time: 1, unit: 'HOURS')
@@ -27,9 +25,8 @@ pipeline {
     cron('H H(3-5) * * *')
   }
   parameters {
-    string(name: 'APM_SERVER_BRANCH', defaultValue: 'master', description: 'The apm-server branch to clone from.')
     string(name: 'GO_VERSION', defaultValue: '1.12.1', description: 'Go version to use.')
-    string(name: 'STACK_VERSION', defaultValue: '', description: 'Stack version Git branch/tag to use. Default behavior uses the apm-server@master version.')
+    string(name: 'STACK_VERSION', defaultValue: '8.0.0-SNAPSHOT', description: 'Stack version Git branch/tag to use. Default behavior uses the apm-server@master version.')
   }
   stages {
     stage('Initializing'){
@@ -48,13 +45,8 @@ pipeline {
           steps {
             deleteDir()
             gitCheckout(basedir: env.BASE_DIR, repo: 'git@github.com:elastic/hey-apm.git',
-                        branch: env.APM_SERVER_BRANCH, credentialsId: env.JOB_GIT_CREDENTIALS)
+                        branch: 'master', credentialsId: env.JOB_GIT_CREDENTIALS)
             stash allowEmpty: true, name: 'source', useDefaultExcludes: false
-            script {
-              if (params.STACK_VERSION.trim()) {
-                env.STACK_VERSION = getVersion() + '-SNAPSHOT'
-              }
-            }
           }
         }
         /**
@@ -87,13 +79,8 @@ pipeline {
             unstash 'source'
             script {
               dir(BASE_DIR){
-                // Only send benchmark stats with the master branch.
-                if (env.APM_SERVER_BRANCH.equals('master')) {
-                  sendBenchmarks.prepareAndRun(secret: env.BENCHMARK_SECRET, url_var: 'ES_URL',
-                                              user_var: 'ES_USER', pass_var: 'ES_PASS') {
-                    sh '.ci/scripts/run-bench-in-docker.sh'
-                  }
-                } else {
+                sendBenchmarks.prepareAndRun(secret: env.BENCHMARK_SECRET, url_var: 'ES_URL',
+                                            user_var: 'ES_USER', pass_var: 'ES_PASS') {
                   sh '.ci/scripts/run-bench-in-docker.sh'
                 }
               }
@@ -113,8 +100,4 @@ pipeline {
       notifyBuildResult()
     }
   }
-}
-
-def getVersion() {
-  return sh(script: """curl -s ${VERSION_FILE}  | grep defaultBeatVersion | cut -d'=' -f2 | sed 's#"##g'""", returnStdout: true).trim()
 }
