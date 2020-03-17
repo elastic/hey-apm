@@ -3,7 +3,7 @@
 @Library('apm@current') _
 
 pipeline {
-  agent any
+  agent { label 'linux && immutable' }
   environment {
     BASE_DIR = 'src/github.com/elastic/hey-apm'
     VERSION_FILE = 'https://raw.githubusercontent.com/elastic/apm-server/master/vendor/github.com/elastic/beats/libbeat/version/version.go'
@@ -31,7 +31,6 @@ pipeline {
   }
   stages {
     stage('Initializing'){
-      agent { label 'linux && immutable' }
       options { skipDefaultCheckout() }
       environment {
         PATH = "${env.PATH}:${env.WORKSPACE}/bin"
