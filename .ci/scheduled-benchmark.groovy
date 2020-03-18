@@ -13,6 +13,8 @@ pipeline {
     NOTIFY_TO = credentials('notify-to')
     JOB_GCS_BUCKET = credentials('gcs-bucket')
     BENCHMARK_SECRET  = 'secret/apm-team/ci/benchmark-cloud'
+    DOCKER_SECRET = 'secret/apm-team/ci/docker-registry/prod'
+    DOCKER_REGISTRY = 'docker.elastic.co'
   }
   options {
     timeout(time: 1, unit: 'HOURS')
@@ -78,6 +80,7 @@ pipeline {
           steps {
             deleteDir()
             unstash 'source'
+            dockerLogin(secret: env.DOCKER_SECRET, registry: env.DOCKER_REGISTRY)
             script {
               dir(BASE_DIR){
                 sendBenchmarks.prepareAndRun(secret: env.BENCHMARK_SECRET, url_var: 'ES_URL',
@@ -90,6 +93,7 @@ pipeline {
           post {
             always {
               archiveArtifacts "${BASE_DIR}/build/environment.txt"
+              deleteDir()
             }
           }
         }
