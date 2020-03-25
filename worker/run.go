@@ -16,6 +16,8 @@ import (
 	"github.com/elastic/hey-apm/server"
 )
 
+const quiesceTimeout = 5 * time.Minute
+
 // Run executes a load test work with the given input, prints the results,
 // indexes a performance report, and returns it along any error.
 func Run(input models.Input) (models.Report, error) {
@@ -36,7 +38,22 @@ func Run(input models.Input) (models.Report, error) {
 	logger.Printf("%s elapsed since event generation completed", result.Flushed.Sub(result.End))
 	fmt.Println(result)
 
-	finalStatus := server.GetStatus(logger, input.ApmServerSecret, input.ApmServerUrl, testNode)
+	// Wait for apm-server to quiesce before proceeding.
+	var finalStatus server.Status
+	deadline := time.Now().Add(quiesceTimeout)
+	for {
+		finalStatus = server.GetStatus(logger, input.ApmServerSecret, input.ApmServerUrl, testNode)
+		activeEvents := finalStatus.Metrics.LibbeatMetrics.PipelineEventsActive
+		if activeEvents == nil || *activeEvents == 0 {
+			break
+		}
+		if !deadline.After(time.Now()) {
+			logger.Printf("giving up waiting for %d active events to be processed", *activeEvents)
+			break
+		}
+		logger.Printf("waiting for %d active events to be processed", *activeEvents)
+		time.Sleep(time.Second)
+	}
 	report := createReport(input, result, initialStatus, finalStatus)
 
 	if input.SkipIndexReport {
