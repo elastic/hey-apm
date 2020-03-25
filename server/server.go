@@ -53,6 +53,11 @@ type Cmdline []string
 type ExpvarMetrics struct {
 	Cmdline  Cmdline  `json:"cmdline"`
 	Memstats Memstats `json:"memstats"`
+	LibbeatMetrics
+}
+
+type LibbeatMetrics struct {
+	PipelineEventsActive *int64 `json:"libbeat.pipeline.events.active"`
 }
 
 type Memstats struct {
