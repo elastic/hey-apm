@@ -43,7 +43,8 @@ func parseFlags() models.Input {
 		serviceName = *flag.String("service-name", "hey-service", "service name") // ELASTIC_APM_SERVICE_NAME
 	}
 	// apm-server options
-	apmServerSecret := flag.String("apm-secret", "", "apm server secret token")       // ELASTIC_APM_SECRET_TOKEN
+	apmServerSecret := flag.String("apm-secret", "", "apm server secret token") // ELASTIC_APM_SECRET_TOKEN
+	apmServerAPIKey := flag.String("api-key", "", "APM API yey")
 	apmServerUrl := flag.String("apm-url", "http://localhost:8200", "apm server url") // ELASTIC_APM_SERVER_URL
 
 	elasticsearchUrl := flag.String("es-url", "http://localhost:9200", "elasticsearch url for reporting")
@@ -79,6 +80,7 @@ func parseFlags() models.Input {
 		IsBenchmark:          *isBench,
 		ApmServerUrl:         *apmServerUrl,
 		ApmServerSecret:      *apmServerSecret,
+		APIKey:               *apmServerAPIKey,
 		ElasticsearchUrl:     *elasticsearchUrl,
 		ElasticsearchAuth:    *elasticsearchAuth,
 		ApmElasticsearchUrl:  *apmElasticsearchUrl,
