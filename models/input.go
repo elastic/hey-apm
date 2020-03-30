@@ -20,6 +20,8 @@ type Input struct {
 	ApmServerUrl string `json:"apm_url"`
 	// Secret token of the APM Server under test
 	ApmServerSecret string `json:"-"`
+	// API Key for communication between APM Server and the Go agent
+	APIKey string `json:"-"`
 	// If true, it will index the performance report of a run in ElasticSearch
 	SkipIndexReport bool `json:"-"`
 	// URL of the Elasticsearch instance used for indexing the performance report

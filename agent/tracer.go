@@ -36,7 +36,7 @@ func (t Tracer) Close() {
 }
 
 // NewTracer returns a wrapper with a new Go agent instance and its transport stats.
-func NewTracer(logger apm.Logger, serverUrl, serverSecret, serviceName string, maxSpans int) *Tracer {
+func NewTracer(logger apm.Logger, serverUrl, serverSecret, apiKey, serviceName string, maxSpans int) *Tracer {
 	// version can be set with ELASTIC_APM_SERVICE_VERSION
 	goTracer, _ := apm.NewTracer(serviceName, "")
 	goTracer.SetLogger(logger)
@@ -46,7 +46,9 @@ func NewTracer(logger apm.Logger, serverUrl, serverSecret, serviceName string, m
 
 	transport := goTracer.Transport.(*apmtransport.HTTPTransport)
 	transport.SetUserAgent("hey-apm")
-	if serverSecret != "" {
+	if apiKey != "" {
+		transport.SetAPIKey(apiKey)
+	} else if serverSecret != "" {
 		transport.SetSecretToken(serverSecret)
 	}
 	if serverUrl != "" {

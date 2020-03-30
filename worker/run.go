@@ -77,7 +77,7 @@ func Run(input models.Input) (models.Report, error) {
 func prepareWork(input models.Input) worker {
 
 	logger := newApmLogger(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile))
-	tracer := agent.NewTracer(logger, input.ApmServerUrl, input.ApmServerSecret, input.ServiceName, input.SpanMaxLimit)
+	tracer := agent.NewTracer(logger, input.ApmServerUrl, input.ApmServerSecret, input.APIKey, input.ServiceName, input.SpanMaxLimit)
 
 	w := worker{
 		apmLogger:    logger,
