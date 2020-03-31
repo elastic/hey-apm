@@ -6,7 +6,6 @@ require (
 	github.com/elastic/go-elasticsearch/v7 v7.1.1
 	github.com/elastic/go-sysinfo v1.3.0 // indirect
 	github.com/elastic/go-windows v1.0.1 // indirect
-	github.com/heptio/workgroup v0.8.0-beta.1
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/procfs v0.0.11 // indirect
 	github.com/stretchr/testify v1.4.0
