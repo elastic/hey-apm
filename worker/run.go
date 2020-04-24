@@ -43,6 +43,10 @@ func Run(input models.Input) (models.Report, error) {
 	deadline := time.Now().Add(quiesceTimeout)
 	for {
 		finalStatus = server.GetStatus(logger, input.ApmServerSecret, input.ApmServerUrl, testNode)
+		if finalStatus.Metrics == nil {
+			logger.Print("expvar endpoint not available, returning")
+			break
+		}
 		activeEvents := finalStatus.Metrics.LibbeatMetrics.PipelineEventsActive
 		if activeEvents == nil || *activeEvents == 0 {
 			break
