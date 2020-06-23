@@ -6,14 +6,19 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
+	"go.elastic.co/apm"
+
 	"github.com/elastic/hey-apm/benchmark"
-
 	"github.com/elastic/hey-apm/models"
-
 	"github.com/elastic/hey-apm/worker"
 )
+
+func init() {
+	apm.DefaultTracer.Close()
+}
 
 func main() {
 
@@ -21,13 +26,21 @@ func main() {
 
 	input := parseFlags()
 	if input.IsBenchmark {
-		err = benchmark.Run(input)
+		if err = benchmark.Run(input); err != nil {
+			os.Exit(1)
+		}
 	} else {
-		_, err = worker.Run(input)
-	}
-
-	if err != nil {
-		os.Exit(1)
+		var wg sync.WaitGroup
+		for i := 0; i < input.Instances; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if _, err := worker.Run(input); err != nil {
+					os.Exit(1)
+				}
+			}()
+		}
+		wg.Wait()
 	}
 }
 
@@ -36,6 +49,7 @@ func parseFlags() models.Input {
 	runTimeout := flag.Duration("run", 30*time.Second, "stop run after this duration")
 	flushTimeout := flag.Duration("flush", 10*time.Second, "wait timeout for agent flush")
 	seed := flag.Int64("seed", time.Now().Unix(), "random seed")
+	instances := flag.Int("instances", 1, "number of concurrent instances to create load")
 
 	// convenience for https://www.elastic.co/guide/en/apm/agent/go/current/configuration.html
 	serviceName := os.Getenv("ELASTIC_APM_SERVICE_NAME")
@@ -88,6 +102,7 @@ func parseFlags() models.Input {
 		ServiceName:          serviceName,
 		RunTimeout:           *runTimeout,
 		FlushTimeout:         *flushTimeout,
+		Instances:            *instances,
 	}
 
 	if *isBench {

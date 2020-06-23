@@ -39,6 +39,8 @@ type Input struct {
 	RunTimeout time.Duration `json:"run_timeout"`
 	// Timeout for flushing the workload to APM Server
 	FlushTimeout time.Duration `json:"flush_timeout"`
+	// Number of Instances that are creating load
+	Instances int `json:"instances"`
 	// Frequency at which the tracer will generate transactions
 	TransactionFrequency time.Duration `json:"transaction_generation_frequency"`
 	// Maximum number of transactions to push to the APM Server (ends the test when reached)

@@ -36,9 +36,18 @@ func (t Tracer) Close() {
 }
 
 // NewTracer returns a wrapper with a new Go agent instance and its transport stats.
-func NewTracer(logger apm.Logger, serverUrl, serverSecret, apiKey, serviceName string, maxSpans int) *Tracer {
+func NewTracer(logger apm.Logger, serverUrl, serverSecret, apiKey, serviceName string, maxSpans int) (*Tracer, error) {
 	// version can be set with ELASTIC_APM_SERVICE_VERSION
-	goTracer, _ := apm.NewTracer(serviceName, "")
+	// ensure that apmtracer instances do not share the same apmtransport instace
+	t, err := apmtransport.InitDefault()
+	if err != nil {
+		return nil, err
+	}
+	goTracer, _ := apm.NewTracerOptions(apm.TracerOptions{
+		ServiceName:    serviceName,
+		ServiceVersion: "",
+		Transport:      t,
+	})
 	goTracer.SetLogger(logger)
 	goTracer.SetMetricsInterval(0) // disable metrics
 	goTracer.SetSpanFramesMinDuration(1 * time.Nanosecond)
@@ -81,7 +90,7 @@ func NewTracer(logger apm.Logger, serverUrl, serverSecret, apiKey, serviceName s
 			rt.wg.Done()
 		}
 	}()
-	return tracer
+	return tracer, nil
 }
 
 type roundTripper struct {
