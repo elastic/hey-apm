@@ -41,6 +41,9 @@ type Input struct {
 	FlushTimeout time.Duration `json:"flush_timeout"`
 	// Number of Instances that are creating load
 	Instances int `json:"instances"`
+	// DelayMillis is the maximum amount of milliseconds to wait per instance before starting it,
+	// can be used to add some randomness for producing load
+	DelayMillis int `json:"delay_millis"`
 	// Frequency at which the tracer will generate transactions
 	TransactionFrequency time.Duration `json:"transaction_generation_frequency"`
 	// Maximum number of transactions to push to the APM Server (ends the test when reached)

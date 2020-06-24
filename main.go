@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"math"
 	"math/rand"
 	"os"
@@ -16,8 +17,11 @@ import (
 	"github.com/elastic/hey-apm/worker"
 )
 
+var r *rand.Rand
+
 func init() {
 	apm.DefaultTracer.Close()
+	r = rand.New(rand.NewSource(1000))
 }
 
 func main() {
@@ -29,19 +33,27 @@ func main() {
 		if err = benchmark.Run(input); err != nil {
 			os.Exit(1)
 		}
-	} else {
-		var wg sync.WaitGroup
-		for i := 0; i < input.Instances; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				if _, err := worker.Run(input); err != nil {
-					os.Exit(1)
-				}
-			}()
-		}
-		wg.Wait()
+		return
 	}
+	runWorkers(input)
+}
+
+func runWorkers(input models.Input) {
+	var wg sync.WaitGroup
+	for i := 0; i < input.Instances; i++ {
+		idx := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			randomDelay := time.Duration(r.Intn(input.DelayMillis)) * time.Millisecond
+			fmt.Println(fmt.Sprintf("--- Starting instance (%v) in %v milliseconds", idx, randomDelay))
+			time.Sleep(randomDelay)
+			if _, err := worker.Run(input); err != nil {
+				os.Exit(1)
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func parseFlags() models.Input {
@@ -50,6 +62,7 @@ func parseFlags() models.Input {
 	flushTimeout := flag.Duration("flush", 10*time.Second, "wait timeout for agent flush")
 	seed := flag.Int64("seed", time.Now().Unix(), "random seed")
 	instances := flag.Int("instances", 1, "number of concurrent instances to create load")
+	delayMillis := flag.Int("delay", 1000, "max delay in milliseconds per worker to start")
 
 	// convenience for https://www.elastic.co/guide/en/apm/agent/go/current/configuration.html
 	serviceName := os.Getenv("ELASTIC_APM_SERVICE_NAME")
@@ -103,6 +116,7 @@ func parseFlags() models.Input {
 		RunTimeout:           *runTimeout,
 		FlushTimeout:         *flushTimeout,
 		Instances:            *instances,
+		DelayMillis:          *delayMillis,
 	}
 
 	if *isBench {

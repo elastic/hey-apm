@@ -5,14 +5,13 @@ import (
 	"math"
 	"time"
 
-	"github.com/elastic/hey-apm/es"
-	"github.com/elastic/hey-apm/models"
-	"github.com/elastic/hey-apm/worker"
-
 	"github.com/pkg/errors"
 
 	"github.com/elastic/hey-apm/conv"
+	"github.com/elastic/hey-apm/es"
+	"github.com/elastic/hey-apm/models"
 	"github.com/elastic/hey-apm/types"
+	"github.com/elastic/hey-apm/worker"
 )
 
 const (
