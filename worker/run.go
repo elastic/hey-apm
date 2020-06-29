@@ -9,10 +9,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/elastic/hey-apm/models"
-
 	"github.com/elastic/hey-apm/agent"
 	"github.com/elastic/hey-apm/es"
+	"github.com/elastic/hey-apm/models"
 	"github.com/elastic/hey-apm/server"
 )
 
@@ -26,7 +25,10 @@ func Run(input models.Input) (models.Report, error) {
 		return models.Report{}, errors.Wrap(err, "Elasticsearch used by APM Server not known or reachable")
 	}
 
-	worker := prepareWork(input)
+	worker, err := prepareWork(input)
+	if err != nil {
+		return models.Report{}, err
+	}
 	logger := worker.Logger
 	initialStatus := server.GetStatus(logger, input.ApmServerSecret, input.ApmServerUrl, testNode)
 
@@ -78,11 +80,13 @@ func Run(input models.Input) (models.Report, error) {
 }
 
 // prepareWork returns a worker with with a workload defined by the input.
-func prepareWork(input models.Input) worker {
+func prepareWork(input models.Input) (worker, error) {
 
 	logger := newApmLogger(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile))
-	tracer := agent.NewTracer(logger, input.ApmServerUrl, input.ApmServerSecret, input.APIKey, input.ServiceName, input.SpanMaxLimit)
-
+	tracer, err := agent.NewTracer(logger, input.ApmServerUrl, input.ApmServerSecret, input.APIKey, input.ServiceName, input.SpanMaxLimit)
+	if err != nil {
+		return worker{}, err
+	}
 	w := worker{
 		apmLogger:    logger,
 		Tracer:       tracer,
@@ -93,7 +97,7 @@ func prepareWork(input models.Input) worker {
 	w.addTransactions(input.TransactionFrequency, input.TransactionLimit, input.SpanMinLimit, input.SpanMaxLimit)
 	w.addSignalHandling()
 
-	return w
+	return w, nil
 }
 
 func createReport(input models.Input, result Result, initialStatus, finalStatus server.Status) models.Report {

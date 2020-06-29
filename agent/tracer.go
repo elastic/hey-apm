@@ -30,15 +30,23 @@ type TransportStats struct {
 
 func (t Tracer) Close() {
 	t.Tracer.Close()
-	rt := t.Transport.(*apmtransport.HTTPTransport).Client.Transport.(*roundTripper)
+	rt := t.Transport.(*apmtransport.HTTPTransport).Client.Transport.(*roundTripperWrapper)
 	rt.wg.Wait()
 	close(rt.c)
 }
 
 // NewTracer returns a wrapper with a new Go agent instance and its transport stats.
-func NewTracer(logger apm.Logger, serverUrl, serverSecret, apiKey, serviceName string, maxSpans int) *Tracer {
+func NewTracer(logger apm.Logger, serverUrl, serverSecret, apiKey, serviceName string, maxSpans int) (*Tracer, error) {
 	// version can be set with ELASTIC_APM_SERVICE_VERSION
-	goTracer, _ := apm.NewTracer(serviceName, "")
+	// ensure that apmtracer instances do not share the same apmtransport instace
+	defaultTransport, err := apmtransport.InitDefault()
+	if err != nil {
+		return nil, err
+	}
+	goTracer, _ := apm.NewTracerOptions(apm.TracerOptions{
+		ServiceName: serviceName,
+		Transport:   defaultTransport,
+	})
 	goTracer.SetLogger(logger)
 	goTracer.SetMetricsInterval(0) // disable metrics
 	goTracer.SetSpanFramesMinDuration(1 * time.Nanosecond)
@@ -58,7 +66,7 @@ func NewTracer(logger apm.Logger, serverUrl, serverSecret, apiKey, serviceName s
 		}
 		transport.SetServerURL(u)
 	}
-	rt := &roundTripper{c: make(chan []byte, 0)}
+	rt := &roundTripperWrapper{roundTripper: transport.Client.Transport, c: make(chan []byte, 0)}
 	transport.Client.Transport = rt
 
 	tracer := &Tracer{goTracer, &TransportStats{}}
@@ -81,26 +89,27 @@ func NewTracer(logger apm.Logger, serverUrl, serverSecret, apiKey, serviceName s
 			rt.wg.Done()
 		}
 	}()
-	return tracer
+	return tracer, nil
 }
 
-type roundTripper struct {
-	c  chan []byte
-	wg sync.WaitGroup
+type roundTripperWrapper struct {
+	roundTripper http.RoundTripper
+	c            chan []byte
+	wg           sync.WaitGroup
 }
 
-func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+func (rt *roundTripperWrapper) RoundTrip(req *http.Request) (*http.Response, error) {
 	switch req.URL.Path {
 	case "/intake/v2/events", "/intake/v2/rum/events":
 	default:
-		return http.DefaultTransport.RoundTrip(req)
+		return rt.roundTripper.RoundTrip(req)
 	}
 
 	q := req.URL.Query()
 	q.Set("verbose", "")
 	req.URL.RawQuery = q.Encode()
 
-	resp, err := http.DefaultTransport.RoundTrip(req)
+	resp, err := rt.roundTripper.RoundTrip(req)
 	if err != nil {
 		return resp, err
 	}

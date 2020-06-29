@@ -5,15 +5,13 @@ import (
 	"math"
 	"time"
 
-	"github.com/elastic/hey-apm/worker"
-	"go.elastic.co/apm"
-
-	"github.com/elastic/hey-apm/es"
-	"github.com/elastic/hey-apm/models"
+	"github.com/pkg/errors"
 
 	"github.com/elastic/hey-apm/conv"
+	"github.com/elastic/hey-apm/es"
+	"github.com/elastic/hey-apm/models"
 	"github.com/elastic/hey-apm/types"
-	"github.com/pkg/errors"
+	"github.com/elastic/hey-apm/worker"
 )
 
 const (
@@ -28,9 +26,6 @@ const (
 // Regression checks accept an error margin and are not aware of apm-server versions, only URLs.
 // apm-server must be started independently with -E apm-server.expvar.enabled=true
 func Run(input models.Input) error {
-	// prevent send on closed chan error
-	apm.DefaultTracer.Close()
-
 	conn, err := es.NewConnection(input.ElasticsearchUrl, input.ElasticsearchAuth)
 	if err != nil {
 		return errors.Wrap(err, "Elasticsearch not reachable, won't be able to index a report")
