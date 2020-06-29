@@ -22,7 +22,7 @@ pipeline {
     quietPeriod(10)
   }
   parameters {
-    string(name: 'GO_VERSION', defaultValue: "1.12.1", description: "Go version to use.")
+    string(name: 'GO_VERSION', defaultValue: "1.14", description: "Go version to use.")
   }
   stages {
     stage('Initializing'){

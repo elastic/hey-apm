@@ -11,7 +11,7 @@ It can be used manually or automatically (ie. in a CI environment)
 
 # Requirements
 
-hey-apm requires go modules support.  Tested with go1.12.1.
+hey-apm requires go modules support.  Tested with go1.14.4.
 
 # Install
 
@@ -42,7 +42,7 @@ The `Jenkinsfile` triggers sequentially:
 ## Run scripts locally
 
 ```bash
-  ./.ci/scripts/unit-test.sh 1.12.1
+  ./.ci/scripts/unit-test.sh 1.14
 ```
 
 # How to run locally the hey-apm using a docker-compose services
