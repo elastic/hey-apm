@@ -28,7 +28,7 @@ pipeline {
     cron('H H(3-5) * * *')
   }
   parameters {
-    string(name: 'GO_VERSION', defaultValue: '1.12.1', description: 'Go version to use.')
+    string(name: 'GO_VERSION', defaultValue: '1.14', description: 'Go version to use.')
     string(name: 'STACK_VERSION', defaultValue: '8.0.0-SNAPSHOT', description: 'Stack version Git branch/tag to use.')
     string(name: 'APM_DOCKER_IMAGE', defaultValue: 'docker.elastic.co/apm/apm-server', description: 'The docker image to be used.')
   }

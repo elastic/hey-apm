@@ -3,7 +3,7 @@
 #
 # NOTE: It's required to be launched inside the root of the project.
 #
-# Usage: ./.ci/scripts/run-test.sh 1.12.1 /src/apm-server
+# Usage: ./.ci/scripts/run-test.sh 1.14 /src/apm-server
 #
 # Requirements
 #   env variable CLOUD_ADDR
