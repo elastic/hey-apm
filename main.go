@@ -17,11 +17,9 @@ import (
 	"github.com/elastic/hey-apm/worker"
 )
 
-var r *rand.Rand
-
 func init() {
 	apm.DefaultTracer.Close()
-	r = rand.New(rand.NewSource(1000))
+	rand.Seed(1000)
 }
 
 func main() {
@@ -45,7 +43,7 @@ func runWorkers(input models.Input) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			randomDelay := time.Duration(r.Intn(input.DelayMillis)) * time.Millisecond
+			randomDelay := time.Duration(rand.Intn(input.DelayMillis)) * time.Millisecond
 			fmt.Println(fmt.Sprintf("--- Starting instance (%v) in %v milliseconds", idx, randomDelay))
 			time.Sleep(randomDelay)
 			if _, err := worker.Run(input); err != nil {
@@ -61,8 +59,8 @@ func parseFlags() models.Input {
 	runTimeout := flag.Duration("run", 30*time.Second, "stop run after this duration")
 	flushTimeout := flag.Duration("flush", 10*time.Second, "wait timeout for agent flush")
 	seed := flag.Int64("seed", time.Now().Unix(), "random seed")
-	instances := flag.Int("instances", 1, "number of concurrent instances to create load")
-	delayMillis := flag.Int("delay", 1000, "max delay in milliseconds per worker to start")
+	instances := flag.Int("instances", 1, "number of concurrent instances to create load (only if -bench is not passed)")
+	delayMillis := flag.Int("delay", 1000, "max delay in milliseconds per worker to start (only if -bench is not passed)")
 
 	// convenience for https://www.elastic.co/guide/en/apm/agent/go/current/configuration.html
 	serviceName := os.Getenv("ELASTIC_APM_SERVICE_NAME")
