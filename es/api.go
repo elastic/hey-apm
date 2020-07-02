@@ -104,7 +104,22 @@ func Count(conn Connection, index string) uint64 {
 }
 
 func Delete(conn Connection, indices ...string) error {
-	resp, err := conn.Indices.Delete(indices)
+	body := map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must_not": []map[string]interface{}{
+					{
+						"term": map[string]interface{}{
+							"service.name": map[string]interface{}{
+								"value": "apm-server",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	resp, err := conn.DeleteByQuery(indices, esutil.NewJSONReader(body))
 	if err != nil {
 		return err
 	}
