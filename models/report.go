@@ -24,7 +24,8 @@ type Report struct {
 	Timestamp time.Time `json:"@timestamp"`
 	// any arbitrary strings set by the user, meant to filter results
 	Labels []string `json:"labels, omitempty"`
-
+	// name of the test run
+	TestName string `json:"test_name, omitempty"`
 	// apm-server release version or build sha
 	ApmVersion string `json:"apm_version,omitempty"`
 	// commit SHA

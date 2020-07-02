@@ -75,7 +75,7 @@ func runner(conn es.Connection, margin float64, days string) func(name string, i
 	var err error
 	return func(name string, input models.Input) error {
 		fmt.Println("running benchmark with " + name)
-		report, e := worker.Run(input)
+		report, e := worker.Run(input, name)
 		if e == nil {
 			e = verify(conn, report, margin, days)
 		}
@@ -93,7 +93,7 @@ func warmUp(input models.Input) {
 	input.RunTimeout = warm
 	input.SkipIndexReport = true
 	fmt.Println(fmt.Sprintf("warming up %.1f seconds...", warm.Seconds()))
-	worker.Run(input)
+	worker.Run(input, "warm up")
 	coolDown()
 }
 
