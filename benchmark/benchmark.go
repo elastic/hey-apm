@@ -64,8 +64,8 @@ func Run(input models.Input) error {
 		Input)
 
 	if err == nil {
-		fmt.Println("deleting apm-* indices...")
-		err = es.Delete(conn, "apm-*")
+		fmt.Println("deleting APM indices...")
+		err = es.DeleteAPMIndices(conn)
 	}
 	return err
 }
