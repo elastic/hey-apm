@@ -19,7 +19,7 @@ const quiesceTimeout = 5 * time.Minute
 
 // Run executes a load test work with the given input, prints the results,
 // indexes a performance report, and returns it along any error.
-func Run(input models.Input) (models.Report, error) {
+func Run(input models.Input, testName string) (models.Report, error) {
 	testNode, err := es.NewConnection(input.ApmElasticsearchUrl, input.ApmElasticsearchAuth)
 	if err != nil {
 		return models.Report{}, errors.Wrap(err, "Elasticsearch used by APM Server not known or reachable")
@@ -60,7 +60,7 @@ func Run(input models.Input) (models.Report, error) {
 		logger.Printf("waiting for %d active events to be processed", *activeEvents)
 		time.Sleep(time.Second)
 	}
-	report := createReport(input, result, initialStatus, finalStatus)
+	report := createReport(input, testName, result, initialStatus, finalStatus)
 
 	if input.SkipIndexReport {
 		return report, err
@@ -100,7 +100,7 @@ func prepareWork(input models.Input) (worker, error) {
 	return w, nil
 }
 
-func createReport(input models.Input, result Result, initialStatus, finalStatus server.Status) models.Report {
+func createReport(input models.Input, testName string, result Result, initialStatus, finalStatus server.Status) models.Report {
 	this, _ := os.Hostname()
 	r := models.Report{
 		Input: input,
@@ -108,6 +108,7 @@ func createReport(input models.Input, result Result, initialStatus, finalStatus 
 		ReportId:     shortId(),
 		ReportDate:   time.Now().Format(models.GITRFC),
 		ReporterHost: this,
+		TestName:     testName,
 
 		Timestamp: time.Now(),
 		Elapsed:   result.Flushed.Sub(result.Start).Seconds(),

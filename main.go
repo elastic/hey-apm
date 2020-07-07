@@ -46,7 +46,7 @@ func runWorkers(input models.Input) {
 			randomDelay := time.Duration(rand.Intn(input.DelayMillis)) * time.Millisecond
 			fmt.Println(fmt.Sprintf("--- Starting instance (%v) in %v milliseconds", idx, randomDelay))
 			time.Sleep(randomDelay)
-			if _, err := worker.Run(input); err != nil {
+			if _, err := worker.Run(input, ""); err != nil {
 				os.Exit(1)
 			}
 		}()

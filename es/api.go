@@ -3,10 +3,8 @@ package es
 import (
 	"encoding/json"
 	"fmt"
-
-	"github.com/elastic/go-elasticsearch/v7/esutil"
-
 	"github.com/elastic/go-elasticsearch/v7"
+	"github.com/elastic/go-elasticsearch/v7/esutil"
 	"github.com/elastic/hey-apm/models"
 	"github.com/elastic/hey-apm/strcoll"
 	"github.com/pkg/errors"
@@ -103,8 +101,23 @@ func Count(conn Connection, index string) uint64 {
 	return 0
 }
 
-func Delete(conn Connection, indices ...string) error {
-	resp, err := conn.Indices.Delete(indices)
+func DeleteAPMIndices(conn Connection) error {
+	body := map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must_not": []map[string]interface{}{
+					{
+						"term": map[string]interface{}{
+							"service.name": map[string]interface{}{
+								"value": "apm-server",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	resp, err := conn.DeleteByQuery([]string{"apm*"}, esutil.NewJSONReader(body))
 	if err != nil {
 		return err
 	}

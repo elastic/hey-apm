@@ -31,6 +31,11 @@ func Run(input models.Input) error {
 		return errors.Wrap(err, "Elasticsearch not reachable, won't be able to index a report")
 	}
 
+	if err == nil {
+		fmt.Println("deleting previous APM indices...")
+		err = es.DeleteAPMIndices(conn)
+	}
+
 	warmUp(input)
 
 	run := runner(conn, input.RegressionMargin, input.RegressionDays)
@@ -63,10 +68,6 @@ func Run(input models.Input) error {
 		WithFrames(50).
 		Input)
 
-	if err == nil {
-		fmt.Println("deleting apm-* indices...")
-		err = es.Delete(conn, "apm-*")
-	}
 	return err
 }
 
@@ -75,7 +76,7 @@ func runner(conn es.Connection, margin float64, days string) func(name string, i
 	var err error
 	return func(name string, input models.Input) error {
 		fmt.Println("running benchmark with " + name)
-		report, e := worker.Run(input)
+		report, e := worker.Run(input, name)
 		if e == nil {
 			e = verify(conn, report, margin, days)
 		}
@@ -93,7 +94,7 @@ func warmUp(input models.Input) {
 	input.RunTimeout = warm
 	input.SkipIndexReport = true
 	fmt.Println(fmt.Sprintf("warming up %.1f seconds...", warm.Seconds()))
-	worker.Run(input)
+	worker.Run(input, "warm up")
 	coolDown()
 }
 

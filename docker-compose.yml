@@ -12,7 +12,7 @@ services:
         -E monitoring.enabled=true
         -E apm-server.expvar.enabled=true
         -E apm-server.ilm.enabled=false
-        -E apm-server.instrumentation.enabled=false
+        -E apm-server.instrumentation.enabled=true
         -E output.elasticsearch.hosts=["${ES_URL}"]
         -E output.elasticsearch.username=${ES_USER}
         -E output.elasticsearch.password=${ES_PASS}
