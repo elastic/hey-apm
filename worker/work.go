@@ -2,11 +2,8 @@ package worker
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/rand"
-	"os"
-	"os/signal"
 	"strconv"
 	"time"
 
@@ -16,8 +13,9 @@ import (
 )
 
 type worker struct {
-	*apmLogger
-	*agent.Tracer
+	stop   <-chan struct{} // graceful shutdown
+	logger *apmLogger
+	tracer *agent.Tracer
 
 	ErrorFrequency     time.Duration
 	ErrorLimit         int
@@ -52,18 +50,14 @@ func (w *worker) work(ctx context.Context) (Result, error) {
 		defer transactionTicker.Stop()
 	}
 
-	// TODO(axw) do this outside work, cancel context on signal
-	signalC := make(chan os.Signal, 1)
-	signal.Notify(signalC, os.Interrupt)
-
 	result := Result{Start: time.Now()}
 	var done bool
 	for !done {
 		select {
 		case <-ctx.Done():
 			return Result{}, ctx.Err()
-		case sig := <-signalC:
-			return Result{}, errors.New(sig.String())
+		case <-w.stop:
+			done = true
 		case <-runTimerC:
 			done = true
 		case <-errorTicker.C:
@@ -84,18 +78,18 @@ func (w *worker) work(ctx context.Context) (Result, error) {
 	result.End = time.Now()
 	w.flush()
 	result.Flushed = time.Now()
-	result.TracerStats = w.Stats()
-	result.TransportStats = *w.TransportStats
+	result.TracerStats = w.tracer.Stats()
+	result.TransportStats = *w.tracer.TransportStats
 	return result, nil
 }
 
 func (w *worker) sendError() {
 	err := &generatedErr{frames: randRange(w.ErrorFrameMinLimit, w.ErrorFrameMaxLimit)}
-	w.Tracer.NewError(err).Send()
+	w.tracer.NewError(err).Send()
 }
 
 func (w *worker) sendTransaction() {
-	tx := w.Tracer.StartTransaction("generated", "gen")
+	tx := w.tracer.StartTransaction("generated", "gen")
 	defer tx.End()
 	spanCount := randRange(w.SpanMinLimit, w.SpanMaxLimit)
 	for i := 0; i < spanCount; i++ {
@@ -110,7 +104,7 @@ func randRange(min, max int) int {
 
 // flush ensures that the entire workload defined is pushed to the apm-server, within the worker timeout limit.
 func (w *worker) flush() {
-	defer w.Close()
+	defer w.tracer.Close()
 
 	ctx := context.Background()
 	if w.FlushTimeout > 0 {
@@ -118,9 +112,9 @@ func (w *worker) flush() {
 		ctx, cancel = context.WithTimeout(ctx, w.FlushTimeout)
 		defer cancel()
 	}
-	w.Flush(ctx.Done())
+	w.tracer.Flush(ctx.Done())
 	if ctx.Err() != nil {
-		w.Errorf("timed out waiting for flush to complete")
+		w.logger.Errorf("timed out waiting for flush to complete")
 	}
 }
 

@@ -3,6 +3,7 @@ package es
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/elastic/go-elasticsearch/v7/esutil"
 	"github.com/elastic/hey-apm/models"
@@ -101,7 +102,7 @@ func Count(conn Connection, index string) uint64 {
 	return 0
 }
 
-func DeleteAPMIndices(conn Connection) error {
+func DeleteAPMEvents(conn Connection) error {
 	body := map[string]interface{}{
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{

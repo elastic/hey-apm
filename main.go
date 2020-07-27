@@ -1,16 +1,19 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"log"
 	"math"
 	"math/rand"
 	"os"
+	"os/signal"
 	"strconv"
-	"sync"
 	"time"
 
 	"go.elastic.co/apm"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/elastic/hey-apm/benchmark"
 	"github.com/elastic/hey-apm/models"
@@ -23,35 +26,56 @@ func init() {
 }
 
 func main() {
-
-	var err error
-
-	input := parseFlags()
-	if input.IsBenchmark {
-		if err = benchmark.Run(input); err != nil {
-			os.Exit(1)
-		}
-		return
+	if err := Main(); err != nil {
+		log.Fatal(err)
 	}
-	runWorkers(input)
 }
 
-func runWorkers(input models.Input) {
-	var wg sync.WaitGroup
+func Main() error {
+	signalC := make(chan os.Signal, 1)
+	signal.Notify(signalC, os.Interrupt)
+	input := parseFlags()
+	if input.IsBenchmark {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() {
+			// Ctrl+C when running benchmarks causes them to be
+			// aborted, as the results are not meaningful for
+			// comparison.
+			defer cancel()
+			<-signalC
+			log.Printf("Interrupt signal received, aborting benchmarks...")
+		}()
+		if err := benchmark.Run(ctx, input); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	stopChan := make(chan struct{})
+	go func() {
+		// Ctrl+C when running load generation gracefully stops the
+		// workers and prints the statistics.
+		defer close(stopChan)
+		<-signalC
+		log.Printf("Interrupt signal received, stopping load generator...")
+	}()
+	return runWorkers(input, stopChan)
+}
+
+func runWorkers(input models.Input, stop <-chan struct{}) error {
+	g, ctx := errgroup.WithContext(context.Background())
 	for i := 0; i < input.Instances; i++ {
 		idx := i
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		g.Go(func() error {
 			randomDelay := time.Duration(rand.Intn(input.DelayMillis)) * time.Millisecond
 			fmt.Println(fmt.Sprintf("--- Starting instance (%v) in %v milliseconds", idx, randomDelay))
 			time.Sleep(randomDelay)
-			if _, err := worker.Run(input, ""); err != nil {
-				os.Exit(1)
-			}
-		}()
+			_, err := worker.Run(ctx, input, "", stop)
+			return err
+		})
 	}
-	wg.Wait()
+	return g.Wait()
 }
 
 func parseFlags() models.Input {
