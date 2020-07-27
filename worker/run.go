@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -32,7 +33,7 @@ func Run(input models.Input, testName string) (models.Report, error) {
 	logger := worker.Logger
 	initialStatus := server.GetStatus(logger, input.ApmServerSecret, input.ApmServerUrl, testNode)
 
-	result, err := worker.work()
+	result, err := worker.work(context.Background())
 	if err != nil {
 		logger.Println(err.Error())
 		return models.Report{}, err
@@ -92,10 +93,17 @@ func prepareWork(input models.Input) (worker, error) {
 		Tracer:       tracer,
 		RunTimeout:   input.RunTimeout,
 		FlushTimeout: input.FlushTimeout,
+
+		TransactionFrequency: input.TransactionFrequency,
+		TransactionLimit:     input.TransactionLimit,
+		SpanMinLimit:         input.SpanMinLimit,
+		SpanMaxLimit:         input.SpanMaxLimit,
+
+		ErrorFrequency:     input.ErrorFrequency,
+		ErrorLimit:         input.ErrorLimit,
+		ErrorFrameMinLimit: input.ErrorFrameMinLimit,
+		ErrorFrameMaxLimit: input.ErrorFrameMaxLimit,
 	}
-	w.addErrors(input.ErrorFrequency, input.ErrorLimit, input.ErrorFrameMinLimit, input.ErrorFrameMaxLimit)
-	w.addTransactions(input.TransactionFrequency, input.TransactionLimit, input.SpanMinLimit, input.SpanMaxLimit)
-	w.addSignalHandling()
 
 	return w, nil
 }
