@@ -62,30 +62,26 @@ type Input struct {
 	ErrorFrameMinLimit int `json:"error_generation_frames_min_limit"`
 }
 
-type Wrap struct {
-	Input
+func (in Input) WithErrors(limit int, freq time.Duration) Input {
+	in.ErrorLimit = limit
+	in.ErrorFrequency = freq
+	return in
 }
 
-func (w Wrap) WithErrors(limit int, freq time.Duration) Wrap {
-	w.ErrorLimit = limit
-	w.ErrorFrequency = freq
-	return w
+func (in Input) WithFrames(f int) Input {
+	in.ErrorFrameMaxLimit = f
+	in.ErrorFrameMinLimit = f
+	return in
 }
 
-func (w Wrap) WithFrames(f int) Wrap {
-	w.ErrorFrameMaxLimit = f
-	w.ErrorFrameMinLimit = f
-	return w
+func (in Input) WithTransactions(limit int, freq time.Duration) Input {
+	in.TransactionLimit = limit
+	in.TransactionFrequency = freq
+	return in
 }
 
-func (w Wrap) WithTransactions(limit int, freq time.Duration) Wrap {
-	w.TransactionLimit = limit
-	w.TransactionFrequency = freq
-	return w
-}
-
-func (w Wrap) WithSpans(s int) Wrap {
-	w.SpanMaxLimit = s
-	w.SpanMinLimit = s
-	return w
+func (in Input) WithSpans(s int) Input {
+	in.SpanMaxLimit = s
+	in.SpanMinLimit = s
+	return in
 }

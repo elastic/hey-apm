@@ -2,77 +2,120 @@ package worker
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/rand"
-	"os"
-	"os/signal"
 	"strconv"
-	"sync"
 	"time"
-
-	"github.com/elastic/hey-apm/internal/heptio/workgroup"
 
 	"github.com/elastic/hey-apm/agent"
 
-	"go.elastic.co/apm"
 	"go.elastic.co/apm/stacktrace"
 )
 
 type worker struct {
-	*apmLogger
-	*agent.Tracer
+	stop   <-chan struct{} // graceful shutdown
+	logger *apmLogger
+	tracer *agent.Tracer
+
+	ErrorFrequency     time.Duration
+	ErrorLimit         int
+	ErrorFrameMinLimit int
+	ErrorFrameMaxLimit int
+
+	TransactionFrequency time.Duration
+	TransactionLimit     int
+	SpanMinLimit         int
+	SpanMaxLimit         int
+
 	RunTimeout   time.Duration
 	FlushTimeout time.Duration
-
-	// not to be modified concurrently
-	workgroup.Group
 }
 
 // work uses the Go agent API to generate events and send them to apm-server.
-func (w *worker) work() (Result, error) {
+func (w *worker) work(ctx context.Context) (Result, error) {
+	var runTimerC <-chan time.Time
 	if w.RunTimeout > 0 {
-		w.Add(func(done <-chan struct{}) error {
-			select {
-			case <-done:
-				return nil
-			case <-time.After(w.RunTimeout):
-				return nil // time expired
-			}
-		})
+		runTimer := time.NewTimer(w.RunTimeout)
+		defer runTimer.Stop()
+		runTimerC = runTimer.C
 	}
 
-	result := Result{}
-	result.Start = time.Now()
-	err := w.Run()
+	var errorTicker, transactionTicker maybeTicker
+	if w.ErrorFrequency > 0 && w.ErrorLimit > 0 {
+		errorTicker.Start(w.ErrorFrequency)
+		defer errorTicker.Stop()
+	}
+	if w.TransactionFrequency > 0 && w.TransactionLimit > 0 {
+		transactionTicker.Start(w.TransactionFrequency)
+		defer transactionTicker.Stop()
+	}
+
+	result := Result{Start: time.Now()}
+	var done bool
+	for !done {
+		select {
+		case <-ctx.Done():
+			return Result{}, ctx.Err()
+		case <-w.stop:
+			done = true
+		case <-runTimerC:
+			done = true
+		case <-errorTicker.C:
+			w.sendError()
+			w.ErrorLimit--
+			if w.ErrorLimit == 0 {
+				errorTicker.Stop()
+			}
+		case <-transactionTicker.C:
+			w.sendTransaction()
+			w.TransactionLimit--
+			if w.TransactionLimit == 0 {
+				transactionTicker.Stop()
+			}
+		}
+	}
+
 	result.End = time.Now()
 	w.flush()
 	result.Flushed = time.Now()
-	result.TracerStats = w.Stats()
-	result.TransportStats = *w.TransportStats
+	result.TracerStats = w.tracer.Stats()
+	result.TransportStats = *w.tracer.TransportStats
+	return result, nil
+}
 
-	return result, err
+func (w *worker) sendError() {
+	err := &generatedErr{frames: randRange(w.ErrorFrameMinLimit, w.ErrorFrameMaxLimit)}
+	w.tracer.NewError(err).Send()
+}
+
+func (w *worker) sendTransaction() {
+	tx := w.tracer.StartTransaction("generated", "gen")
+	defer tx.End()
+	spanCount := randRange(w.SpanMinLimit, w.SpanMaxLimit)
+	for i := 0; i < spanCount; i++ {
+		tx.StartSpan("I'm a span", "gen.era.ted", nil).End()
+	}
+	tx.Context.SetTag("spans", strconv.Itoa(spanCount))
+}
+
+func randRange(min, max int) int {
+	return min + rand.Intn(max-min+1)
 }
 
 // flush ensures that the entire workload defined is pushed to the apm-server, within the worker timeout limit.
 func (w *worker) flush() {
-	flushed := make(chan struct{})
-	go func() {
-		w.Flush(nil)
-		close(flushed)
-	}()
+	defer w.tracer.Close()
 
-	flushWait := time.After(w.FlushTimeout)
-	if w.FlushTimeout == 0 {
-		flushWait = make(<-chan time.Time)
+	ctx := context.Background()
+	if w.FlushTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, w.FlushTimeout)
+		defer cancel()
 	}
-	select {
-	case <-flushed:
-	case <-flushWait:
-		// give up waiting for flush
-		w.Errorf("timed out waiting for flush to complete")
+	w.tracer.Flush(ctx.Done())
+	if ctx.Err() != nil {
+		w.logger.Errorf("timed out waiting for flush to complete")
 	}
-	w.Close()
 }
 
 type generatedErr struct {
@@ -100,87 +143,17 @@ func (e *generatedErr) StackTrace() []stacktrace.Frame {
 	return st
 }
 
-func (w *worker) addErrors(frequency time.Duration, limit, framesMin, framesMax int) {
-	if limit <= 0 {
-		return
-	}
-	t := throttle(time.NewTicker(frequency).C)
-	w.Add(func(done <-chan struct{}) error {
-		var count int
-		for count < limit {
-			select {
-			case <-done:
-				return nil
-			case <-t:
-			}
-
-			w.Tracer.NewError(&generatedErr{frames: rand.Intn(framesMax-framesMin+1) + framesMin}).Send()
-			count++
-		}
-		return nil
-	})
+type maybeTicker struct {
+	ticker *time.Ticker
+	C      <-chan time.Time
 }
 
-func (w *worker) addTransactions(frequency time.Duration, limit, spanMin, spanMax int) {
-	if limit <= 0 {
-		return
-	}
-	t := throttle(time.NewTicker(frequency).C)
-	generateSpan := func(ctx context.Context) {
-		span, ctx := apm.StartSpan(ctx, "I'm a span", "gen.era.ted")
-		span.End()
-	}
-
-	generator := func(done <-chan struct{}) error {
-		var count int
-		for count < limit {
-			select {
-			case <-done:
-				return nil
-			case <-t:
-			}
-
-			tx := w.Tracer.StartTransaction("generated", "gen")
-			ctx := apm.ContextWithTransaction(context.Background(), tx)
-			var wg sync.WaitGroup
-			spanCount := rand.Intn(spanMax-spanMin+1) + spanMin
-			for i := 0; i < spanCount; i++ {
-				wg.Add(1)
-				go func() {
-					generateSpan(ctx)
-					wg.Done()
-				}()
-			}
-			wg.Wait()
-			tx.Context.SetTag("spans", strconv.Itoa(spanCount))
-			tx.End()
-			count++
-		}
-		return nil
-	}
-	w.Add(generator)
+func (t *maybeTicker) Start(d time.Duration) {
+	t.ticker = time.NewTicker(d)
+	t.C = t.ticker.C
 }
 
-func (w *worker) addSignalHandling() {
-	w.Add(func(done <-chan struct{}) error {
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt)
-		select {
-		case <-done:
-			return nil
-		case sig := <-c:
-			return errors.New(sig.String())
-		}
-	})
-}
-
-// throttle converts a time ticker to a channel of things.
-func throttle(c <-chan time.Time) chan interface{} {
-	throttle := make(chan interface{})
-	go func() {
-		for range c {
-			throttle <- struct{}{}
-		}
-	}()
-	return throttle
+func (t *maybeTicker) Stop() {
+	t.ticker.Stop()
+	t.C = nil
 }

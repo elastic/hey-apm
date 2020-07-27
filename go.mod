@@ -10,6 +10,7 @@ require (
 	github.com/prometheus/procfs v0.0.11 // indirect
 	github.com/stretchr/testify v1.4.0
 	go.elastic.co/apm v1.8.0
+	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	golang.org/x/sys v0.0.0-20200323222414-85ca7c5b95cd // indirect
 	howett.net/plist v0.0.0-20200225050739-77e249a2e2ba // indirect
 )

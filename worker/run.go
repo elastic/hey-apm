@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -19,20 +20,23 @@ const quiesceTimeout = 5 * time.Minute
 
 // Run executes a load test work with the given input, prints the results,
 // indexes a performance report, and returns it along any error.
-func Run(input models.Input, testName string) (models.Report, error) {
+//
+// If the context is cancelled, the worker exits with the context's error.
+// If the stop channel is signalled, the worker exits gracefully with no error.
+func Run(ctx context.Context, input models.Input, testName string, stop <-chan struct{}) (models.Report, error) {
 	testNode, err := es.NewConnection(input.ApmElasticsearchUrl, input.ApmElasticsearchAuth)
 	if err != nil {
 		return models.Report{}, errors.Wrap(err, "Elasticsearch used by APM Server not known or reachable")
 	}
 
-	worker, err := prepareWork(input)
+	worker, err := newWorker(input, stop)
 	if err != nil {
 		return models.Report{}, err
 	}
-	logger := worker.Logger
+	logger := worker.logger.Logger
 	initialStatus := server.GetStatus(logger, input.ApmServerSecret, input.ApmServerUrl, testNode)
 
-	result, err := worker.work()
+	result, err := worker.work(ctx)
 	if err != nil {
 		logger.Println(err.Error())
 		return models.Report{}, err
@@ -79,25 +83,30 @@ func Run(input models.Input, testName string) (models.Report, error) {
 	return report, err
 }
 
-// prepareWork returns a worker with with a workload defined by the input.
-func prepareWork(input models.Input) (worker, error) {
-
+// newWorker returns a new worker with with a workload defined by the input.
+func newWorker(input models.Input, stop <-chan struct{}) (*worker, error) {
 	logger := newApmLogger(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile))
 	tracer, err := agent.NewTracer(logger, input.ApmServerUrl, input.ApmServerSecret, input.APIKey, input.ServiceName, input.SpanMaxLimit)
 	if err != nil {
-		return worker{}, err
+		return nil, err
 	}
-	w := worker{
-		apmLogger:    logger,
-		Tracer:       tracer,
+	return &worker{
+		stop:         stop,
+		logger:       logger,
+		tracer:       tracer,
 		RunTimeout:   input.RunTimeout,
 		FlushTimeout: input.FlushTimeout,
-	}
-	w.addErrors(input.ErrorFrequency, input.ErrorLimit, input.ErrorFrameMinLimit, input.ErrorFrameMaxLimit)
-	w.addTransactions(input.TransactionFrequency, input.TransactionLimit, input.SpanMinLimit, input.SpanMaxLimit)
-	w.addSignalHandling()
 
-	return w, nil
+		TransactionFrequency: input.TransactionFrequency,
+		TransactionLimit:     input.TransactionLimit,
+		SpanMinLimit:         input.SpanMinLimit,
+		SpanMaxLimit:         input.SpanMaxLimit,
+
+		ErrorFrequency:     input.ErrorFrequency,
+		ErrorLimit:         input.ErrorLimit,
+		ErrorFrameMinLimit: input.ErrorFrameMinLimit,
+		ErrorFrameMaxLimit: input.ErrorFrameMaxLimit,
+	}, nil
 }
 
 func createReport(input models.Input, testName string, result Result, initialStatus, finalStatus server.Status) models.Report {
