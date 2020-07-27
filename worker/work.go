@@ -8,14 +8,12 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/elastic/hey-apm/internal/heptio/workgroup"
 
 	"github.com/elastic/hey-apm/agent"
 
-	"go.elastic.co/apm"
 	"go.elastic.co/apm/stacktrace"
 )
 
@@ -56,23 +54,18 @@ func (w *worker) work() (Result, error) {
 
 // flush ensures that the entire workload defined is pushed to the apm-server, within the worker timeout limit.
 func (w *worker) flush() {
-	flushed := make(chan struct{})
-	go func() {
-		w.Flush(nil)
-		close(flushed)
-	}()
+	defer w.Close()
 
-	flushWait := time.After(w.FlushTimeout)
-	if w.FlushTimeout == 0 {
-		flushWait = make(<-chan time.Time)
+	ctx := context.Background()
+	if w.FlushTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, w.FlushTimeout)
+		defer cancel()
 	}
-	select {
-	case <-flushed:
-	case <-flushWait:
-		// give up waiting for flush
+	w.Flush(ctx.Done())
+	if ctx.Err() != nil {
 		w.Errorf("timed out waiting for flush to complete")
 	}
-	w.Close()
 }
 
 type generatedErr struct {
@@ -104,18 +97,16 @@ func (w *worker) addErrors(frequency time.Duration, limit, framesMin, framesMax 
 	if limit <= 0 {
 		return
 	}
-	t := throttle(time.NewTicker(frequency).C)
 	w.Add(func(done <-chan struct{}) error {
-		var count int
-		for count < limit {
+		ticker := time.NewTicker(frequency)
+		defer ticker.Stop()
+		for i := 0; i < limit; i++ {
 			select {
 			case <-done:
 				return nil
-			case <-t:
+			case <-ticker.C:
 			}
-
 			w.Tracer.NewError(&generatedErr{frames: rand.Intn(framesMax-framesMin+1) + framesMin}).Send()
-			count++
 		}
 		return nil
 	})
@@ -125,36 +116,22 @@ func (w *worker) addTransactions(frequency time.Duration, limit, spanMin, spanMa
 	if limit <= 0 {
 		return
 	}
-	t := throttle(time.NewTicker(frequency).C)
-	generateSpan := func(ctx context.Context) {
-		span, ctx := apm.StartSpan(ctx, "I'm a span", "gen.era.ted")
-		span.End()
-	}
-
 	generator := func(done <-chan struct{}) error {
-		var count int
-		for count < limit {
+		ticker := time.NewTicker(frequency)
+		defer ticker.Stop()
+		for i := 0; i < limit; i++ {
 			select {
 			case <-done:
 				return nil
-			case <-t:
+			case <-ticker.C:
 			}
-
 			tx := w.Tracer.StartTransaction("generated", "gen")
-			ctx := apm.ContextWithTransaction(context.Background(), tx)
-			var wg sync.WaitGroup
 			spanCount := rand.Intn(spanMax-spanMin+1) + spanMin
 			for i := 0; i < spanCount; i++ {
-				wg.Add(1)
-				go func() {
-					generateSpan(ctx)
-					wg.Done()
-				}()
+				tx.StartSpan("I'm a span", "gen.era.ted", nil).End()
 			}
-			wg.Wait()
 			tx.Context.SetTag("spans", strconv.Itoa(spanCount))
 			tx.End()
-			count++
 		}
 		return nil
 	}
@@ -172,15 +149,4 @@ func (w *worker) addSignalHandling() {
 			return errors.New(sig.String())
 		}
 	})
-}
-
-// throttle converts a time ticker to a channel of things.
-func throttle(c <-chan time.Time) chan interface{} {
-	throttle := make(chan interface{})
-	go func() {
-		for range c {
-			throttle <- struct{}{}
-		}
-	}()
-	return throttle
 }
