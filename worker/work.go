@@ -9,6 +9,7 @@ import (
 
 	"github.com/elastic/hey-apm/agent"
 
+	"go.elastic.co/apm"
 	"go.elastic.co/apm/stacktrace"
 )
 
@@ -92,10 +93,22 @@ func (w *worker) sendTransaction() {
 	tx := w.tracer.StartTransaction("generated", "gen")
 	defer tx.End()
 	spanCount := randRange(w.SpanMinLimit, w.SpanMaxLimit)
-	for i := 0; i < spanCount; i++ {
-		tx.StartSpan("I'm a span", "gen.era.ted", nil).End()
-	}
+	sendSpans(tx, spanCount)
 	tx.Context.SetTag("spans", strconv.Itoa(spanCount))
+}
+
+func sendSpans(tx *apm.Transaction, n int) {
+	// Send spans in a separate goroutine, to ensure we keep
+	// the number of stack frames stable despite changes to
+	// hey-apm.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < n; i++ {
+			tx.StartSpan("I'm a span", "gen.era.ted", nil).End()
+		}
+	}()
+	<-done
 }
 
 func randRange(min, max int) int {
