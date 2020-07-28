@@ -55,7 +55,6 @@ func Run(ctx context.Context, input models.Input) error {
 func defineTests(input models.Input) tests {
 	var t tests
 	t.add("transactions only", input.WithTransactions(math.MaxInt32, time.Millisecond*5))
-	t.add("transactions only", input.WithTransactions(math.MaxInt32, time.Millisecond*5))
 	t.add("small transactions", input.WithTransactions(math.MaxInt32, time.Millisecond*5).WithSpans(10))
 	t.add("large transactions", input.WithTransactions(math.MaxInt32, time.Millisecond*5).WithSpans(40))
 	t.add("small errors only", input.WithErrors(math.MaxInt32, time.Millisecond).WithFrames(10))
