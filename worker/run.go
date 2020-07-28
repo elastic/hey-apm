@@ -53,15 +53,22 @@ func Run(ctx context.Context, input models.Input, testName string, stop <-chan s
 			logger.Print("expvar endpoint not available, returning")
 			break
 		}
-		activeEvents := finalStatus.Metrics.LibbeatMetrics.PipelineEventsActive
-		if activeEvents == nil || *activeEvents == 0 {
+		outputActiveEvents := derefInt64(finalStatus.Metrics.LibbeatMetrics.OutputEventsActive, 0)
+		pipelineActiveEvents := derefInt64(finalStatus.Metrics.LibbeatMetrics.PipelineEventsActive, 0)
+		if outputActiveEvents == 0 && pipelineActiveEvents == 0 {
 			break
 		}
 		if !deadline.After(time.Now()) {
-			logger.Printf("giving up waiting for %d active events to be processed", *activeEvents)
+			logger.Printf(
+				"giving up waiting for active events to be processed: %d output, %d pipeline",
+				outputActiveEvents, pipelineActiveEvents,
+			)
 			break
 		}
-		logger.Printf("waiting for %d active events to be processed", *activeEvents)
+		logger.Printf(
+			"waiting for active events to be processed: %d output, %d pipeline",
+			outputActiveEvents, pipelineActiveEvents,
+		)
 		time.Sleep(time.Second)
 	}
 	report := createReport(input, testName, result, initialStatus, finalStatus)
@@ -81,6 +88,13 @@ func Run(ctx context.Context, input models.Input, testName string, stop <-chan s
 		}
 	}
 	return report, err
+}
+
+func derefInt64(v *int64, d int64) int64 {
+	if v != nil {
+		return *v
+	}
+	return d
 }
 
 // newWorker returns a new worker with with a workload defined by the input.

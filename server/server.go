@@ -57,6 +57,7 @@ type ExpvarMetrics struct {
 }
 
 type LibbeatMetrics struct {
+	OutputEventsActive   *int64 `json:"libbeat.output.events.active"`
 	PipelineEventsActive *int64 `json:"libbeat.pipeline.events.active"`
 }
 
