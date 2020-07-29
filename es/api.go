@@ -3,11 +3,11 @@ package es
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/elastic/go-elasticsearch/v7/esutil"
 	"github.com/elastic/hey-apm/models"
-	"github.com/elastic/hey-apm/strcoll"
 	"github.com/pkg/errors"
 )
 
@@ -30,7 +30,16 @@ func NewConnection(url, auth string) (Connection, error) {
 	if url == "local" {
 		url = local
 	}
-	username, password := strcoll.SplitKV(auth, ":")
+
+	// Split "username:password"
+	//
+	// TODO(axw) consider removing the separate "auth" option to
+	// reduce options, and instead require userinfo to be included
+	// in the URL.
+	username, password := auth, ""
+	if sep := strings.IndexRune(auth, ':'); sep >= 0 {
+		username, password = auth[:sep], auth[sep+1:]
+	}
 
 	cfg := elasticsearch.Config{
 		Addresses: []string{url},

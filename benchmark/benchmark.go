@@ -2,6 +2,7 @@ package benchmark
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -9,10 +10,8 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/elastic/hey-apm/conv"
 	"github.com/elastic/hey-apm/es"
 	"github.com/elastic/hey-apm/models"
-	"github.com/elastic/hey-apm/types"
 	"github.com/elastic/hey-apm/worker"
 )
 
@@ -137,29 +136,37 @@ func verify(conn es.Connection, report models.Report, margin float64, days strin
 		return fmt.Errorf("not enough events indexed: %d", report.EventsIndexed)
 	}
 
-	inputMap := conv.ToMap(report.Input)
-	filters := []types.M{
-		{
-			"range": types.M{
-				"@timestamp": types.M{
-					"gte": fmt.Sprintf("now-%sd/d", days),
-					"lt":  "now",
-				},
+	filters := []map[string]interface{}{{
+		"range": map[string]interface{}{
+			"@timestamp": map[string]interface{}{
+				"gte": fmt.Sprintf("now-%sd/d", days),
+				"lt":  "now",
 			},
 		},
+	}}
+
+	// Convert input to a JSON map, to filter on the previous results for matching inputs.
+	inputMap := make(map[string]interface{})
+	encodedInput, err := json.Marshal(report.Input)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(encodedInput, &inputMap); err != nil {
+		return err
 	}
 	for k, v := range inputMap {
-		filters = append(filters, types.M{"match": types.M{k: v}})
+		filters = append(filters, map[string]interface{}{
+			"match": map[string]interface{}{k: v},
+		})
 	}
-	body := types.M{
-		"query": types.M{
-			"bool": types.M{
+
+	savedReports, fetchErr := es.FetchReports(conn, map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
 				"must": filters,
 			},
 		},
-	}
-
-	savedReports, fetchErr := es.FetchReports(conn, body)
+	})
 	if fetchErr != nil {
 		return fetchErr
 	}
