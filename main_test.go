@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/elastic/hey-apm/conv"
-	"github.com/elastic/hey-apm/strcoll"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,11 +23,15 @@ func TestDefaultInput(t *testing.T) {
 		"error_generation_frames_max_limit",
 		"error_generation_frames_min_limit",
 	}
+	expectedZeroValuesMap := make(map[string]bool)
+	for _, field := range expectedZeroValues {
+		expectedZeroValuesMap[field] = true
+	}
 
 	input := parseFlags()
 	assert.True(t, input.IsBenchmark)
 	for k, v := range conv.ToMap(input) {
-		if strcoll.Contains(k, expectedZeroValues) {
+		if expectedZeroValuesMap[k] {
 			continue
 		}
 		r := reflect.ValueOf(v)

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"reflect"
 	"strconv"
 	"strings"
 
@@ -67,43 +66,4 @@ func ToFloat64(i interface{}) float64 {
 		}
 		return f
 	}
-}
-
-// AsFloat64 look ups the key in m and returns its value as a float64.
-// If it fails, it returns the zero value.
-// m must be a map keyed by strings.
-func AsFloat64(m interface{}, k string) float64 {
-	return asType(m, k, float64(0)).(float64)
-}
-
-// AsUint64 look ups the key in m and returns its value as a uint64.
-// If it fails, it returns the zero value.
-// m must be a map keyed by strings.
-func AsUint64(m interface{}, k string) uint64 {
-	return uint64(AsFloat64(m, k))
-}
-
-// AsSlice look ups the key in m and returns its value as a slice of interface{}.
-// If it fails, it returns the zero value.
-// m must be a map keyed by strings.
-func AsSlice(m interface{}, k string) types.Is {
-	return asType(m, k, make(types.Is, 0)).(types.Is)
-}
-
-// AsString look ups the key in m and returns its value as a string.
-// If it fails, it returns the zero value.
-// m must be a map keyed by strings.
-func AsString(m interface{}, k string) string {
-	return asType(m, k, "").(string)
-}
-
-func asType(m interface{}, k string, v interface{}) interface{} {
-	if m2, ok := m.(types.M); ok {
-		if v2, ok := m2[k]; ok {
-			if reflect.TypeOf(v2) == reflect.TypeOf(v) {
-				return v2
-			}
-		}
-	}
-	return v
 }

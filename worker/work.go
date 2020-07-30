@@ -80,7 +80,7 @@ func (w *worker) work(ctx context.Context) (Result, error) {
 	w.flush()
 	result.Flushed = time.Now()
 	result.TracerStats = w.tracer.Stats()
-	result.TransportStats = *w.tracer.TransportStats
+	result.TransportStats = w.tracer.TransportStats()
 	return result, nil
 }
 
