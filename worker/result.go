@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/elastic/hey-apm/agent"
-	"github.com/elastic/hey-apm/numbers"
 	"github.com/elastic/hey-apm/strcoll"
 
 	"go.elastic.co/apm"
@@ -19,16 +18,9 @@ type Result struct {
 	Flushed time.Time
 }
 
-func (r Result) TransactionSuccess() *float64 {
-	return numbers.Perct(r.TransactionsSent, r.TransactionsDropped)
-}
-
-func (r Result) SpanSuccess() *float64 {
-	return numbers.Perct(r.SpansSent, r.SpansDropped)
-}
-
-func (r Result) ErrorSuccess() *float64 {
-	return numbers.Perct(r.ErrorsSent, r.ErrorsDropped)
+func (r Result) EventsGenerated() uint64 {
+	sent := r.EventsSent()
+	return sent + r.ErrorsDropped + r.ErrorsDropped + r.TransactionsDropped
 }
 
 func (r Result) EventsSent() uint64 {
@@ -39,56 +31,44 @@ func (r Result) ElapsedSeconds() float64 {
 	return r.Flushed.Sub(r.Start).Seconds()
 }
 
-func (r Result) EventsSentPerSecond() float64 {
-	return float64(r.EventsSent()) / r.ElapsedSeconds()
-}
-
-func (r Result) EventsAcceptedPerSecond() float64 {
-	return float64(r.Accepted) / r.ElapsedSeconds()
-}
-
-func (r Result) EventSuccess() *float64 {
-	return numbers.Perct(r.Accepted, r.EventsSent())
-}
-
-func (r Result) SpansPerTransaction() *float64 {
-	return numbers.Div(r.SpansSent, r.TransactionsSent)
-}
-
 func (r Result) String() string {
 	metrics := strcoll.NewTuples()
 
 	metrics.Add("transactions sent", r.TransactionsSent)
 	metrics.Add("transactions dropped", r.TransactionsDropped)
-	if r.TransactionSuccess() != nil {
-		metrics.Add(" - success %", *r.TransactionSuccess())
-		metrics.Add("spans sent", r.SpansSent)
-		metrics.Add("spans dropped", r.SpansDropped)
-		if r.SpanSuccess() != nil {
-			metrics.Add(" - success %", *r.SpanSuccess())
-		}
-		if r.SpansPerTransaction() != nil {
-			metrics.Add("spans sent per transaction", *r.SpansPerTransaction())
-		}
+	if total := r.TransactionsSent + r.TransactionsDropped; total > 0 {
+		metrics.Add(" - success %", 100*float64(r.TransactionsSent)/float64(total))
 	}
+
+	metrics.Add("spans sent", r.SpansSent)
+	metrics.Add("spans dropped", r.SpansDropped)
+	if total := r.SpansSent + r.SpansDropped; total > 0 {
+		metrics.Add(" - success %", 100*float64(r.SpansSent)/float64(total))
+	}
+	if r.TransactionsSent > 0 {
+		metrics.Add("spans sent per transaction", float64(r.SpansSent)/float64(r.TransactionsSent))
+	}
+
 	metrics.Add("errors sent", r.ErrorsSent)
 	metrics.Add("errors dropped", r.ErrorsDropped)
-	if r.ErrorSuccess() != nil {
-		metrics.Add(" - success %", *r.ErrorSuccess())
+	if total := r.ErrorsSent + r.ErrorsDropped; total > 0 {
+		metrics.Add(" - success %", 100*float64(r.ErrorsSent)/float64(total))
 	}
-	if r.ElapsedSeconds() > 0 {
-		metrics.Add("total events sent", r.EventsSent())
-		metrics.Add(" - per second", r.EventsSentPerSecond())
-		metrics.Add(" - accepted", int64(r.Accepted))
-		if r.ErrorSuccess() != nil {
-			metrics.Add("   - per second", r.EventsAcceptedPerSecond())
-			metrics.Add("   - success %", *r.ErrorSuccess())
+
+	if elapsedSeconds := r.ElapsedSeconds(); elapsedSeconds > 0 {
+		eventsSent := r.EventsSent()
+		metrics.Add("total events sent", eventsSent)
+		metrics.Add(" - per second", float64(eventsSent)/elapsedSeconds)
+		if total := r.EventsGenerated(); total > 0 {
+			metrics.Add(" - success %", 100*float64(eventsSent)/float64(total))
 		}
+		metrics.Add(" - accepted", r.EventsAccepted)
+		metrics.Add("   - per second", float64(r.EventsAccepted)/elapsedSeconds)
 	}
 	metrics.Add("total requests", r.NumRequests)
 	metrics.Add("failed", r.Errors.SendStream)
-	if len(r.TopErrors) > 0 {
-		metrics.Add("server errors", r.TopErrors)
+	if len(r.UniqueErrors) > 0 {
+		metrics.Add("server errors", r.UniqueErrors)
 	}
 
 	return metrics.Format(30)
