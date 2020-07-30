@@ -151,7 +151,7 @@ func createReport(input models.Input, testName string, result Result, initialSta
 		SpansSent:      result.SpansSent,
 		SpansIndexed:   finalStatus.SpanIndexCount - initialStatus.SpanIndexCount,
 
-		EventsAccepted: result.Accepted,
+		EventsAccepted: result.EventsAccepted,
 	}
 
 	info, ierr := server.QueryInfo(input.ApmServerSecret, input.ApmServerUrl)
@@ -175,7 +175,7 @@ func createReport(input models.Input, testName string, result Result, initialSta
 		r.ApmSettings = initialStatus.Metrics.Cmdline.Parse()
 	}
 
-	return r.WithDerivedAttributes()
+	return r
 }
 
 // shortId returns a short docId for elasticsearch documents. It is not an UUID

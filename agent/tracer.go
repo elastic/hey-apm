@@ -23,9 +23,9 @@ type Tracer struct {
 
 // TransportStats are captured by reading apm-server responses.
 type TransportStats struct {
-	Accepted    uint64
-	TopErrors   []string
-	NumRequests uint64
+	EventsAccepted uint64
+	UniqueErrors   []string
+	NumRequests    uint64
 }
 
 func (t Tracer) Close() {
@@ -78,12 +78,12 @@ func NewTracer(logger apm.Logger, serverUrl, serverSecret, apiKey, serviceName s
 			if err := json.Unmarshal(response, &m); err != nil {
 				return
 			}
-			tracer.TransportStats.Accepted += conv.AsUint64(m, "accepted")
+			tracer.TransportStats.EventsAccepted += conv.AsUint64(m, "accepted")
 			tracer.TransportStats.NumRequests += 1
 			for _, i := range conv.AsSlice(m, "errors") {
 				e := conv.AsString(i, "message")
-				if !strcoll.Contains(e, tracer.TransportStats.TopErrors) {
-					tracer.TransportStats.TopErrors = append(tracer.TransportStats.TopErrors, e)
+				if !strcoll.Contains(e, tracer.TransportStats.UniqueErrors) {
+					tracer.TransportStats.UniqueErrors = append(tracer.TransportStats.UniqueErrors, e)
 				}
 			}
 			rt.wg.Done()
