@@ -1,9 +1,10 @@
 package worker
 
 import (
+	"bytes"
+	"fmt"
+	"text/tabwriter"
 	"time"
-
-	"github.com/elastic/hey-apm/strcoll"
 
 	"go.elastic.co/apm"
 )
@@ -31,44 +32,49 @@ func (r Result) ElapsedSeconds() float64 {
 }
 
 func (r Result) String() string {
-	metrics := strcoll.NewTuples()
-
-	metrics.Add("transactions sent", r.TransactionsSent)
-	metrics.Add("transactions dropped", r.TransactionsDropped)
-	if total := r.TransactionsSent + r.TransactionsDropped; total > 0 {
-		metrics.Add(" - success %", 100*float64(r.TransactionsSent)/float64(total))
+	var buf bytes.Buffer
+	tw := tabwriter.NewWriter(&buf, 30, 8, 0, '.', 0)
+	add := func(key, format string, value interface{}) {
+		fmt.Fprintf(tw, "%s \t "+format+"\n", key, value)
 	}
 
-	metrics.Add("spans sent", r.SpansSent)
-	metrics.Add("spans dropped", r.SpansDropped)
+	add("transactions sent", "%d", r.TransactionsSent)
+	add("transactions dropped", "%d", r.TransactionsDropped)
+	if total := r.TransactionsSent + r.TransactionsDropped; total > 0 {
+		add(" - success %", "%.2f", 100*float64(r.TransactionsSent)/float64(total))
+	}
+
+	add("spans sent", "%d", r.SpansSent)
+	add("spans dropped", "%d", r.SpansDropped)
 	if total := r.SpansSent + r.SpansDropped; total > 0 {
-		metrics.Add(" - success %", 100*float64(r.SpansSent)/float64(total))
+		add(" - success %", "%.2f", 100*float64(r.SpansSent)/float64(total))
 	}
 	if r.TransactionsSent > 0 {
-		metrics.Add("spans sent per transaction", float64(r.SpansSent)/float64(r.TransactionsSent))
+		add("spans sent per transaction", "%.2f", float64(r.SpansSent)/float64(r.TransactionsSent))
 	}
 
-	metrics.Add("errors sent", r.ErrorsSent)
-	metrics.Add("errors dropped", r.ErrorsDropped)
+	add("errors sent", "%d", r.ErrorsSent)
+	add("errors dropped", "%d", r.ErrorsDropped)
 	if total := r.ErrorsSent + r.ErrorsDropped; total > 0 {
-		metrics.Add(" - success %", 100*float64(r.ErrorsSent)/float64(total))
+		add(" - success %", "%.2f", 100*float64(r.ErrorsSent)/float64(total))
 	}
 
 	if elapsedSeconds := r.ElapsedSeconds(); elapsedSeconds > 0 {
 		eventsSent := r.EventsSent()
-		metrics.Add("total events sent", eventsSent)
-		metrics.Add(" - per second", float64(eventsSent)/elapsedSeconds)
+		add("total events sent", "%d", eventsSent)
+		add(" - per second", "%.2f", float64(eventsSent)/elapsedSeconds)
 		if total := r.EventsGenerated(); total > 0 {
-			metrics.Add(" - success %", 100*float64(eventsSent)/float64(total))
+			add(" - success %", "%.2f", 100*float64(eventsSent)/float64(total))
 		}
-		metrics.Add(" - accepted", r.EventsAccepted)
-		metrics.Add("   - per second", float64(r.EventsAccepted)/elapsedSeconds)
+		add(" - accepted", "%d", r.EventsAccepted)
+		add("   - per second", "%.2f", float64(r.EventsAccepted)/elapsedSeconds)
 	}
-	metrics.Add("total requests", r.NumRequests)
-	metrics.Add("failed", r.Errors.SendStream)
+	add("total requests", "%d", r.NumRequests)
+	add("failed", "%d", r.Errors.SendStream)
 	if len(r.UniqueErrors) > 0 {
-		metrics.Add("server errors", r.UniqueErrors)
+		add("server errors", "%d", r.UniqueErrors)
 	}
 
-	return metrics.Format(30)
+	tw.Flush()
+	return buf.String()
 }

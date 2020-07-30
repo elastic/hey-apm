@@ -91,13 +91,13 @@ type Report struct {
 	EventsIndexed uint64 `json:"events_indexed"`
 
 	// total memory allocated in bytes
-	TotalAlloc *int64 `json:"total_alloc,omitempty"`
+	TotalAlloc *uint64 `json:"total_alloc,omitempty"`
 	// total memory allocated in the heap, in bytes
-	HeapAlloc *int64 `json:"heap_alloc,omitempty"`
+	HeapAlloc *uint64 `json:"heap_alloc,omitempty"`
 	// total number of mallocs
-	Mallocs *int64 `json:"mallocs,omitempty"`
+	Mallocs *uint64 `json:"mallocs,omitempty"`
 	// number of GC runs
-	NumGC *int64 `json:"num_gc,omitempty"`
+	NumGC *uint64 `json:"num_gc,omitempty"`
 }
 
 func (r Report) date() time.Time {

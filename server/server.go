@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	errs "errors"
 	"fmt"
@@ -9,14 +10,13 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"text/tabwriter"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/pkg/errors"
 
-	"github.com/elastic/hey-apm/conv"
 	"github.com/elastic/hey-apm/es"
-
-	"github.com/elastic/hey-apm/strcoll"
 )
 
 type Status struct {
@@ -62,12 +62,11 @@ type LibbeatMetrics struct {
 }
 
 type Memstats struct {
-	TotalAlloc     int64 `json:"TotalAlloc"`
-	HeapAlloc      int64 `json:"HeapAlloc"`
-	Mallocs        int64 `json:"Mallocs"`
-	NumGC          int64 `json:"NumGC"`
-	TotalAllocDiff int64
-	HeapAllocDiff  int64
+	TotalAlloc     uint64 `json:"TotalAlloc"`
+	HeapAlloc      uint64 `json:"HeapAlloc"`
+	Mallocs        uint64 `json:"Mallocs"`
+	NumGC          uint64 `json:"NumGC"`
+	TotalAllocDiff uint64
 }
 
 // Sub subtracts some memory stats from another
@@ -76,20 +75,20 @@ func (ms Memstats) Sub(ms2 Memstats) Memstats {
 		TotalAlloc:     ms.TotalAlloc,
 		HeapAlloc:      ms.HeapAlloc,
 		TotalAllocDiff: ms.TotalAlloc - ms2.TotalAlloc,
-		HeapAllocDiff:  ms.HeapAlloc - ms2.HeapAlloc,
 		Mallocs:        ms.Mallocs - ms2.Mallocs,
 		NumGC:          ms.NumGC - ms2.NumGC,
 	}
 }
 
 func (ms Memstats) String() string {
-	metrics := strcoll.NewTuples()
-	metrics.Add("heap", conv.ByteCountDecimal(ms.HeapAlloc))
-	metrics.Add("total allocated", conv.ByteCountDecimal(ms.TotalAllocDiff))
-	metrics.Add("heap allocated", conv.ByteCountDecimal(ms.HeapAllocDiff))
-	metrics.Add("mallocs", ms.Mallocs)
-	metrics.Add("num GC", ms.NumGC)
-	return metrics.Format(20)
+	var buf bytes.Buffer
+	tw := tabwriter.NewWriter(&buf, 20, 8, 0, '.', 0)
+	fmt.Fprintf(tw, "heap \t %s\n", humanize.Bytes(ms.HeapAlloc))
+	fmt.Fprintf(tw, "total allocated \t %s\n", humanize.Bytes(ms.TotalAllocDiff))
+	fmt.Fprintf(tw, "mallocs \t %d\n", ms.Mallocs)
+	fmt.Fprintf(tw, "num GC \t %d\n", ms.NumGC)
+	tw.Flush()
+	return buf.String()
 }
 
 func (info Info) String() string {
@@ -104,16 +103,20 @@ func (info Info) String() string {
 func (cmd Cmdline) Parse() map[string]string {
 	ret := make(map[string]string)
 	var lookup bool
-	for idx, arg := range cmd {
+	for _, arg := range cmd {
 		switch {
 		case arg == "-E":
 			lookup = true
 		case lookup:
-			k, v := strcoll.SplitKV(cmd[idx], "=")
+			lookup = false
+			sep := strings.IndexRune(arg, '=')
+			if sep < 0 {
+				continue
+			}
+			k, v := arg[:sep], arg[sep+1:]
 			if !strings.Contains(strings.ToLower(k), "password") {
 				ret[k] = v
 			}
-			lookup = false
 		}
 	}
 	return ret

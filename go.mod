@@ -3,6 +3,7 @@ module github.com/elastic/hey-apm
 go 1.14
 
 require (
+	github.com/dustin/go-humanize v1.0.0
 	github.com/elastic/go-elasticsearch/v7 v7.8.0
 	github.com/elastic/go-sysinfo v1.3.0 // indirect
 	github.com/elastic/go-windows v1.0.1 // indirect
