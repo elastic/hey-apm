@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/elastic/hey-apm/agent"
-
 	"go.elastic.co/apm"
 	"go.elastic.co/apm/stacktrace"
 )
@@ -16,7 +14,7 @@ import (
 type worker struct {
 	stop   <-chan struct{} // graceful shutdown
 	logger *apmLogger
-	tracer *agent.Tracer
+	tracer *tracer
 
 	ErrorFrequency     time.Duration
 	ErrorLimit         int

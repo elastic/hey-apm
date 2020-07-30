@@ -1,4 +1,4 @@
-package agent
+package worker
 
 import (
 	"bytes"
@@ -13,12 +13,12 @@ import (
 	apmtransport "go.elastic.co/apm/transport"
 )
 
-type Tracer struct {
+type tracer struct {
 	*apm.Tracer
 	roundTripper *roundTripperWrapper
 }
 
-func (t *Tracer) TransportStats() TransportStats {
+func (t *tracer) TransportStats() TransportStats {
 	t.roundTripper.statsMu.RLock()
 	defer t.roundTripper.statsMu.RUnlock()
 	return t.roundTripper.stats
@@ -31,12 +31,12 @@ type TransportStats struct {
 	NumRequests    uint64
 }
 
-// NewTracer returns a wrapper with a new Go agent instance and its transport stats.
-func NewTracer(
+// newTracer returns a wrapper with a new Go agent instance and its transport stats.
+func newTracer(
 	logger apm.Logger,
 	serverURL, serverSecret, apiKey, serviceName string,
 	maxSpans int,
-) (*Tracer, error) {
+) (*tracer, error) {
 
 	// Ensure that each tracer uses an independent transport.
 	transport, err := apmtransport.NewHTTPTransport()
@@ -74,7 +74,7 @@ func NewTracer(
 	goTracer.SetMetricsInterval(0) // disable metrics
 	goTracer.SetSpanFramesMinDuration(1 * time.Nanosecond)
 	goTracer.SetMaxSpans(maxSpans)
-	return &Tracer{Tracer: goTracer, roundTripper: roundTripper}, nil
+	return &tracer{Tracer: goTracer, roundTripper: roundTripper}, nil
 }
 
 type roundTripperWrapper struct {

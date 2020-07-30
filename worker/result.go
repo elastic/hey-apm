@@ -3,7 +3,6 @@ package worker
 import (
 	"time"
 
-	"github.com/elastic/hey-apm/agent"
 	"github.com/elastic/hey-apm/strcoll"
 
 	"go.elastic.co/apm"
@@ -12,7 +11,7 @@ import (
 // Result holds stats captured from a Go agent plus timing information.
 type Result struct {
 	apm.TracerStats
-	agent.TransportStats
+	TransportStats
 	Start   time.Time
 	End     time.Time
 	Flushed time.Time

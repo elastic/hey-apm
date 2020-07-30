@@ -10,7 +10,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/elastic/hey-apm/agent"
 	"github.com/elastic/hey-apm/es"
 	"github.com/elastic/hey-apm/models"
 	"github.com/elastic/hey-apm/server"
@@ -100,7 +99,7 @@ func derefInt64(v *int64, d int64) int64 {
 // newWorker returns a new worker with with a workload defined by the input.
 func newWorker(input models.Input, stop <-chan struct{}) (*worker, error) {
 	logger := newApmLogger(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile))
-	tracer, err := agent.NewTracer(logger, input.ApmServerUrl, input.ApmServerSecret, input.APIKey, input.ServiceName, input.SpanMaxLimit)
+	tracer, err := newTracer(logger, input.ApmServerUrl, input.ApmServerSecret, input.APIKey, input.ServiceName, input.SpanMaxLimit)
 	if err != nil {
 		return nil, err
 	}
