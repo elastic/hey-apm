@@ -152,6 +152,9 @@ func createReport(input models.Input, testName string, result Result, initialSta
 
 		EventsAccepted: result.EventsAccepted,
 	}
+	r.EventsGenerated = r.TransactionsGenerated + r.SpansGenerated + r.ErrorsGenerated
+	r.EventsSent = r.TransactionsSent + r.SpansSent + r.ErrorsSent
+	r.EventsIndexed = r.TransactionsIndexed + r.SpansIndexed + r.ErrorsIndexed
 
 	info, ierr := server.QueryInfo(input.ApmServerSecret, input.ApmServerUrl)
 	if ierr == nil {
