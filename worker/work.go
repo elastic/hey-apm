@@ -112,7 +112,7 @@ func sendSpans(tx *apm.Transaction, n int) {
 				Name: resource,
 				Resource: resource,
 			})
-			time.Sleep(time.Duration(rand.Intn(10000000)))
+			span.Duration = time.Duration(rand.Intn(int(10 * time.Millisecond)))
 			span.End()
 		}
 	}()
