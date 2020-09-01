@@ -103,7 +103,17 @@ func sendSpans(tx *apm.Transaction, n int) {
 	go func() {
 		defer close(done)
 		for i := 0; i < n; i++ {
-			tx.StartSpan("I'm a span", "gen.era.ted", nil).End()
+			span := tx.StartSpan("I'm a span", "gen.era.ted", nil)
+			resource := "service-1"
+			if n % 2 == 0 {
+				resource = "service-2"
+			}
+			span.Context.SetDestinationService(apm.DestinationServiceSpanContext{
+				Name: resource,
+				Resource: resource,
+			})
+			span.Duration = time.Duration(rand.Intn(int(10 * time.Millisecond)))
+			span.End()
 		}
 	}()
 	<-done
