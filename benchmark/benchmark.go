@@ -171,17 +171,21 @@ func verify(conn es.Connection, report models.Report, margin float64, days strin
 		return fetchErr
 	}
 
-	var regression error
+	var accPerformance, count float64
 	for _, sr := range savedReports {
-		if report.ReportId != sr.ReportId && report.Performance()*margin < sr.Performance() {
-			regression = newRegression(report, sr)
+		if report.ReportId != sr.ReportId {
+			accPerformance += sr.Performance()
+			count += 1.0
 		}
 	}
-	return regression
+	avgPerformance := accPerformance / count
+	if avgPerformance > report.Performance() * margin {
+		return newRegression(report, avgPerformance)
+	}
+	return nil
 }
 
-func newRegression(r1, r2 models.Report) error {
-	return fmt.Errorf(`test report with doc id %s was expected to show same or better 
-performance as %s, however %.2f is lower than %.2f`,
-		r1.ReportId, r2.ReportId, r1.Performance(), r2.Performance())
+func newRegression(r models.Report, threshold float64) error {
+		return errors.New(fmt.Sprintf(`test report with doc id %s was expected to show same or better 
+performance than average of %.2f, however %.2f is significantly lower`, r.ReportId, threshold, r.Performance()))
 }
