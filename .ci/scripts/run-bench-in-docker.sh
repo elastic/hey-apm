@@ -23,6 +23,9 @@ function finish {
 
 trap finish EXIT INT TERM
 
+echo "Ensure the docker context is fresh"
+docker-compose down -v || true   ## We don't want to fail yet
+
 echo "Validate whether the ES_URL is reachable"
 curl --user "${ES_USER}:${ES_PASS}" "${ES_URL}"
 

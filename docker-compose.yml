@@ -2,10 +2,9 @@ version: "2.1"
 services:
   apm-server:
     image: ${APM_DOCKER_IMAGE:-docker.elastic.co/apm/apm-server}:${STACK_VERSION:-8.0.0-SNAPSHOT}
-    container_name: apm-server
     ports:
-      - "127.0.0.1:8200:8200"
-      - "127.0.0.1:6060:6060"
+      - "127.0.0.1:8201:8200"
+      - "127.0.0.1:6061:6060"
     command: >
       apm-server -e
         -E setup.template.settings.index.number_of_replicas=0
@@ -44,7 +43,6 @@ services:
     working_dir: /app
     command: >
       /hey-apm -bench -run 5m -rm 1.2 -apm-url http://apm-server:8200 -es-url ${ES_URL} -es-auth "${ES_USER}:${ES_PASS}" -apm-es-url ${ES_URL} -apm-es-auth "${ES_USER}:${ES_PASS}"
-    container_name: hey-apm
     environment:
       - ES_URL=${ES_URL}
       - ES_USER=${ES_USER}
@@ -62,7 +60,6 @@ services:
   validate-es-url:
     image: pstauffer/curl
     command: curl --user "${ES_USER}:${ES_PASS}" "${ES_URL}"
-    container_name: validate-es-url
     environment:
       - ES_URL=${ES_URL}
       - ES_USER=${ES_USER}
