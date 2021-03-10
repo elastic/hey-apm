@@ -95,10 +95,25 @@ func FetchReports(conn Connection, body interface{}) ([]models.Report, error) {
 	return ret, err
 }
 
-// Count returns the number of documents in the given index.
+// Count returns the number of documents in the given index, excluding
+// those related to self-instrumentation.
 func Count(conn Connection, index string) uint64 {
 	res, err := conn.Count(
 		conn.Count.WithIndex(index),
+		conn.Count.WithBody(strings.NewReader(`
+{
+  "query": {
+    "bool": {
+      "must_not": {
+        "term": {
+          "service.name": {
+            "value": "apm-server"
+	  }
+	}
+      }
+    }
+  }
+}`[1:])),
 	)
 	if err != nil {
 		return 0
