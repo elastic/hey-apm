@@ -7,10 +7,8 @@ services:
       - "127.0.0.1:6061:6060"
     command: >
       apm-server -e
-        -E setup.template.settings.index.number_of_replicas=0
         -E monitoring.enabled=true
         -E apm-server.expvar.enabled=true
-        -E apm-server.ilm.enabled=false
         -E apm-server.instrumentation.enabled=true
         -E output.elasticsearch.hosts=["${ES_URL}"]
         -E output.elasticsearch.username=${ES_USER}
