@@ -97,13 +97,18 @@ func FetchReports(conn Connection, body interface{}) ([]models.Report, error) {
 
 // Count returns the number of documents in the given index, excluding
 // those related to self-instrumentation.
-func Count(conn Connection, index string) uint64 {
+func Count(conn Connection, index, eventType string) uint64 {
 	res, err := conn.Count(
 		conn.Count.WithIndex(index),
-		conn.Count.WithBody(strings.NewReader(`
+		conn.Count.WithBody(strings.NewReader(fmt.Sprintf(`
 {
   "query": {
     "bool": {
+      "filter": {
+        "term": {
+	  "processor.event": "%s"
+	}
+      },
       "must_not": {
         "term": {
           "service.name": {
@@ -113,7 +118,7 @@ func Count(conn Connection, index string) uint64 {
       }
     }
   }
-}`[1:])),
+}`[1:], eventType))),
 	)
 	if err != nil {
 		return 0
@@ -126,7 +131,7 @@ func Count(conn Connection, index string) uint64 {
 	return 0
 }
 
-func DeleteAPMEvents(conn Connection) error {
+func DeleteAPMEvents(conn Connection) (int, error) {
 	body := map[string]interface{}{
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{
@@ -142,12 +147,25 @@ func DeleteAPMEvents(conn Connection) error {
 			},
 		},
 	}
-	resp, err := conn.DeleteByQuery([]string{"apm*"}, esutil.NewJSONReader(body))
+	resp, err := conn.DeleteByQuery(
+		[]string{".ds-traces-apm*", ".ds-metrics-apm*", ".ds-logs-apm*"},
+		esutil.NewJSONReader(body),
+		conn.DeleteByQuery.WithExpandWildcards("all"),
+	)
 	if err != nil {
-		return err
+		return -1, err
 	}
+	defer resp.Body.Close()
+
 	if resp.IsError() {
-		return errors.New(fmt.Sprintf("%s: %s", resp.Status(), resp.String()))
+		return -1, errors.New(fmt.Sprintf("%s: %s", resp.Status(), resp.String()))
 	}
-	return nil
+
+	var result struct {
+		Deleted int `json:"deleted"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return -1, err
+	}
+	return result.Deleted, nil
 }

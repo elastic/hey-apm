@@ -33,9 +33,12 @@ func Run(ctx context.Context, input models.Input) error {
 	}
 
 	log.Printf("Deleting previous APM event documents...")
-	if err := es.DeleteAPMEvents(conn); err != nil {
+	deleted, err := es.DeleteAPMEvents(conn)
+	if err != nil {
 		return err
 	}
+	log.Printf("Deleted %d documents", deleted)
+
 	if err := warmUp(ctx, input); err != nil {
 		return err
 	}
@@ -179,13 +182,15 @@ func verify(conn es.Connection, report models.Report, margin float64, days strin
 		}
 	}
 	avgPerformance := accPerformance / count
-	if avgPerformance > report.Performance() * margin {
+	if avgPerformance > report.Performance()*margin {
 		return newRegression(report, avgPerformance)
 	}
 	return nil
 }
 
 func newRegression(r models.Report, threshold float64) error {
-		return errors.New(fmt.Sprintf(`test report with doc id %s was expected to show same or better 
-performance than average of %.2f, however %.2f is significantly lower`, r.ReportId, threshold, r.Performance()))
+	return errors.New(fmt.Sprintf(
+		`test report with doc id %s was expected to show same or better performance than average of %.2f, however %.2f is significantly lower`,
+		r.ReportId, threshold, r.Performance(),
+	))
 }

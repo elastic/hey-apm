@@ -36,9 +36,9 @@ func GetStatus(logger *log.Logger, secret, url string, connection es.Connection)
 	} else {
 		logger.Println(err.Error())
 	}
-	status.SpanIndexCount = es.Count(connection, "apm*span*")
-	status.TransactionIndexCount = es.Count(connection, "apm*transaction*")
-	status.ErrorIndexCount = es.Count(connection, "apm*error*")
+	status.SpanIndexCount = es.Count(connection, "traces-apm*", "span")
+	status.TransactionIndexCount = es.Count(connection, "traces-apm*", "transaction")
+	status.ErrorIndexCount = es.Count(connection, "logs-apm*", "error")
 	return status
 }
 
