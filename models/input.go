@@ -20,6 +20,8 @@ type Input struct {
 	ApmServerUrl string `json:"apm_url"`
 	// Secret token of the APM Server under test
 	ApmServerSecret string `json:"-"`
+	// API Key for communication between APM Server and the Go agent
+	APIKey string `json:"-"`
 	// If true, it will index the performance report of a run in ElasticSearch
 	SkipIndexReport bool `json:"-"`
 	// URL of the Elasticsearch instance used for indexing the performance report
@@ -37,6 +39,11 @@ type Input struct {
 	RunTimeout time.Duration `json:"run_timeout"`
 	// Timeout for flushing the workload to APM Server
 	FlushTimeout time.Duration `json:"flush_timeout"`
+	// Number of Instances that are creating load
+	Instances int `json:"instances"`
+	// DelayMillis is the maximum amount of milliseconds to wait per instance before starting it,
+	// can be used to add some randomness for producing load
+	DelayMillis int `json:"delay_millis"`
 	// Frequency at which the tracer will generate transactions
 	TransactionFrequency time.Duration `json:"transaction_generation_frequency"`
 	// Maximum number of transactions to push to the APM Server (ends the test when reached)
@@ -55,30 +62,26 @@ type Input struct {
 	ErrorFrameMinLimit int `json:"error_generation_frames_min_limit"`
 }
 
-type Wrap struct {
-	Input
+func (in Input) WithErrors(limit int, freq time.Duration) Input {
+	in.ErrorLimit = limit
+	in.ErrorFrequency = freq
+	return in
 }
 
-func (w Wrap) WithErrors(limit int, freq time.Duration) Wrap {
-	w.ErrorLimit = limit
-	w.ErrorFrequency = freq
-	return w
+func (in Input) WithFrames(f int) Input {
+	in.ErrorFrameMaxLimit = f
+	in.ErrorFrameMinLimit = f
+	return in
 }
 
-func (w Wrap) WithFrames(f int) Wrap {
-	w.ErrorFrameMaxLimit = f
-	w.ErrorFrameMinLimit = f
-	return w
+func (in Input) WithTransactions(limit int, freq time.Duration) Input {
+	in.TransactionLimit = limit
+	in.TransactionFrequency = freq
+	return in
 }
 
-func (w Wrap) WithTransactions(limit int, freq time.Duration) Wrap {
-	w.TransactionLimit = limit
-	w.TransactionFrequency = freq
-	return w
-}
-
-func (w Wrap) WithSpans(s int) Wrap {
-	w.SpanMaxLimit = s
-	w.SpanMinLimit = s
-	return w
+func (in Input) WithSpans(s int) Input {
+	in.SpanMaxLimit = s
+	in.SpanMinLimit = s
+	return in
 }

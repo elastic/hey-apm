@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -9,26 +10,32 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/elastic/hey-apm/models"
-
-	"github.com/elastic/hey-apm/agent"
 	"github.com/elastic/hey-apm/es"
+	"github.com/elastic/hey-apm/models"
 	"github.com/elastic/hey-apm/server"
 )
 
+const quiesceTimeout = 5 * time.Minute
+
 // Run executes a load test work with the given input, prints the results,
 // indexes a performance report, and returns it along any error.
-func Run(input models.Input) (models.Report, error) {
+//
+// If the context is cancelled, the worker exits with the context's error.
+// If the stop channel is signalled, the worker exits gracefully with no error.
+func Run(ctx context.Context, input models.Input, testName string, stop <-chan struct{}) (models.Report, error) {
 	testNode, err := es.NewConnection(input.ApmElasticsearchUrl, input.ApmElasticsearchAuth)
 	if err != nil {
 		return models.Report{}, errors.Wrap(err, "Elasticsearch used by APM Server not known or reachable")
 	}
 
-	worker := prepareWork(input)
-	logger := worker.Logger
+	worker, err := newWorker(input, stop)
+	if err != nil {
+		return models.Report{}, err
+	}
+	logger := worker.logger.Logger
 	initialStatus := server.GetStatus(logger, input.ApmServerSecret, input.ApmServerUrl, testNode)
 
-	result, err := worker.work()
+	result, err := worker.work(ctx)
 	if err != nil {
 		logger.Println(err.Error())
 		return models.Report{}, err
@@ -36,8 +43,34 @@ func Run(input models.Input) (models.Report, error) {
 	logger.Printf("%s elapsed since event generation completed", result.Flushed.Sub(result.End))
 	fmt.Println(result)
 
-	finalStatus := server.GetStatus(logger, input.ApmServerSecret, input.ApmServerUrl, testNode)
-	report := createReport(input, result, initialStatus, finalStatus)
+	// Wait for apm-server to quiesce before proceeding.
+	var finalStatus server.Status
+	deadline := time.Now().Add(quiesceTimeout)
+	for {
+		finalStatus = server.GetStatus(logger, input.ApmServerSecret, input.ApmServerUrl, testNode)
+		if finalStatus.Metrics == nil {
+			logger.Print("expvar endpoint not available, returning")
+			break
+		}
+		outputActiveEvents := derefInt64(finalStatus.Metrics.LibbeatMetrics.OutputEventsActive, 0)
+		pipelineActiveEvents := derefInt64(finalStatus.Metrics.LibbeatMetrics.PipelineEventsActive, 0)
+		if outputActiveEvents == 0 && pipelineActiveEvents == 0 {
+			break
+		}
+		if !deadline.After(time.Now()) {
+			logger.Printf(
+				"giving up waiting for active events to be processed: %d output, %d pipeline",
+				outputActiveEvents, pipelineActiveEvents,
+			)
+			break
+		}
+		logger.Printf(
+			"waiting for active events to be processed: %d output, %d pipeline",
+			outputActiveEvents, pipelineActiveEvents,
+		)
+		time.Sleep(time.Second)
+	}
+	report := createReport(input, testName, result, initialStatus, finalStatus)
 
 	if input.SkipIndexReport {
 		return report, err
@@ -56,26 +89,40 @@ func Run(input models.Input) (models.Report, error) {
 	return report, err
 }
 
-// prepareWork returns a worker with with a workload defined by the input.
-func prepareWork(input models.Input) worker {
-
-	logger := newApmLogger(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile))
-	tracer := agent.NewTracer(logger, input.ApmServerUrl, input.ApmServerSecret, input.ServiceName, input.SpanMaxLimit)
-
-	w := worker{
-		apmLogger:    logger,
-		Tracer:       tracer,
-		RunTimeout:   input.RunTimeout,
-		FlushTimeout: input.FlushTimeout,
+func derefInt64(v *int64, d int64) int64 {
+	if v != nil {
+		return *v
 	}
-	w.addErrors(input.ErrorFrequency, input.ErrorLimit, input.ErrorFrameMinLimit, input.ErrorFrameMaxLimit)
-	w.addTransactions(input.TransactionFrequency, input.TransactionLimit, input.SpanMinLimit, input.SpanMaxLimit)
-	w.addSignalHandling()
-
-	return w
+	return d
 }
 
-func createReport(input models.Input, result Result, initialStatus, finalStatus server.Status) models.Report {
+// newWorker returns a new worker with with a workload defined by the input.
+func newWorker(input models.Input, stop <-chan struct{}) (*worker, error) {
+	logger := newApmLogger(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile))
+	tracer, err := newTracer(logger, input.ApmServerUrl, input.ApmServerSecret, input.APIKey, input.ServiceName, input.SpanMaxLimit)
+	if err != nil {
+		return nil, err
+	}
+	return &worker{
+		stop:         stop,
+		logger:       logger,
+		tracer:       tracer,
+		RunTimeout:   input.RunTimeout,
+		FlushTimeout: input.FlushTimeout,
+
+		TransactionFrequency: input.TransactionFrequency,
+		TransactionLimit:     input.TransactionLimit,
+		SpanMinLimit:         input.SpanMinLimit,
+		SpanMaxLimit:         input.SpanMaxLimit,
+
+		ErrorFrequency:     input.ErrorFrequency,
+		ErrorLimit:         input.ErrorLimit,
+		ErrorFrameMinLimit: input.ErrorFrameMinLimit,
+		ErrorFrameMaxLimit: input.ErrorFrameMaxLimit,
+	}, nil
+}
+
+func createReport(input models.Input, testName string, result Result, initialStatus, finalStatus server.Status) models.Report {
 	this, _ := os.Hostname()
 	r := models.Report{
 		Input: input,
@@ -83,6 +130,7 @@ func createReport(input models.Input, result Result, initialStatus, finalStatus 
 		ReportId:     shortId(),
 		ReportDate:   time.Now().Format(models.GITRFC),
 		ReporterHost: this,
+		TestName:     testName,
 
 		Timestamp: time.Now(),
 		Elapsed:   result.Flushed.Sub(result.Start).Seconds(),
@@ -102,8 +150,11 @@ func createReport(input models.Input, result Result, initialStatus, finalStatus 
 		SpansSent:      result.SpansSent,
 		SpansIndexed:   finalStatus.SpanIndexCount - initialStatus.SpanIndexCount,
 
-		EventsAccepted: result.Accepted,
+		EventsAccepted: result.EventsAccepted,
 	}
+	r.EventsGenerated = r.TransactionsGenerated + r.SpansGenerated + r.ErrorsGenerated
+	r.EventsSent = r.TransactionsSent + r.SpansSent + r.ErrorsSent
+	r.EventsIndexed = r.TransactionsIndexed + r.SpansIndexed + r.ErrorsIndexed
 
 	info, ierr := server.QueryInfo(input.ApmServerSecret, input.ApmServerUrl)
 	if ierr == nil {
@@ -126,7 +177,7 @@ func createReport(input models.Input, result Result, initialStatus, finalStatus 
 		r.ApmSettings = initialStatus.Metrics.Cmdline.Parse()
 	}
 
-	return r.WithDerivedAttributes()
+	return r
 }
 
 // shortId returns a short docId for elasticsearch documents. It is not an UUID

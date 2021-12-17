@@ -3,12 +3,11 @@ package es
 import (
 	"encoding/json"
 	"fmt"
-
-	"github.com/elastic/go-elasticsearch/v7/esutil"
+	"strings"
 
 	"github.com/elastic/go-elasticsearch/v7"
+	"github.com/elastic/go-elasticsearch/v7/esutil"
 	"github.com/elastic/hey-apm/models"
-	"github.com/elastic/hey-apm/strcoll"
 	"github.com/pkg/errors"
 )
 
@@ -31,7 +30,16 @@ func NewConnection(url, auth string) (Connection, error) {
 	if url == "local" {
 		url = local
 	}
-	username, password := strcoll.SplitKV(auth, ":")
+
+	// Split "username:password"
+	//
+	// TODO(axw) consider removing the separate "auth" option to
+	// reduce options, and instead require userinfo to be included
+	// in the URL.
+	username, password := auth, ""
+	if sep := strings.IndexRune(auth, ':'); sep >= 0 {
+		username, password = auth[:sep], auth[sep+1:]
+	}
 
 	cfg := elasticsearch.Config{
 		Addresses: []string{url},
@@ -87,26 +95,77 @@ func FetchReports(conn Connection, body interface{}) ([]models.Report, error) {
 	return ret, err
 }
 
-// Count returns the number of documents in the given index.
-func Count(conn Connection, index string) uint64 {
+// Count returns the number of documents in the given index, excluding
+// those related to self-instrumentation.
+func Count(conn Connection, index, eventType string) uint64 {
 	res, err := conn.Count(
 		conn.Count.WithIndex(index),
+		conn.Count.WithBody(strings.NewReader(fmt.Sprintf(`
+{
+  "query": {
+    "bool": {
+      "filter": {
+        "term": {
+	  "processor.event": "%s"
+	}
+      },
+      "must_not": {
+        "term": {
+          "service.name": {
+            "value": "apm-server"
+	  }
+	}
+      }
+    }
+  }
+}`[1:], eventType))),
 	)
 	if err != nil {
 		return 0
 	}
 	var m map[string]interface{}
 	json.NewDecoder(res.Body).Decode(&m)
-	return uint64(m["count"].(float64))
+	if ct, ok := m["count"]; ok && ct != nil {
+		return uint64(m["count"].(float64))
+	}
+	return 0
 }
 
-func Delete(conn Connection, indices ...string) error {
-	resp, err := conn.Indices.Delete(indices)
+func DeleteAPMEvents(conn Connection) (int, error) {
+	body := map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must_not": []map[string]interface{}{
+					{
+						"term": map[string]interface{}{
+							"service.name": map[string]interface{}{
+								"value": "apm-server",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	resp, err := conn.DeleteByQuery(
+		[]string{".ds-traces-apm*", ".ds-metrics-apm*", ".ds-logs-apm*"},
+		esutil.NewJSONReader(body),
+		conn.DeleteByQuery.WithExpandWildcards("all"),
+	)
 	if err != nil {
-		return err
+		return -1, err
 	}
+	defer resp.Body.Close()
+
 	if resp.IsError() {
-		return errors.New(fmt.Sprintf("%s: %s", resp.Status(), resp.String()))
+		return -1, errors.New(fmt.Sprintf("%s: %s", resp.Status(), resp.String()))
 	}
-	return nil
+
+	var result struct {
+		Deleted int `json:"deleted"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return -1, err
+	}
+	return result.Deleted, nil
 }

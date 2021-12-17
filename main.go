@@ -1,34 +1,81 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"fmt"
+	"log"
 	"math"
 	"math/rand"
 	"os"
+	"os/signal"
 	"strconv"
 	"time"
 
+	"go.elastic.co/apm"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/elastic/hey-apm/benchmark"
-
 	"github.com/elastic/hey-apm/models"
-
 	"github.com/elastic/hey-apm/worker"
 )
 
+func init() {
+	apm.DefaultTracer.Close()
+	rand.Seed(1000)
+}
+
 func main() {
+	if err := Main(); err != nil {
+		log.Fatal(err)
+	}
+}
 
-	var err error
-
+func Main() error {
+	signalC := make(chan os.Signal, 1)
+	signal.Notify(signalC, os.Interrupt)
 	input := parseFlags()
 	if input.IsBenchmark {
-		err = benchmark.Run(input)
-	} else {
-		_, err = worker.Run(input)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() {
+			// Ctrl+C when running benchmarks causes them to be
+			// aborted, as the results are not meaningful for
+			// comparison.
+			defer cancel()
+			<-signalC
+			log.Printf("Interrupt signal received, aborting benchmarks...")
+		}()
+		if err := benchmark.Run(ctx, input); err != nil {
+			return err
+		}
+		return nil
 	}
 
-	if err != nil {
-		os.Exit(1)
+	stopChan := make(chan struct{})
+	go func() {
+		// Ctrl+C when running load generation gracefully stops the
+		// workers and prints the statistics.
+		defer close(stopChan)
+		<-signalC
+		log.Printf("Interrupt signal received, stopping load generator...")
+	}()
+	return runWorkers(input, stopChan)
+}
+
+func runWorkers(input models.Input, stop <-chan struct{}) error {
+	g, ctx := errgroup.WithContext(context.Background())
+	for i := 0; i < input.Instances; i++ {
+		idx := i
+		g.Go(func() error {
+			randomDelay := time.Duration(rand.Intn(input.DelayMillis)) * time.Millisecond
+			fmt.Println(fmt.Sprintf("--- Starting instance (%v) in %v milliseconds", idx, randomDelay))
+			time.Sleep(randomDelay)
+			_, err := worker.Run(ctx, input, "", stop)
+			return err
+		})
 	}
+	return g.Wait()
 }
 
 func parseFlags() models.Input {
@@ -36,6 +83,8 @@ func parseFlags() models.Input {
 	runTimeout := flag.Duration("run", 30*time.Second, "stop run after this duration")
 	flushTimeout := flag.Duration("flush", 10*time.Second, "wait timeout for agent flush")
 	seed := flag.Int64("seed", time.Now().Unix(), "random seed")
+	instances := flag.Int("instances", 1, "number of concurrent instances to create load (only if -bench is not passed)")
+	delayMillis := flag.Int("delay", 1000, "max delay in milliseconds per worker to start (only if -bench is not passed)")
 
 	// convenience for https://www.elastic.co/guide/en/apm/agent/go/current/configuration.html
 	serviceName := os.Getenv("ELASTIC_APM_SERVICE_NAME")
@@ -43,7 +92,8 @@ func parseFlags() models.Input {
 		serviceName = *flag.String("service-name", "hey-service", "service name") // ELASTIC_APM_SERVICE_NAME
 	}
 	// apm-server options
-	apmServerSecret := flag.String("apm-secret", "", "apm server secret token")       // ELASTIC_APM_SECRET_TOKEN
+	apmServerSecret := flag.String("apm-secret", "", "apm server secret token") // ELASTIC_APM_SECRET_TOKEN
+	apmServerAPIKey := flag.String("api-key", "", "APM API yey")
 	apmServerUrl := flag.String("apm-url", "http://localhost:8200", "apm server url") // ELASTIC_APM_SERVER_URL
 
 	elasticsearchUrl := flag.String("es-url", "http://localhost:9200", "elasticsearch url for reporting")
@@ -79,6 +129,7 @@ func parseFlags() models.Input {
 		IsBenchmark:          *isBench,
 		ApmServerUrl:         *apmServerUrl,
 		ApmServerSecret:      *apmServerSecret,
+		APIKey:               *apmServerAPIKey,
 		ElasticsearchUrl:     *elasticsearchUrl,
 		ElasticsearchAuth:    *elasticsearchAuth,
 		ApmElasticsearchUrl:  *apmElasticsearchUrl,
@@ -86,6 +137,8 @@ func parseFlags() models.Input {
 		ServiceName:          serviceName,
 		RunTimeout:           *runTimeout,
 		FlushTimeout:         *flushTimeout,
+		Instances:            *instances,
+		DelayMillis:          *delayMillis,
 	}
 
 	if *isBench {

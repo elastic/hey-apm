@@ -3,17 +3,18 @@
 @Library('apm@current') _
 
 pipeline {
-  agent any
+  agent { label 'linux && immutable' }
   environment {
     BASE_DIR = 'src/github.com/elastic/hey-apm'
-		// TODO: rename branch when renaming apm-server
-    VERSION_FILE = 'https://raw.githubusercontent.com/elastic/apm-server/master/vendor/github.com/elastic/beats/libbeat/version/version.go'
     JOB_GIT_CREDENTIALS = "f6c7695a-671e-4f4f-a331-acdce44ff9ba"
     GO_VERSION = "${params.GO_VERSION}"
     STACK_VERSION = "${params.STACK_VERSION}"
+    APM_DOCKER_IMAGE = "${params.APM_DOCKER_IMAGE}"
     NOTIFY_TO = credentials('notify-to')
     JOB_GCS_BUCKET = credentials('gcs-bucket')
-    BENCHMARK_SECRET  = 'secret/apm-team/ci/java-agent-benchmark-cloud'
+    BENCHMARK_SECRET  = 'secret/apm-team/ci/benchmark-cloud'
+    DOCKER_SECRET = 'secret/apm-team/ci/docker-registry/prod'
+    DOCKER_REGISTRY = 'docker.elastic.co'
   }
   options {
     timeout(time: 1, unit: 'HOURS')
@@ -27,12 +28,12 @@ pipeline {
     cron('H H(3-5) * * *')
   }
   parameters {
-    string(name: 'GO_VERSION', defaultValue: '1.12.1', description: 'Go version to use.')
-    string(name: 'STACK_VERSION', defaultValue: '', description: 'Stack version Git branch/tag to use. Default behavior uses the apm-server@master version.')
+    string(name: 'GO_VERSION', defaultValue: '1.14', description: 'Go version to use.')
+    string(name: 'STACK_VERSION', defaultValue: '8.0.0-SNAPSHOT', description: 'Stack version Git branch/tag to use.')
+    string(name: 'APM_DOCKER_IMAGE', defaultValue: 'docker.elastic.co/apm/apm-server', description: 'The docker image to be used.')
   }
   stages {
     stage('Initializing'){
-      agent { label 'linux && immutable' }
       options { skipDefaultCheckout() }
       environment {
         PATH = "${env.PATH}:${env.WORKSPACE}/bin"
@@ -49,11 +50,6 @@ pipeline {
             gitCheckout(basedir: env.BASE_DIR, repo: 'git@github.com:elastic/hey-apm.git',
                         branch: 'main', credentialsId: env.JOB_GIT_CREDENTIALS)
             stash allowEmpty: true, name: 'source', useDefaultExcludes: false
-            script {
-              if (params.STACK_VERSION.trim()) {
-                env.STACK_VERSION = getVersion() + '-SNAPSHOT'
-              }
-            }
           }
         }
         /**
@@ -64,7 +60,7 @@ pipeline {
             deleteDir()
             unstash 'source'
             dir("${BASE_DIR}"){
-              sh "./scripts/jenkins/unit-test.sh ${GO_VERSION}"
+              sh "./.ci/scripts/unit-test.sh ${GO_VERSION}"
             }
           }
           post {
@@ -84,11 +80,12 @@ pipeline {
           steps {
             deleteDir()
             unstash 'source'
+            dockerLogin(secret: env.DOCKER_SECRET, registry: env.DOCKER_REGISTRY)
             script {
               dir(BASE_DIR){
                 sendBenchmarks.prepareAndRun(secret: env.BENCHMARK_SECRET, url_var: 'ES_URL',
                                              user_var: 'ES_USER', pass_var: 'ES_PASS') {
-                  sh 'scripts/jenkins/run-bench-in-docker.sh'
+                  sh '.ci/scripts/run-bench-in-docker.sh'
                 }
               }
             }
@@ -96,6 +93,7 @@ pipeline {
           post {
             always {
               archiveArtifacts "${BASE_DIR}/build/environment.txt"
+              deleteDir()
             }
           }
         }
@@ -107,8 +105,4 @@ pipeline {
       notifyBuildResult()
     }
   }
-}
-
-def getVersion() {
-  return sh(script: """curl -s ${VERSION_FILE}  | grep defaultBeatVersion | cut -d'=' -f2 | sed 's#"##g'""", returnStdout: true).trim()
 }

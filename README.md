@@ -11,7 +11,7 @@ It can be used manually or automatically (ie. in a CI environment)
 
 # Requirements
 
-hey-apm requires go modules support.  Tested with go1.12.1.
+hey-apm requires go modules support.  Tested with go1.14.4.
 
 # Install
 
@@ -33,8 +33,8 @@ Run `./hey-apm -help` or see `main.go`
 
 The `Jenkinsfile` triggers sequentially:
 
-- `scripts/jenkins/unit-test.sh`
-- `scripts/jenkins/run-bench-in-docker.sh`
+- `.ci/scripts/unit-test.sh`
+- `.ci/scripts/run-bench-in-docker.sh`
 
 ## Requirements
 - [gvm](https://github.com/andrewkroh/gvm)
@@ -42,20 +42,24 @@ The `Jenkinsfile` triggers sequentially:
 ## Run scripts locally
 
 ```bash
-  ./scripts/jenkins/unit-test.sh 1.12.1
+  ./.ci/scripts/unit-test.sh 1.14
 ```
 
 # How to run locally the hey-apm using a docker-compose services
 
-Run `scripts/jenkins/run-bench-in-docker.sh`
+Run `.ci/scripts/run-bench-in-docker.sh`
 
-## Configure the ES stack
+## Configure the ES stack version
 
-Run `ELASTIC_STACK=<version> scripts/jenkins/run-bench-in-docker.sh`
+Run `ELASTIC_STACK=<version> .ci/scripts/run-bench-in-docker.sh`
+
+## Configure the docker image for the ES stack
+
+Run `APM_DOCKER_IMAGE=<docker-image> .ci/scripts/run-bench-in-docker.sh`
 
 ## Configure the ES stack where to send the metrics to
 
-Run `ELASTIC_STACK=<version> ES_URL=<url> ES_USER=<user> ES_PASS=<password> scripts/jenkins/run-bench-in-docker.sh`
+Run `ELASTIC_STACK=<version> ES_URL=<url> ES_USER=<user> ES_PASS=<password> .ci/scripts/run-bench-in-docker.sh`
 
 # Known issues
 

@@ -1,17 +1,22 @@
 version: "2.1"
 services:
   apm-server:
-    image: docker.elastic.co/apm/apm-server:${STACK_VERSION:-8.0.0-SNAPSHOT}
-    container_name: apm-server
+    image: ${APM_DOCKER_IMAGE:-docker.elastic.co/apm/apm-server}:${STACK_VERSION:-8.0.0-SNAPSHOT}
     ports:
-      - "127.0.0.1:8200:8200"
-      - "127.0.0.1:6060:6060"
+      - "127.0.0.1:8201:8200"
+      - "127.0.0.1:6061:6060"
     command: >
       apm-server -e
-        -E setup.template.settings.index.number_of_replicas=0
-        -E xpack.monitoring.elasticsearch=true
-        -E output.elasticsearch.hosts=["elasticsearch:9200"]
+        -E monitoring.enabled=true
         -E apm-server.expvar.enabled=true
+        -E apm-server.instrumentation.enabled=true
+        -E output.elasticsearch.hosts=["${ES_URL}"]
+        -E output.elasticsearch.username=${ES_USER}
+        -E output.elasticsearch.password=${ES_PASS}
+    environment:
+      - ES_URL=${ES_URL}
+      - ES_USER=${ES_USER}
+      - ES_PASS=${ES_PASS}
     cap_drop:
       - ALL
     cap_add:
@@ -24,46 +29,10 @@ services:
       options:
           max-size: '2m'
           max-file: '5'
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "--write-out", "'HTTP %{http_code}'", "--silent", "--output", "/dev/null", "http://apm-server:8200/"]
       retries: 10
       interval: 10s
-
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION:-8.0.0-SNAPSHOT}
-    container_name: elasticsearch
-    environment:
-      - bootstrap.memory_lock=true
-      - cluster.name=docker-cluster
-      - cluster.routing.allocation.disk.threshold_enabled=false
-      - discovery.type=single-node
-      - path.repo=/usr/share/elasticsearch/data/backups
-      - "ES_JAVA_OPTS=-XX:UseAVX=2 -Xms1g -Xmx4g"
-      - "path.data=/usr/share/elasticsearch/data/${STACK_VERSION:-8.0.0-SNAPSHOT}"
-      - xpack.security.enabled=false
-      - xpack.license.self_generated.type=trial
-      - xpack.monitoring.collection.enabled=true
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-    mem_limit: 6g
-    logging:
-      driver: 'json-file'
-      options:
-          max-size: '2m'
-          max-file: '5'
-    ports:
-      - "127.0.0.1:9200:9200"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -vq '\"status\":\"red\"'"]
-      retries: 10
-      interval: 20s
-    volumes:
-      - esdata:/usr/share/elasticsearch/data
 
   hey-apm:
     build:
@@ -71,8 +40,7 @@ services:
       dockerfile: docker/Dockerfile-bench
     working_dir: /app
     command: >
-      /hey-apm -bench -run 5m -apm-url http://apm-server:8200 -es-url ${ES_URL} -es-auth "${ES_USER}:${ES_PASS}" -apm-es-url http://elasticsearch:9200
-    container_name: hey-apm
+      /hey-apm -bench -run 5m -rm 1.2 -apm-url http://apm-server:8200 -es-url ${ES_URL} -es-auth "${ES_USER}:${ES_PASS}" -apm-es-url ${ES_URL} -apm-es-auth "${ES_USER}:${ES_PASS}"
     environment:
       - ES_URL=${ES_URL}
       - ES_USER=${ES_USER}
@@ -84,15 +52,12 @@ services:
     depends_on:
       apm-server:
         condition: service_healthy
-      elasticsearch:
-        condition: service_healthy
       validate-es-url:
         condition: service_started
 
   validate-es-url:
     image: pstauffer/curl
     command: curl --user "${ES_USER}:${ES_PASS}" "${ES_URL}"
-    container_name: validate-es-url
     environment:
       - ES_URL=${ES_URL}
       - ES_USER=${ES_USER}

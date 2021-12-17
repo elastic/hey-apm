@@ -39,8 +39,8 @@
           recursive: true
           parent-credentials: true
           timeout: 100
+          reference-repo: /var/lib/jenkins/.git-references/hey-apm.git
         timeout: '15'
         use-author: true
         wipe-workspace: 'True'
-    periodic-folder-trigger: 1d
     prune-dead-branches: true

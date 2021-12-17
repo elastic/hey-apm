@@ -3,7 +3,7 @@
 @Library('apm@current') _
 
 pipeline {
-  agent any
+  agent { label 'linux && immutable' }
   environment {
     BASE_DIR="src/github.com/elastic/hey-apm"
     JOB_GIT_CREDENTIALS = "f6c7695a-671e-4f4f-a331-acdce44ff9ba"
@@ -22,11 +22,10 @@ pipeline {
     quietPeriod(10)
   }
   parameters {
-    string(name: 'GO_VERSION', defaultValue: "1.12.1", description: "Go version to use.")
+    string(name: 'GO_VERSION', defaultValue: "1.14", description: "Go version to use.")
   }
   stages {
     stage('Initializing'){
-      agent { label 'linux && immutable' }
       options { skipDefaultCheckout() }
       environment {
         PATH = "${env.PATH}:${env.WORKSPACE}/bin"
@@ -40,7 +39,7 @@ pipeline {
         stage('Checkout') {
           steps {
             deleteDir()
-            gitCheckout(basedir: "${BASE_DIR}")
+            gitCheckout(basedir: "${BASE_DIR}", reference: '/var/lib/jenkins/.git-references/hey-apm.git')
             stash allowEmpty: true, name: 'source', useDefaultExcludes: false
           }
         }
@@ -53,7 +52,7 @@ pipeline {
               deleteDir()
               unstash 'source'
               dir("${BASE_DIR}"){
-                sh "./scripts/jenkins/unit-test.sh ${GO_VERSION}"
+                sh "./.ci/scripts/unit-test.sh ${GO_VERSION}"
               }
             }
           }

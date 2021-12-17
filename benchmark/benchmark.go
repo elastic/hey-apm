@@ -1,19 +1,18 @@
 package benchmark
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	"time"
 
-	"github.com/elastic/hey-apm/worker"
-	"go.elastic.co/apm"
+	"github.com/pkg/errors"
 
 	"github.com/elastic/hey-apm/es"
 	"github.com/elastic/hey-apm/models"
-
-	"github.com/elastic/hey-apm/conv"
-	"github.com/elastic/hey-apm/types"
-	"github.com/pkg/errors"
+	"github.com/elastic/hey-apm/worker"
 )
 
 const (
@@ -27,85 +26,107 @@ const (
 //
 // Regression checks accept an error margin and are not aware of apm-server versions, only URLs.
 // apm-server must be started independently with -E apm-server.expvar.enabled=true
-func Run(input models.Input) error {
-	// prevent send on closed chan error
-	apm.DefaultTracer.Close()
-
+func Run(ctx context.Context, input models.Input) error {
 	conn, err := es.NewConnection(input.ElasticsearchUrl, input.ElasticsearchAuth)
 	if err != nil {
 		return errors.Wrap(err, "Elasticsearch not reachable, won't be able to index a report")
 	}
 
-	warmUp(input)
-
-	run := runner(conn, input.RegressionMargin, input.RegressionDays)
-	run("transactions only", models.Wrap{input}.
-		WithTransactions(math.MaxInt32, time.Millisecond*5).
-		Input)
-	run("small transactions", models.Wrap{input}.
-		WithTransactions(math.MaxInt32, time.Millisecond*5).
-		WithSpans(10).
-		Input)
-	run("large transactions", models.Wrap{input}.
-		WithTransactions(math.MaxInt32, time.Millisecond*5).
-		WithSpans(40).
-		Input)
-	run("small errors only", models.Wrap{input}.
-		WithErrors(math.MaxInt32, time.Millisecond).
-		WithFrames(10).
-		Input)
-	run("very large errors only", models.Wrap{input}.
-		WithErrors(math.MaxInt32, time.Millisecond).
-		WithFrames(500).
-		Input)
-	run("transactions only very high load", models.Wrap{input}.
-		WithTransactions(math.MaxInt32, time.Microsecond*100).
-		Input)
-	err = run("transactions, spans and errors high load", models.Wrap{input}.
-		WithTransactions(math.MaxInt32, time.Millisecond*5).
-		WithSpans(10).
-		WithErrors(math.MaxInt32, time.Millisecond).
-		WithFrames(50).
-		Input)
-
-	if err == nil {
-		fmt.Println("deleting apm-* indices...")
-		err = es.Delete(conn, "apm-*")
-	}
-	return err
-}
-
-// Runner keeps track of errors during successive calls, returning the last one.
-func runner(conn es.Connection, margin float64, days string) func(name string, input models.Input) error {
-	var err error
-	return func(name string, input models.Input) error {
-		fmt.Println("running benchmark with " + name)
-		report, e := worker.Run(input)
-		if e == nil {
-			e = verify(conn, report, margin, days)
-		}
-		if e != nil {
-			fmt.Println(e)
-			err = e
-		}
+	log.Printf("Deleting previous APM event documents...")
+	deleted, err := es.DeleteAPMEvents(conn)
+	if err != nil {
 		return err
 	}
+	log.Printf("Deleted %d documents", deleted)
+
+	if err := warmUp(ctx, input); err != nil {
+		return err
+	}
+
+	tests := defineTests(input)
+	reports, err := tests.run(ctx)
+	if err != nil {
+		return err
+	}
+	if err := verifyReports(reports, conn, input.RegressionMargin, input.RegressionDays); err != nil {
+		return err
+	}
+	return nil
+}
+
+func defineTests(input models.Input) tests {
+	var t tests
+	t.add("transactions only", input.WithTransactions(math.MaxInt32, time.Millisecond*5))
+	t.add("small transactions", input.WithTransactions(math.MaxInt32, time.Millisecond*5).WithSpans(10))
+	t.add("large transactions", input.WithTransactions(math.MaxInt32, time.Millisecond*5).WithSpans(40))
+	t.add("small errors only", input.WithErrors(math.MaxInt32, time.Millisecond).WithFrames(10))
+	t.add("very large errors only", input.WithErrors(math.MaxInt32, time.Millisecond).WithFrames(500))
+	t.add("transactions only very high load", input.WithTransactions(math.MaxInt32, time.Microsecond*100))
+	t.add("transactions, spans and errors high load", input.WithTransactions(math.MaxInt32, time.Millisecond*5).WithSpans(10).WithErrors(math.MaxInt32, time.Millisecond).WithFrames(50))
+	return t
+}
+
+type test struct {
+	name  string
+	input models.Input
+}
+
+type tests []test
+
+func (t *tests) add(name string, input models.Input) {
+	*t = append(*t, test{name: name, input: input})
+}
+
+func (t *tests) run(ctx context.Context) ([]models.Report, error) {
+	reports := make([]models.Report, len(*t))
+	for i, test := range *t {
+		log.Printf("running benchmark %q", test.name)
+		report, err := worker.Run(ctx, test.input, test.name, nil /*stop*/)
+		if err != nil {
+			return nil, err
+		}
+		if err := coolDown(ctx); err != nil {
+			return nil, err
+		}
+		reports[i] = report
+	}
+	return reports, nil
+}
+
+func verifyReports(reports []models.Report, conn es.Connection, margin float64, days string) error {
+	var lastErr error
+	for _, report := range reports {
+		if err := verify(conn, report, margin, days); err != nil {
+			fmt.Println(err)
+			lastErr = err
+		}
+	}
+	return lastErr
 }
 
 // warmUp sends a moderate load to apm-server without saving a report.
-func warmUp(input models.Input) {
-	input = models.Wrap{input}.WithErrors(math.MaxInt16, time.Millisecond).Input
+func warmUp(ctx context.Context, input models.Input) error {
+	input = input.WithErrors(math.MaxInt16, time.Millisecond)
 	input.RunTimeout = warm
 	input.SkipIndexReport = true
-	fmt.Println(fmt.Sprintf("warming up %.1f seconds...", warm.Seconds()))
-	worker.Run(input)
-	coolDown()
+	log.Printf("warming up %.1f seconds...", warm.Seconds())
+	if _, err := worker.Run(ctx, input, "warm up", nil); err != nil {
+		return err
+	}
+	return coolDown(ctx)
 }
 
 // coolDown waits an arbitrary time for events in elasticsearch be flushed, heap be freed, etc.
-func coolDown() {
-	fmt.Println(fmt.Sprintf("cooling down %.1f seconds... ", cool.Seconds()))
-	time.Sleep(cool)
+func coolDown(ctx context.Context) error {
+	log.Printf("cooling down %.1f seconds... ", cool.Seconds())
+	timer := time.NewTimer(cool)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // verify asserts there are no performance regressions for a given workload.
@@ -114,49 +135,62 @@ func coolDown() {
 // returns an error if connection can't be established,
 // or performance decreased by a margin larger than specified
 func verify(conn es.Connection, report models.Report, margin float64, days string) error {
-	coolDown()
 	if report.EventsIndexed < 100 {
-		return errors.New(fmt.Sprintf("not enough events indexed: %d", report.EventsIndexed))
+		return fmt.Errorf("not enough events indexed: %d", report.EventsIndexed)
 	}
 
-	inputMap := conv.ToMap(report.Input)
-	filters := []types.M{
-		{
-			"range": types.M{
-				"@timestamp": types.M{
-					"gte": fmt.Sprintf("now-%sd/d", days),
-					"lt":  "now",
-				},
+	filters := []map[string]interface{}{{
+		"range": map[string]interface{}{
+			"@timestamp": map[string]interface{}{
+				"gte": fmt.Sprintf("now-%sd/d", days),
+				"lt":  "now",
 			},
 		},
+	}}
+
+	// Convert input to a JSON map, to filter on the previous results for matching inputs.
+	inputMap := make(map[string]interface{})
+	encodedInput, err := json.Marshal(report.Input)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(encodedInput, &inputMap); err != nil {
+		return err
 	}
 	for k, v := range inputMap {
-		filters = append(filters, types.M{"match": types.M{k: v}})
+		filters = append(filters, map[string]interface{}{
+			"match": map[string]interface{}{k: v},
+		})
 	}
-	body := types.M{
-		"query": types.M{
-			"bool": types.M{
+
+	savedReports, fetchErr := es.FetchReports(conn, map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
 				"must": filters,
 			},
 		},
-	}
-
-	savedReports, fetchErr := es.FetchReports(conn, body)
+	})
 	if fetchErr != nil {
 		return fetchErr
 	}
 
-	var regression error
+	var accPerformance, count float64
 	for _, sr := range savedReports {
-		if report.ReportId != sr.ReportId && report.Performance()*margin < sr.Performance() {
-			regression = newRegression(report, sr)
+		if report.ReportId != sr.ReportId {
+			accPerformance += sr.Performance()
+			count += 1.0
 		}
 	}
-	return regression
+	avgPerformance := accPerformance / count
+	if avgPerformance > report.Performance()*margin {
+		return newRegression(report, avgPerformance)
+	}
+	return nil
 }
 
-func newRegression(r1, r2 models.Report) error {
-	return errors.New(fmt.Sprintf(`test report with doc id %s was expected to show same or better 
-performance as %s, however %.2f is lower than %.2f`,
-		r1.ReportId, r2.ReportId, r1.Performance(), r2.Performance()))
+func newRegression(r models.Report, threshold float64) error {
+	return errors.New(fmt.Sprintf(
+		`test report with doc id %s was expected to show same or better performance than average of %.2f, however %.2f is significantly lower`,
+		r.ReportId, threshold, r.Performance(),
+	))
 }
