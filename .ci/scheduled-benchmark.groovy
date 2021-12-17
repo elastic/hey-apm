@@ -6,6 +6,7 @@ pipeline {
   agent any
   environment {
     BASE_DIR = 'src/github.com/elastic/hey-apm'
+		// TODO: rename branch when renaming apm-server
     VERSION_FILE = 'https://raw.githubusercontent.com/elastic/apm-server/master/vendor/github.com/elastic/beats/libbeat/version/version.go'
     JOB_GIT_CREDENTIALS = "f6c7695a-671e-4f4f-a331-acdce44ff9ba"
     GO_VERSION = "${params.GO_VERSION}"
@@ -46,7 +47,7 @@ pipeline {
           steps {
             deleteDir()
             gitCheckout(basedir: env.BASE_DIR, repo: 'git@github.com:elastic/hey-apm.git',
-                        branch: 'master', credentialsId: env.JOB_GIT_CREDENTIALS)
+                        branch: 'main', credentialsId: env.JOB_GIT_CREDENTIALS)
             stash allowEmpty: true, name: 'source', useDefaultExcludes: false
             script {
               if (params.STACK_VERSION.trim()) {
