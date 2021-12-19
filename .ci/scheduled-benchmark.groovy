@@ -48,7 +48,7 @@ pipeline {
           steps {
             deleteDir()
             gitCheckout(basedir: env.BASE_DIR, repo: 'git@github.com:elastic/hey-apm.git',
-                        branch: 'master', credentialsId: env.JOB_GIT_CREDENTIALS)
+                        branch: 'main', credentialsId: env.JOB_GIT_CREDENTIALS)
             stash allowEmpty: true, name: 'source', useDefaultExcludes: false
           }
         }
