@@ -13,3 +13,4 @@
     publishers:
     - email:
         recipients: infra-root+build@elastic.co
+    prune-dead-branches: true
